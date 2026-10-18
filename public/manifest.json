@@ -27,5 +27,31 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Input Data Baru",
+      "short_name": "Input Baru",
+      "description": "Formulir pendaftaran penerima baru",
+      "url": "/?tab=input",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Lihat Data Penerima",
+      "short_name": "Lihat Data",
+      "description": "Tabel data dan status verifikasi",
+      "url": "/?tab=lihat",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
   ]
 }

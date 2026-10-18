@@ -405,33 +405,61 @@ class SWRCacheManager {
   }
 
   _loadSessionCache() {
-    if (typeof sessionStorage === 'undefined') return;
-    try {
-      const now = Date.now();
-      const keys = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const k = sessionStorage.key(i);
-        if (k && k.startsWith(this._prefix)) {
-          keys.push(k);
+    const now = Date.now();
+    // 1. Muat dari sessionStorage (cache per-tab/sesi)
+    if (typeof sessionStorage !== 'undefined') {
+      try {
+        const keys = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith(this._prefix)) keys.push(k);
         }
-      }
-      for (const k of keys) {
-        const raw = sessionStorage.getItem(k);
-        if (raw) {
-          try {
-            const entry = JSON.parse(raw);
-            if (entry && entry.expiresAt > now) {
-              const cacheKey = k.slice(this._prefix.length);
-              this._memoryCache.set(cacheKey, entry);
-            } else {
+        for (const k of keys) {
+          const raw = sessionStorage.getItem(k);
+          if (raw) {
+            try {
+              const entry = JSON.parse(raw);
+              if (entry && entry.expiresAt > now) {
+                const cacheKey = k.slice(this._prefix.length);
+                this._memoryCache.set(cacheKey, entry);
+              } else {
+                sessionStorage.removeItem(k);
+              }
+            } catch (_err) {
               sessionStorage.removeItem(k);
             }
-          } catch (_err) {
-            sessionStorage.removeItem(k);
           }
         }
-      }
-    } catch (_e) {
+      } catch (_e) {}
+    }
+
+    // 2. Muat dari localStorage (Tier 2 Persistent untuk master data & arsip)
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(this._prefix)) keys.push(k);
+        }
+        for (const k of keys) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            try {
+              const entry = JSON.parse(raw);
+              if (entry && entry.expiresAt > now) {
+                const cacheKey = k.slice(this._prefix.length);
+                if (!this._memoryCache.has(cacheKey)) {
+                  this._memoryCache.set(cacheKey, entry);
+                }
+              } else {
+                localStorage.removeItem(k);
+              }
+            } catch (_err) {
+              localStorage.removeItem(k);
+            }
+          }
+        }
+      } catch (_e) {}
     }
   }
 
@@ -445,6 +473,23 @@ class SWRCacheManager {
     if (!entry && typeof sessionStorage !== 'undefined') {
       try {
         const raw = sessionStorage.getItem(this._prefix + key);
+        if (raw) {
+          entry = JSON.parse(raw);
+          if (entry && entry.expiresAt > Date.now()) {
+            this._memoryCache.set(key, entry);
+          } else {
+            entry = null;
+          }
+        }
+      } catch (_e) {
+        entry = null;
+      }
+    }
+
+    // Fallback cek localStorage untuk domain master / arsip_tahun
+    if (!entry && (config.domain === 'master' || config.domain === 'arsip_tahun') && typeof localStorage !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(this._prefix + key);
         if (raw) {
           entry = JSON.parse(raw);
           if (entry && entry.expiresAt > Date.now()) {
@@ -490,6 +535,7 @@ class SWRCacheManager {
 
     this._memoryCache.set(key, entry);
 
+    // Simpan ke sessionStorage (aman < 2MB)
     if (typeof sessionStorage !== 'undefined') {
       try {
         if (rawString.length < 2 * 1024 * 1024) {
@@ -498,6 +544,15 @@ class SWRCacheManager {
       } catch (_e) {
         // Kuota storage penuh -> abaikan, memori cache tetap jalan
       }
+    }
+
+    // Tier 2: Simpan data statik (master data / arsip_tahun) ke localStorage agar 0ms saat tab/browser dibuka kembali
+    if ((config.domain === 'master' || config.domain === 'arsip_tahun') && typeof localStorage !== 'undefined') {
+      try {
+        if (rawString.length < 1 * 1024 * 1024) {
+          localStorage.setItem(this._prefix + key, JSON.stringify(entry));
+        }
+      } catch (_e) {}
     }
   }
 
@@ -516,6 +571,9 @@ class SWRCacheManager {
         this._memoryCache.delete(key);
         if (typeof sessionStorage !== 'undefined') {
           try { sessionStorage.removeItem(this._prefix + key); } catch (_e) { }
+        }
+        if (typeof localStorage !== 'undefined') {
+          try { localStorage.removeItem(this._prefix + key); } catch (_e) { }
         }
       }
     }
@@ -551,6 +609,16 @@ class SWRCacheManager {
           if (k && k.startsWith(this._prefix)) keysToRemove.push(k);
         }
         keysToRemove.forEach((k) => sessionStorage.removeItem(k));
+      } catch (_e) { }
+    }
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(this._prefix)) keysToRemove.push(k);
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
       } catch (_e) { }
     }
   }

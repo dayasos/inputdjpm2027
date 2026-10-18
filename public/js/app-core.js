@@ -217,34 +217,70 @@ if ('serviceWorker' in navigator) {
     return true;
   }
 
-  let sudahReload = false;
-  let retryTimer = null; // dilacak di luar handler spy tidak dobel timer kalau controllerchange
-  // sempat terpicu lagi (mis. deploy kedua) selagi retry loop pertama
-  // masih menunggu modal/aksi selesai.
+  let activeSwReg = null;
+
+  function tampilkanNotifikasiPembaruan(reg) {
+    if (document.getElementById('pwa-update-toast')) return;
+    const toast = document.createElement('div');
+    toast.id = 'pwa-update-toast';
+    toast.className = 'fixed bottom-20 sm:bottom-5 right-4 sm:right-5 z-[9999] flex items-center gap-3 bg-slate-900/95 text-white text-xs px-4 py-3 rounded-2xl shadow-2xl border border-sky-500/40 backdrop-blur-md transition-all duration-300';
+    toast.innerHTML = `
+      <div class="flex items-center gap-2.5">
+        <span class="relative flex h-2.5 w-2.5">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500"></span>
+        </span>
+        <span class="font-medium text-slate-200">Pembaruan sistem tersedia</span>
+      </div>
+      <button type="button" id="btn-pwa-muat-ulang" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold rounded-lg shadow-sm transition">
+        Perbarui
+      </button>
+      <button type="button" id="btn-pwa-tutup-notif" class="text-slate-400 hover:text-white p-1 text-base leading-none transition" title="Tutup">
+        &times;
+      </button>
+    `;
+    document.body.appendChild(toast);
+
+    const btnReload = document.getElementById('btn-pwa-muat-ulang');
+    if (btnReload) {
+      btnReload.addEventListener('click', function () {
+        if (reg && reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+        location.reload();
+      });
+    }
+
+    const btnClose = document.getElementById('btn-pwa-tutup-notif');
+    if (btnClose) {
+      btnClose.addEventListener('click', function () {
+        toast.remove();
+      });
+    }
+  }
+
   if (navigator.serviceWorker.controller) {
     navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (sudahReload || retryTimer) return;
-      if (!amanUntukReload()) {
-        retryTimer = setInterval(function () {
-          if (sudahReload) { clearInterval(retryTimer); return; }
-          if (!amanUntukReload()) return;
-          clearInterval(retryTimer);
-          sudahReload = true;
-          location.reload();
-        }, 20000);
-        return;
-      }
-      sudahReload = true;
-      location.reload();
+      tampilkanNotifikasiPembaruan(activeSwReg);
     });
   }
 
   const doRegisterSw = function () {
     navigator.serviceWorker.register('/sw.js')
       .then(function (reg) {
+        activeSwReg = reg;
         if (reg.waiting) {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          tampilkanNotifikasiPembaruan(reg);
         }
+        reg.addEventListener('updatefound', function () {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', function () {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              tampilkanNotifikasiPembaruan(reg);
+            }
+          });
+        });
       })
       .catch(function (err) {
         console.warn('[PWA] Service Worker registration skipped:', err && err.message ? err.message : err);

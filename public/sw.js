@@ -14,22 +14,27 @@
 // 6. Otomatis membersihkan cache versi lama saat aktivasi + langsung ambil alih tab yang terbuka
 //    (skipWaiting + clients.claim) supaya versi baru aktif tanpa perlu tutup semua tab.
 
-const SW_VERSION = 'djpm-sw-v8';
+const SW_VERSION = 'djpm-sw-v9';
 const STATIC_CACHE_NAME = `djpm-static-${SW_VERSION}`;
+const FAST_TIMEOUT_MS = 3000; // 3 detik batas tunggu jaringan sebelum fallback ke cache
 
-// Daftar aset inti yang di-precache saat instalasi
+// Daftar aset inti shell yang di-precache saat instalasi PWA
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
+  '/css/tailwind.css',
   '/logo-medan.png',
-  '/manifest.json'
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('[SW] Precache gagal untuk beberapa aset:', err);
+        console.warn('[SW] Precache selesai dengan catatan:', err);
       });
     }).then(() => self.skipWaiting())
   );
@@ -47,15 +52,80 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Terima sinyal SKIP_WAITING dari halaman (lihat registrasi SW di app-core.js). Instalasi baru
-// sebenarnya sudah otomatis skipWaiting() di atas, tapi handler ini membuat pesan yang sudah
-// dikirim halaman tidak hilang percuma dan tetap aman kalau strategi auto-skip di atas suatu
-// saat diubah.
 self.addEventListener('message', (event) => {
   if (event && event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
 });
+
+/**
+ * Helper Network-First dengan Fast Timeout Fallback (3 Detik).
+ * Jika jaringan cepat (< 3 dtk): sajikan data segar dari network & perbarui cache.
+ * Jika jaringan lambat/macet (> 3 dtk): segera sajikan salinan cache lokal agar UI tidak hang,
+ * sementara network fetch tetap berjalan di latar untuk memperbarui cache berikutnya.
+ */
+function networkFirstDenganTimeout(req, cacheName, timeoutMs, fallbackNavigate) {
+  return caches.open(cacheName).then((cache) => {
+    let resolved = false;
+
+    return new Promise((resolve) => {
+      fetch(req)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && (networkResponse.type === 'basic' || networkResponse.type === 'default')) {
+            cache.put(req, networkResponse.clone()).catch(() => {});
+            if (!resolved) {
+              resolved = true;
+              resolve(networkResponse);
+            }
+          } else if (networkResponse && networkResponse.status >= 500) {
+            cache.match(req).then((cached) => {
+              if (!resolved) {
+                resolved = true;
+                if (cached) {
+                  resolve(cached);
+                } else if (fallbackNavigate) {
+                  caches.match('/index.html').then((indexCached) => resolve(indexCached || networkResponse));
+                } else {
+                  resolve(networkResponse);
+                }
+              }
+            });
+          } else {
+            if (!resolved) {
+              resolved = true;
+              resolve(networkResponse);
+            }
+          }
+        })
+        .catch(() => {
+          if (!resolved) {
+            resolved = true;
+            cache.match(req).then((cached) => {
+              if (cached) {
+                resolve(cached);
+              } else if (fallbackNavigate) {
+                caches.match('/index.html').then((indexCached) => resolve(indexCached || Response.error()));
+              } else {
+                resolve(Response.error());
+              }
+            });
+          }
+        });
+
+      // Timer fast timeout
+      setTimeout(() => {
+        if (!resolved) {
+          cache.match(req).then((cached) => {
+            if (cached && !resolved) {
+              resolved = true;
+              resolve(cached);
+            }
+          });
+        }
+      }, timeoutMs);
+    });
+  });
+}
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
@@ -78,46 +148,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Navigasi Dokumen HTML: Network-First (dengan fallback ke cache jika offline)
+  // 3. Navigasi Dokumen HTML: Network-First dengan Fast Timeout 3 Detik (fallback /index.html)
   const isNavigasi = req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html';
   if (isNavigasi && url.origin === self.location.origin) {
     event.respondWith(
-      fetch(req).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const clone = networkResponse.clone();
-          caches.open(STATIC_CACHE_NAME).then((cache) => cache.put(req, clone));
-        }
-        return networkResponse;
-      }).catch(() => {
-        return caches.match(req).then((cached) => cached || caches.match('/index.html'));
-      })
+      networkFirstDenganTimeout(req, STATIC_CACHE_NAME, FAST_TIMEOUT_MS, true)
     );
     return;
   }
 
-  // 4. Skrip aplikasi (/js/): Network-First -- selalu coba versi terbaru dulu, cache hanya
-  // sebagai fallback offline/koneksi gagal. Mencegah bug yang sudah diperbaiki di kode tetap
-  // tersaji dari cache lama sampai user hard refresh.
+  // 4. Skrip aplikasi (/js/): Network-First dengan Fast Timeout 3 Detik
   const isScriptAsset = url.origin === self.location.origin && url.pathname.startsWith('/js/');
   if (isScriptAsset) {
     event.respondWith(
-      caches.open(STATIC_CACHE_NAME).then((cache) => {
-        return fetch(req).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            cache.put(req, networkResponse.clone());
-            return networkResponse;
-          }
-          // Respons jaringan tidak sehat (mis. 500/502/503 sementara di origin/CDN) -- jangan
-          // pecahkan halaman kalau ada salinan cache yang masih valid, pakai itu dulu drpd
-          // meneruskan respons error ke browser.
-          return cache.match(req).then((cached) => cached || networkResponse);
-        }).catch(() => {
-          // fetch() gagal total (offline/DNS) -- kalau cache juga kosong (mis. kunjungan
-          // pertama yg langsung offline), Response.error() dipakai supaya respondWith() tetap
-          // menerima Response yang valid, bukan undefined (yg bikin browser lempar TypeError).
-          return cache.match(req).then((cached) => cached || Response.error());
-        });
-      })
+      networkFirstDenganTimeout(req, STATIC_CACHE_NAME, FAST_TIMEOUT_MS, false)
     );
     return;
   }
@@ -134,29 +178,22 @@ self.addEventListener('fetch', (event) => {
       url.pathname === '/manifest.json');
 
   if (!isStaticAsset) {
-    // Biarkan browser menangani request normal lainnya
     return;
   }
 
-  // 6. Stale-While-Revalidate untuk aset statis non-skrip (aman basi sebentar, tidak ada logika)
+  // 6. Stale-While-Revalidate untuk aset statis non-skrip (CSS, Ikon, Gambar, Manifest)
   event.respondWith(
     caches.open(STATIC_CACHE_NAME).then((cache) => {
       return cache.match(req).then((cachedResponse) => {
         const fetchPromise = fetch(req).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            cache.put(req, networkResponse.clone());
+            cache.put(req, networkResponse.clone()).catch(() => {});
           }
           return networkResponse;
-        }).catch(() => {
-          // Jika fetch gagal (offline), kembalikan cachedResponse jika ada
-          return cachedResponse;
-        });
+        }).catch(() => cachedResponse);
 
-        // Kembalikan aset dari cache seketika jika ada, atau tunggu network jika belum di-cache
         return cachedResponse || fetchPromise;
       });
-    }).catch(() => {
-      return fetch(req);
-    })
+    }).catch(() => fetch(req))
   );
 });
