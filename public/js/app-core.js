@@ -828,6 +828,13 @@ function pastikanLogin() {
   return true;
 }
 
+// Membuka modal "Periode Input Telah Ditutup". app-pesan-periode.js menggantikannya: modal hanya muncul
+// sekali per sesi per penutupan (atau bila ada pesan Admin Utama yang belum dibaca) dan memuat pesannya.
+function bukaModalNotifTutup(res) {
+  if (typeof window.tampilkanModalTutupPeriode === 'function') { window.tampilkanModalTutupPeriode(res, false); return; }
+  document.getElementById('modal-notif-tutup').classList.remove('hidden');
+}
+
 function terapkanHakAkses(role, kecamatan, inputDitutup) {
   inputDitutupGlobal = !!inputDitutup;
 
@@ -998,11 +1005,11 @@ function terapkanHakAkses(role, kecamatan, inputDitutup) {
               </div>
             `;
           }
-          document.getElementById('modal-notif-tutup').classList.remove('hidden');
+          bukaModalNotifTutup(res);
         }
       })
       .withFailureHandler(function () {
-        document.getElementById('modal-notif-tutup').classList.remove('hidden');
+        bukaModalNotifTutup(null);
       })
       .ambilStatusDetailSetelan(dataPengguna.token);
 

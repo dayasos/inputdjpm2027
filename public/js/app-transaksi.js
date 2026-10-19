@@ -621,6 +621,9 @@ async function panggilGasDenganRetry(aksi, args, timeoutMs) {
   }
   throw terakhir || new Error('Tidak ada respons dari server Drive.');
 }
+// Pemanggil unggah memakai unggahBerkasDenganIzin (izin periode input + masa tenggang). app-pesan-periode.js
+// (dimuat setelah berkas ini) menimpanya; bila gagal dimuat, cadangan ini mengunggah langsung seperti dulu.
+window.unggahBerkasDenganIzin = function (konteks, berkasMap) { return unggahBerkasKeDriveGAS(konteks, berkasMap); };
 async function unggahBerkasKeDriveGAS(konteks, berkasMap) {
   const kunciList = Object.keys(berkasMap || {}).filter(function (k) { return berkasMap[k] && berkasMap[k].file; });
   if (kunciList.length === 0) return { sukses: true, link: {} };
@@ -831,7 +834,7 @@ function panggilSimpanDataKeSheetSetelahUpload(dataObjek, pulihkanTombol) {
       berkasUntukUpload[k] = { file: item.file, namaFile: item.namaFile, mimeType: item.mimeType, ukuranByte: item.ukuranByte, label: label[k] || k };
     }
   });
-  unggahBerkasKeDriveGAS(
+  unggahBerkasDenganIzin(
     {
       kecamatan: (dataObjek.controlKecamatan || (typeof dataPengguna !== 'undefined' && dataPengguna ? dataPengguna.kecamatan : '') || '').toString().trim().toUpperCase(),
       layanan: dataObjek.selectLayanan,
@@ -2955,7 +2958,7 @@ function halamanBerikutnya() {
       tampilkanToast("Gagal mempersiapkan berkas: " + e.message, "gagal");
       return;
     }
-    unggahBerkasKeDriveGAS(
+    unggahBerkasDenganIzin(
       { kecamatan: dataAktif[10], layanan: dataAktif[7], nama: dataAktif[1], nik: dataAktif[2], folderId: dataAktif[30] },
       berkasUntukUpload
     ).then(function (hasilUpload) {

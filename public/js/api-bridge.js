@@ -208,6 +208,8 @@ const SWR_CONFIG = {
 
   statusInputKecKem: { ttl: 2 * 60 * 1000, domain: 'setelan' },
   ambilStatusDetailSetelan: { ttl: 2 * 60 * 1000, domain: 'setelan' },
+  // Klik "Mengerti" tidak memicu sinyal realtime (sengaja), jadi TTL-nya pendek.
+  ambilStatistikBacaPesan: { ttl: 30 * 1000, domain: 'setelan' },
   ambilDaftarUserDenganStatus: { ttl: 2 * 60 * 1000, domain: 'setelan' },
 
   // Akun & Audit: TTL 5 menit
@@ -262,6 +264,16 @@ const MUTATION_INVALIDATIONS = {
   statusAktivasiKembali: ['data_detail'],
   simpanKuota: ['kuota', 'dashboard'],
   setInputKecKem: ['setelan'],
+  // Timer periode input: jadwal & status periode ada di domain 'setelan'.
+  aturJadwalPeriode: ['setelan'],
+  batalkanJadwalPeriode: ['setelan'],
+  perpanjangJadwalPeriode: ['setelan'],
+  // Pesan Admin Utama ikut domain 'setelan' (statusInputKecKem & ambilStatusDetailSetelan memuat pesan).
+  // tandaiPesanDibaca SENGAJA tidak ada di sini: invalidasi disiarkan ke SELURUH klien, jadi tiap klik
+  // "Mengerti" akan memicu penyegaran di semua admin lain. Status baca dikelola lokal (app-pesan-periode.js).
+  simpanPesanAdmin: ['setelan'],
+  terbitkanPesanAdmin: ['setelan'],
+  tarikPesanAdmin: ['setelan'],
   setSakelarUserByAdmin: ['setelan'],
   resetSakelarUserByAdmin: ['setelan'],
   bulkSakelarPerKecamatan: ['setelan'],
@@ -343,6 +355,7 @@ const AKSI_BACA_AMAN_DIRETRY = new Set([
   'validasiDataBaru',
   'ambilBarisLihatDataByIds',
   'pulihkanSesi',
+  'ambilStatusPeriode', // alias statusInputKecKem TANPA cache: jam server selalu segar
   'ambilDetailBatchPembayaran',
   'getDaftarBerkasTidakLengkapUntukWA',
   'ambilDaftarAkunLengkap',

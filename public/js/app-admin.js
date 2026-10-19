@@ -735,14 +735,20 @@ function tampilkanModalUpdate() {
       ? "Semua admin kecamatan dan kemenag akan bisa mulai menginput dan mengedit data."
       : "Semua admin kecamatan dan kemenag tidak akan bisa menginput atau mengedit data sampai Anda membuka kembali.";
 
-    konfirmasiAksi({
-      judul: aksi + " Periode Input Data",
-      pesan: "Anda yakin ingin " + aksi.toLowerCase() + " periode input?\n\n" + dampak + "\n\n(Catatan: Admin utama tetap bebas kapan saja).",
-      tipe: buka ? "info" : "warning",
-      teksBatal: "Batal",
-      teksKonfirmasi: "Ya, " + aksi
-    }).then(function (setuju) {
-      if (!setuju) return;
+    // Dialog baru (app-jadwal-pesan.js) membawa pilihan Pesan Admin Utama + pertanyaan membatalkan
+    // jadwal tutup otomatis. Bila berkasnya tidak termuat, tetap pakai konfirmasi lama.
+    const dialog = (typeof window.dialogSakelarManual === 'function')
+      ? window.dialogSakelarManual(buka)
+      : konfirmasiAksi({
+        judul: aksi + " Periode Input Data",
+        pesan: "Anda yakin ingin " + aksi.toLowerCase() + " periode input?\n\n" + dampak + "\n\n(Catatan: Admin utama tetap bebas kapan saja).",
+        tipe: buka ? "info" : "warning",
+        teksBatal: "Batal",
+        teksKonfirmasi: "Ya, " + aksi
+      }).then(function (setuju) { return { setuju: setuju }; });
+
+    dialog.then(function (hasilDialog) {
+      if (!hasilDialog || !hasilDialog.setuju) return;
       const btn = document.getElementById('sakelar-toggle');
       if (btn) { btn.disabled = true; btn.textContent = "⏳ MEMPROSES..."; }
 
@@ -753,6 +759,8 @@ function tampilkanModalUpdate() {
             if (res.cleanup > 0) {
               pesanSukses += " Auto-cleanup: " + res.cleanup + " sakelar khusus yang jadi redundant telah dihapus.";
             }
+            if (res.pesanTerbit) pesanSukses += " Pesan Admin Utama sudah diterbitkan ke seluruh pengguna.";
+            if (res.jadwalDibatalkan > 0) pesanSukses += " " + res.jadwalDibatalkan + " jadwal otomatis dibatalkan.";
             tampilPesanSakelar(pesanSukses, true);
             setTimeout(function () {
               muatStatusSakelar();
@@ -767,7 +775,7 @@ function tampilkanModalUpdate() {
           tampilPesanSakelar("Error: " + (err && err.message ? err.message : err), false);
           if (btn) { btn.disabled = false; muatStatusSakelar(); }
         })
-        .setInputKecKem(dataPengguna.token, buka);
+        .setInputKecKem(dataPengguna.token, buka, hasilDialog.batalkanJadwal === true, hasilDialog.pesanId || null);
     });
   }
 })();

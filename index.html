@@ -211,7 +211,7 @@
        -- jangan hapus defer dari salah satu tanpa menambahkannya ke semua, lihat urutan sama
        di penutup body. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-  <script src="/js/api-bridge.js?v=20271008" defer></script>
+  <script src="/js/api-bridge.js?v=20271019" defer></script>
 </head>
 
 <body class="bg-slate-100 min-h-screen flex flex-col overflow-x-hidden">
@@ -2432,8 +2432,8 @@
   <!-- Modal Notifikasi Periode Input Ditutup (untuk kecamatan/kemenag saat login) -->
   <div id="modal-notif-tutup"
     class="hidden fixed inset-0 z-[380] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-amber-100 overflow-hidden">
-      <div class="bg-amber-500 px-5 py-4 flex items-center gap-3">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-amber-100 overflow-hidden max-h-[92vh] max-h-[92dvh] flex flex-col">
+      <div class="bg-amber-500 px-5 py-4 flex items-center gap-3 shrink-0">
         <div
           class="w-9 h-9 rounded-xl bg-amber-600/30 border border-amber-300/40 flex items-center justify-center shrink-0 text-amber-100">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
@@ -2446,8 +2446,11 @@
           <div class="text-white font-bold text-sm tracking-wide uppercase">Periode Input Telah Ditutup</div>
           <div class="text-amber-50 text-xs mt-0.5">Sistem dalam mode Lihat Data</div>
         </div>
+        <button type="button" data-modal-close aria-label="Tutup"
+          onclick="(window.tutupModalNotifTutup||function(){document.getElementById('modal-notif-tutup').classList.add('hidden')})()"
+          class="ml-auto self-start text-white/90 hover:text-white hover:bg-white/10 p-1.5 rounded-lg text-2xl leading-none">&times;</button>
       </div>
-      <div class="px-5 pt-4 pb-2">
+      <div class="px-5 pt-4 pb-2 overflow-y-auto overscroll-contain">
         <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3">
           <p class="text-sm text-amber-900 leading-relaxed">
             Periode input data penerima Dana Jasa Pelayanan tahun 2027 telah <strong>ditutup</strong> oleh Admin Utama
@@ -2491,8 +2494,8 @@
           surat resmi dari instansi.
         </p>
       </div>
-      <div class="px-5 pb-5">
-        <button onclick="document.getElementById('modal-notif-tutup').classList.add('hidden')"
+      <div class="px-5 pb-5 shrink-0">
+        <button onclick="(window.mengertiModalNotifTutup||function(){document.getElementById('modal-notif-tutup').classList.add('hidden')})()"
           class="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl transition">
           Mengerti
         </button>
@@ -3464,14 +3467,16 @@
   <!-- ========================================================================= -->
   <!-- MODUL JAVASCRIPT DJPM 2027 (Standar Maksimal 3.000 Baris Kode per File)  -->
   <!-- ========================================================================= -->
-  <script src="/js/app-core.js?v=20271017" defer></script>
-  <script src="/js/app-transaksi.js?v=20271011" defer></script>
-  <script src="/js/app-admin.js?v=20271017" defer></script>
+  <script src="/js/app-core.js?v=20271019" defer></script>
+  <script src="/js/app-transaksi.js?v=20271019" defer></script>
+  <script src="/js/app-admin.js?v=20271019" defer></script>
   <script src="/js/app-kelola-data.js?v=20271007" defer></script>
   <script src="/js/app-kelola-user.js?v=20271017" defer></script>
   <script src="/js/app-kelola-ibadah.js?v=20271017" defer></script>
   <script src="/js/app-retur.js?v=20271012" defer></script>
   <script src="/js/app-retur-status.js?v=20271012" defer></script>
+  <!-- app-pesan-periode.js memuat app-jadwal-pesan.js (modal admin) secara malas, hanya untuk UTAMA, dgn versi (?v=) yang sama -->
+  <script src="/js/app-pesan-periode.js?v=20271019" defer></script>
   <script src="/js/modal-a11y.js?v=20271008" defer></script>
 
 </body>
