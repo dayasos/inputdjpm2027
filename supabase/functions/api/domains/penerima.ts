@@ -9,7 +9,7 @@ import {
   resolveInstansiPengguna,
   subFilterGsmDari,
 } from "../_shared/akses.ts";
-import { cekAksesInputUser } from "./setelan.ts";
+import { periksaIzinInput } from "./setelan.ts";
 import { cekKuotaTersedia } from "./validasi.ts";
 import { cariRumahIbadah, kelurahanAdaDiKecamatan, tentukanWilayahTugas } from "../_shared/wilayahTugas.ts";
 
@@ -617,16 +617,10 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
       }
     }
 
-    // ── Cek sakelar tutup (port Kode.gs baris 1074-1085) ──
-    const adalahKecKem = peranSesi === "KECAMATAN" || listLayananKemenag.includes(peranSesi);
-    if (adalahKecKem) {
-      const akses = await cekAksesInputUser(sesi.userId);
-      if (akses.ditutup) {
-        const pesan = akses.sumber === "KHUSUS"
-          ? "Akses input untuk akun Anda telah ditutup secara khusus oleh admin utama. Hubungi Dinas Sosial Kota Medan."
-          : "Periode input sudah ditutup oleh admin utama.";
-        return { sukses: false, pesan };
-      }
+    // ── Cek sakelar tutup (port Kode.gs baris 1074-1085), kini juga jadwal timer + masa tenggang ──
+    {
+      const keputusan = await periksaIzinInput(sesi, "simpan", listLayananKemenag);
+      if (!keputusan.izin) return keputusan.respons;
     }
 
     // ── Validasi server (port Kode.gs baris 1087-1100) ──
@@ -864,15 +858,9 @@ export async function editDataPenerima(
     if (peranSesi === "MUI") {
       return { sukses: false, pesan: "Akses ditolak: Akun MUI hanya memiliki hak akses melihat data, tidak dapat mengedit data." };
     }
-    const adalahKecKem = peranSesi === "KECAMATAN" || listLayananKemenag.includes(peranSesi);
-    if (adalahKecKem) {
-      const akses = await cekAksesInputUser(sesi.userId);
-      if (akses.ditutup) {
-        const pesan = akses.sumber === "KHUSUS"
-          ? "Akses edit untuk akun Anda telah ditutup secara khusus oleh admin utama. Perubahan data hanya dapat dilakukan oleh Admin Utama Dinas Sosial Kota Medan berdasarkan surat resmi."
-          : "Periode input telah ditutup. Perubahan data hanya dapat dilakukan oleh Admin Utama Dinas Sosial Kota Medan berdasarkan surat resmi dari instansi.";
-        return { sukses: false, pesan };
-      }
+    {
+      const keputusan = await periksaIzinInput(sesi, "edit", listLayananKemenag);
+      if (!keputusan.izin) return keputusan.respons;
     }
 
     const teks = editData.teks || {};

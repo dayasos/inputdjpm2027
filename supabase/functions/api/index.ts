@@ -66,12 +66,23 @@ import {
 import {
   ambilDaftarUserDenganStatus,
   ambilStatusDetailSetelan,
+  aturJadwalPeriode,
+  batalkanJadwalPeriode,
   bulkSakelarPerKecamatan,
+  mulaiUnggahBerkas,
+  perpanjangJadwalPeriode,
   resetSakelarUserByAdmin,
   setInputKecKem,
   setSakelarUserByAdmin,
   statusInputKecKem,
 } from "./domains/setelan.ts";
+import {
+  ambilStatistikBacaPesan,
+  simpanPesanAdmin,
+  tandaiPesanDibaca,
+  tarikPesanAdmin,
+  terbitkanPesanAdmin,
+} from "./domains/pesanAdmin.ts";
 import {
   ambilDaftarAkun,
   ambilDaftarAkunLengkap,
@@ -154,8 +165,20 @@ const ALLOWED: Record<string, Handler> = {
   getDaftarBerkasTidakLengkapUntukWA,
   cekBatasWaktuVerifikasi,
   statusInputKecKem,
+  // Alias TANPA cache di browser (tidak ada di SWR_CONFIG): dipakai hitung mundur & pesan Admin Utama
+  // yang butuh jam server segar dan status baca yang akurat.
+  ambilStatusPeriode: statusInputKecKem,
   setInputKecKem,
   ambilStatusDetailSetelan,
+  aturJadwalPeriode,
+  batalkanJadwalPeriode,
+  perpanjangJadwalPeriode,
+  mulaiUnggahBerkas,
+  simpanPesanAdmin,
+  terbitkanPesanAdmin,
+  tarikPesanAdmin,
+  tandaiPesanDibaca,
+  ambilStatistikBacaPesan,
   setSakelarUserByAdmin,
   resetSakelarUserByAdmin,
   ambilDaftarUserDenganStatus,
