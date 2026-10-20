@@ -550,16 +550,22 @@
   // ---------------------------------------------------------------------------------------------
   // Pemicu: login/pemulihan sesi/penyegaran (lewat terapkanHakAkses), tab aktif lagi, online, berkala
   // ---------------------------------------------------------------------------------------------
-  // Skrip admin (modal Jadwal & Pesan, ±15 KB gzip) hanya dimuat untuk UTAMA, setelah login.
-  var skripAdminDimuat = false;
+  // Skrip admin hanya dimuat untuk UTAMA, setelah login: modal Jadwal & Pesan (±15 KB gzip) dan
+  // laporan PDF Dashboard Progres (plans/plan-pdf-dashboard-progres.md). Gagal muat satu skrip tidak
+  // memengaruhi yang lain, dan masing-masing dicoba lagi pada pemicu berikutnya.
+  var SKRIP_ADMIN = ['/js/app-jadwal-pesan.js', '/js/app-laporan-progres.js'];
+  var skripAdminDimuat = {};
   function muatSkripAdmin() {
-    if (skripAdminDimuat || role() !== 'UTAMA' || typeof dataPengguna === 'undefined' || !dataPengguna.token) return;
-    skripAdminDimuat = true;
-    var s = document.createElement('script');
-    s.src = '/js/app-jadwal-pesan.js' + (VERSI ? '?v=' + VERSI : '');
-    s.async = true;
-    s.onerror = function () { skripAdminDimuat = false; };   // coba lagi pada pemicu berikutnya
-    document.head.appendChild(s);
+    if (role() !== 'UTAMA' || typeof dataPengguna === 'undefined' || !dataPengguna.token) return;
+    SKRIP_ADMIN.forEach(function (url) {
+      if (skripAdminDimuat[url]) return;
+      skripAdminDimuat[url] = true;
+      var s = document.createElement('script');
+      s.src = url + (VERSI ? '?v=' + VERSI : '');
+      s.async = true;
+      s.onerror = function () { skripAdminDimuat[url] = false; };
+      document.head.appendChild(s);
+    });
   }
 
   function sesiDiterapkan() {
