@@ -146,11 +146,18 @@ export async function laporkanPerbaikanBerkas(token: string, nomorBarisAsli: num
 
   try {
     const rowsCek = await sql`
-      select layanan, kecamatan, kelurahan, tempat_tugas, status_verifikasi
+      select layanan, kecamatan, kelurahan, tempat_tugas, status_verifikasi, dibuat_oleh_akun_id
       from penerima where id = ${id} and tahun = ${TAHUN_AKTIF} limit 1
     `;
     if (rowsCek.length === 0) return { sukses: false, pesan: "Baris tidak ditemukan." };
     const rowCek = rowsCek[0];
+
+    // Akun MUI (bisa menginput sejak 2026-10-20) hanya melapor perbaikan untuk data yang DIA input sendiri;
+    // data Ustadz/Ustadzah milik Kecamatan tetap urusan Kecamatan itu.
+    if ((sesi.role || "").toString().trim().toUpperCase() === "MUI" &&
+        (!rowCek.dibuat_oleh_akun_id || String(rowCek.dibuat_oleh_akun_id) !== String(sesi.akunId))) {
+      return { sukses: false, pesan: "Akun MUI hanya dapat melapor perbaikan untuk data yang diinputnya sendiri." };
+    }
 
     const { instansiPengguna, layananPengguna, listLayananKemenag } = await resolveInstansiPengguna(sesi.role);
     if (!instansiPengguna) return { sukses: false, pesan: "Anda tidak berhak melapor untuk data ini." };

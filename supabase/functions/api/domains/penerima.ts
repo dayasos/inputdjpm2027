@@ -4,7 +4,9 @@ import { LAYANAN_BATASI_TEMPAT_TUGAS, rapikanTeks, TAHUN_AKTIF } from "../_share
 import { bersihkanSelUntukArray, formatTanggalDDMMYYYY, formatTanggalWaktuWIB } from "../_shared/tanggal.ts";
 import {
   daftarLayananKemenagUpper,
+  kategoriPenginput,
   kelurahanTerkunciDari,
+  layananBolehDiinputMui,
   lolosAksesBarisLihatData,
   resolveInstansiPengguna,
   subFilterGsmDari,
@@ -12,6 +14,35 @@ import {
 import { periksaIzinInput } from "./setelan.ts";
 import { cekKuotaTersedia } from "./validasi.ts";
 import { cariRumahIbadah, kelurahanAdaDiKecamatan, tentukanWilayahTugas } from "../_shared/wilayahTugas.ts";
+
+// ---------------------------------------------------------------------------
+// Penanda PENGINPUT di Lihat Data (rencana akun MUI, 2026-10-20): data hasil input akun MUI diberi tanda
+// "Input MUI" untuk Admin Utama (dan MUI). Dua kolom ditambahkan di UJUNG baris daftar (indeks 23 & 24) dan
+// indeks 48-51 pada detail, jadi indeks lama tidak bergeser. Server hanya MENGISI keterangan ini untuk
+// Admin Utama dan MUI; peran lain menerima string kosong (bentuk baris tetap sama).
+//   daftar : [23] kategori penginput (UTAMA | KECAMATAN | KEMENAG | MUI | ""), [24] nama akun penginput
+//   detail : [48] kategori, [49] nama, [50] waktu input (WIB), [51] true bila data ini diinput akun yang sedang login
+// Pelacaknya sudah ada sejak awal (penerima.dibuat_oleh_akun_id, dibuat_at), jadi tanpa migrasi.
+// Subselect lateral hanya mengekspos 2 kolom sehingga nama kolom lain di query (id, kecamatan, ...) tidak ambigu.
+// ---------------------------------------------------------------------------
+function joinPenginput() {
+  return sql`
+    left join lateral (
+      select a.role as penginput_role, coalesce(nullif(btrim(a.nama_lengkap), ''), a.username::text) as penginput_nama
+      from akun a where a.id = penerima.dibuat_oleh_akun_id
+    ) pa on true
+  `;
+}
+
+function bolehLihatPenginput(instansi: string | null): boolean {
+  return instansi === "SUPERADMIN" || instansi === "MUI";
+}
+
+// deno-lint-ignore no-explicit-any
+function kolomPenginput(row: any, boleh: boolean, listLayananKemenag: string[]): [string, string] {
+  if (!boleh || !row.penginput_role) return ["", ""];
+  return [kategoriPenginput(row.penginput_role, listLayananKemenag), String(row.penginput_nama ?? "").trim()];
+}
 
 export async function ambilDataLihatDataHakAkses(token: string): Promise<string> {
   let sesi;
@@ -51,8 +82,10 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
         select id, nama, nik, jenis_kelamin, tempat_lahir, tanggal_lahir, alamat, layanan,
                tempat_tugas, alamat_tugas, kecamatan, kelurahan, nama_rekening, nomor_rekening,
                kantor_cabang, no_kontak, status_bpjs_tk, umur, status_verifikasi, tanggal_lapor_perbaikan,
-               status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui
+               status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui,
+               pa.penginput_role, pa.penginput_nama
         from penerima
+        ${joinPenginput()}
         where tahun = ${TAHUN_AKTIF}
         order by nomor_urut
       `;
@@ -125,8 +158,10 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
         select id, nama, nik, jenis_kelamin, tempat_lahir, tanggal_lahir, alamat, layanan,
                tempat_tugas, alamat_tugas, kecamatan, kelurahan, nama_rekening, nomor_rekening,
                kantor_cabang, no_kontak, status_bpjs_tk, umur, status_verifikasi, tanggal_lapor_perbaikan,
-               status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui
+               status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui,
+               pa.penginput_role, pa.penginput_nama
         from penerima
+        ${joinPenginput()}
         where tahun = ${TAHUN_AKTIF}
           and upper(layanan) in ('USTADZ', 'USTADZAH', 'USTADZ/USTADZAH')
         order by nomor_urut
@@ -190,6 +225,7 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
         row.status_rekomendasi_mui || "BELUM_DIPERIKSA",
         row.catatan_rekomendasi_mui || "",
         row.respon_admin_mui || "",
+        ...kolomPenginput(row, bolehLihatPenginput(instansiPengguna), listLayananKemenag),
       ]);
     }
 
@@ -209,7 +245,7 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
 // dari tabel; ini juga yang membuat baris yang dihapus admin lain langsung hilang).
 // Hanya baca: tidak ada insert/update/delete di sini.
 // deno-lint-ignore no-explicit-any
-function petakanBarisLihat(row: any): unknown[] {
+function petakanBarisLihat(row: any, penginput: [string, string]): unknown[] {
   return [
     row.id,
     row.nama,
@@ -234,6 +270,8 @@ function petakanBarisLihat(row: any): unknown[] {
     row.status_rekomendasi_mui || "BELUM_DIPERIKSA",
     row.catatan_rekomendasi_mui || "",
     row.respon_admin_mui || "",
+    penginput[0],
+    penginput[1],
   ];
 }
 
@@ -265,8 +303,10 @@ export async function ambilBarisLihatDataByIds(token: string, ids: unknown) {
       select id, nama, nik, jenis_kelamin, tempat_lahir, tanggal_lahir, alamat, layanan,
              tempat_tugas, alamat_tugas, kecamatan, kelurahan, nama_rekening, nomor_rekening,
              kantor_cabang, no_kontak, status_bpjs_tk, umur, status_verifikasi, tanggal_lapor_perbaikan,
-             status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui
+             status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui,
+             pa.penginput_role, pa.penginput_nama
       from penerima
+      ${joinPenginput()}
       where tahun = ${TAHUN_AKTIF} and id in ${sql(daftarId)}
     `;
 
@@ -287,7 +327,7 @@ export async function ambilBarisLihatDataByIds(token: string, ids: unknown) {
       });
       if (!lolos) continue;
       ditemukan.add(Number(row.id));
-      resultRows.push(petakanBarisLihat(row));
+      resultRows.push(petakanBarisLihat(row, kolomPenginput(row, bolehLihatPenginput(instansiPengguna), listLayananKemenag)));
     }
     const hilang = daftarId.filter((id) => !ditemukan.has(id));
 
@@ -381,6 +421,26 @@ export async function ambilDetailPenerimaPerBaris(token: string, nomorBarisAsli:
     dataLengkap[45] = row.respon_admin_mui || "";
     dataLengkap[46] = formatTanggalWaktuWIB(row.tgl_respon_admin_mui);
     dataLengkap[47] = row.id;
+
+    // Penginput (indeks 48-51, non-breaking; lihat catatan di atas joinPenginput). Keterangan penginput hanya
+    // dikirim ke Admin Utama & MUI; [51] "milik sendiri" untuk semua peran (dipakai tombol Edit akun MUI).
+    let penginputKategori = "";
+    let penginputNama = "";
+    let penginputWaktu = "";
+    if (bolehLihatPenginput(instansiPengguna)) {
+      penginputWaktu = row.dibuat_at ? formatTanggalWaktuWIB(row.dibuat_at) : "";
+      if (row.dibuat_oleh_akun_id) {
+        const rowsPenginput = await sql`select role, nama_lengkap, username from akun where id = ${row.dibuat_oleh_akun_id} limit 1`;
+        if (rowsPenginput.length > 0) {
+          penginputKategori = kategoriPenginput(rowsPenginput[0].role, listLayananKemenag);
+          penginputNama = String(rowsPenginput[0].nama_lengkap || "").trim() || String(rowsPenginput[0].username || "").trim();
+        }
+      }
+    }
+    dataLengkap[48] = penginputKategori;
+    dataLengkap[49] = penginputNama;
+    dataLengkap[50] = penginputWaktu;
+    dataLengkap[51] = !!row.dibuat_oleh_akun_id && String(row.dibuat_oleh_akun_id) === String(sesi.akunId);
 
     return JSON.stringify({ sukses: true, dataLengkap });
   } catch (error) {
@@ -597,10 +657,12 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
     const listLayananKemenag = await daftarLayananKemenagUpper();
 
     if (peranSesi === "MUI") {
-      return { sukses: false, pesan: "Akses ditolak: Akun MUI hanya memiliki hak akses melihat data, tidak dapat menginput data." };
-    }
-
-    if (peranSesi !== "UTAMA") {
+      // Akun MUI menginput se-Kota Medan (tanpa kecamatan sesi), tetapi HANYA layanan Ustadz/Ustadzah.
+      // Penegakan di server; dropdown/tombol di browser hanya kenyamanan.
+      if (!layananBolehDiinputMui(layanan)) {
+        return { sukses: false, pesan: "GAGAL: Akun MUI hanya berwenang mengisi layanan Ustadz dan Ustadzah." };
+      }
+    } else if (peranSesi !== "UTAMA") {
       if (peranSesi === "KECAMATAN") {
         if (listLayananKemenag.includes(layanan)) {
           return { sukses: false, pesan: "GAGAL: Akun Kecamatan tidak berwenang mengisi layanan Kemenag." };
@@ -687,6 +749,23 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
       };
     }
 
+    // ── Rekomendasi MUI untuk data yang DIINPUT akun MUI sendiri: langsung "Sesuai" (keputusan K4a, 2026-10-20) ──
+    // MUI tidak perlu memeriksa inputnya sendiri, dan antrean "Belum Diperiksa" tidak terisi data miliknya.
+    // Berkas tetap diverifikasi Admin Utama seperti biasa. Petugas = nama akun yang MENYIMPAN (dibaca dari
+    // tabel akun; objek sesi tidak membawa nama lengkap). Input peran lain memakai nilai bawaan kolom.
+    let rekomStatus = "BELUM_DIPERIKSA";
+    let rekomPetugas: string | null = null;
+    let rekomTgl: Date | null = null;
+    let rekomCatatan: string | null = null;
+    if (peranSesi === "MUI") {
+      const rowsAkun = await sql`select nama_lengkap, username from akun where id = ${sesi.akunId} limit 1`;
+      const namaAkun = String(rowsAkun[0]?.nama_lengkap || "").trim() || String(rowsAkun[0]?.username || "").trim();
+      rekomStatus = "SESUAI";
+      rekomPetugas = namaAkun || "MUI Kota Medan";
+      rekomTgl = new Date();
+      rekomCatatan = "Diinput langsung oleh akun MUI";
+    }
+
     // ── Hitung nomor urut & INSERT ke Postgres dengan retry otomatis jika terjadi tabrakan nomor urut ──
     // (Serial per tahun dengan unique index uq_penerima_nomor_urut. Jika dua operator submit bersamaan,
     // percobaan kedua/ketiga akan menghitung ulang nomor urut baru secara instan).
@@ -717,7 +796,8 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
               id_folder_berkas, link_koordinat_lokasi,
               status_verifikasi, catatan_perbedaan_nama,
               dibuat_oleh_akun_id, sync_status,
-              kecamatan_domisili, kelurahan_domisili
+              kecamatan_domisili, kelurahan_domisili,
+              status_rekomendasi_mui, petugas_rekomendasi_mui, tgl_rekomendasi_mui, catatan_rekomendasi_mui
             ) values (
               ${TAHUN_AKTIF}, ${nomorUrut},
               ${nama}, ${nik}, ${jenisKelamin}, ${tempatLahir}, ${tanggalLahirISO}, ${alamat},
@@ -732,7 +812,8 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
               ${idFolderBerkas}, ${koordinatLink},
               'Proses Verifikasi', ${catatanPerbedaanNama},
               ${sesi.akunId}, 'SUKSES',
-              ${kecamatanDomisili}, ${kelurahanDomisili}
+              ${kecamatanDomisili}, ${kelurahanDomisili},
+              ${rekomStatus}, ${rekomPetugas}, ${rekomTgl}, ${rekomCatatan}
             )
             returning id
           `;
@@ -743,7 +824,11 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
       } catch (err) {
         lastError = err;
         const msgErr = String(err);
-        if (msgErr.includes("uq_penerima_nomor_urut") && percobaan < maksPercobaan - 1) {
+        // Postgres melaporkan nama indeks PARTISI yang bertabrakan (penerima_<TAHUN>_tahun_nomor_urut_idx), BUKAN nama
+        // indeks induk (uq_penerima_nomor_urut, yang hanya "ON ONLY" pada tabel berpartisi). Dulu hanya nama induk yang
+        // dicocokkan sehingga coba-ulang ini tidak pernah jalan dan penyimpan kedua melihat "Gagal Sistem: duplicate key".
+        // Pola yang sama dgn penanganan indeks rekening/tempat tugas di blok catch bawah (nama berubah per tahun).
+        if (/uq_penerima_nomor_urut|penerima(_\d{4})?_tahun_nomor_urut_idx/.test(msgErr) && percobaan < maksPercobaan - 1) {
           // Jeda acak (jitter 40-120ms) agar tidak bentrok lagi
           await new Promise((res) => setTimeout(res, 40 + Math.random() * 80));
           continue;
@@ -856,7 +941,12 @@ export async function editDataPenerima(
     // ── Cek sakelar tutup (port Kode.gs baris 2618-2632) ──
     const peranSesi = (sesi.role || "").toString().trim().toUpperCase();
     if (peranSesi === "MUI") {
-      return { sukses: false, pesan: "Akses ditolak: Akun MUI hanya memiliki hak akses melihat data, tidak dapat mengedit data." };
+      // MUI hanya boleh mengubah data Ustadz/Ustadzah yang DIA input sendiri (akun yang sama, bukan akun MUI lain).
+      // Data milik Kecamatan tetap hanya dilihat + diverifikasi rekomendasinya.
+      const milikSendiri = !!rowLama.dibuat_oleh_akun_id && String(rowLama.dibuat_oleh_akun_id) === String(sesi.akunId);
+      if (!milikSendiri || !layananBolehDiinputMui(rowLama.layanan)) {
+        return { sukses: false, pesan: "Akses ditolak: Akun MUI hanya dapat mengubah data Ustadz/Ustadzah yang diinputnya sendiri." };
+      }
     }
     {
       const keputusan = await periksaIzinInput(sesi, "edit", listLayananKemenag);

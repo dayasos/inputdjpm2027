@@ -1858,8 +1858,10 @@ function saringDanTampilkanTabel() {
       : statusRowIni === valVerif);
     const teksCari = row._cari || (String(row[1] || '') + ' ' + String(row[2] || '') + ' ' + String(row[15] || '') + ' ' + String(row[8] || '')).toLowerCase();
     const lolosCari = !kataKunci || teksCari.includes(kataKunci);
-    if (lolosKec && lolosKel && lolosLay && lolosCari && lolosVerif) dataLolosSaring.push(row);
+    const lolosPenginput = typeof lolosFilterPenginputMui !== 'function' || lolosFilterPenginputMui(row); // app-penanda-mui.js (UTAMA & MUI)
+    if (lolosKec && lolosKel && lolosLay && lolosCari && lolosVerif && lolosPenginput) dataLolosSaring.push(row);
   }
+  if (window.djpmPenandaMui) window.djpmPenandaMui.setelahSaring(dataLolosSaring);
   const totalDataLolos = dataLolosSaring.length;
   const totalHalaman = Math.ceil(totalDataLolos / dataPerHalaman) || 1;
   if (halamanSekarang > totalHalaman) halamanSekarang = totalHalaman;
@@ -1885,7 +1887,7 @@ function saringDanTampilkanTabel() {
     <td class="px-4 py-3 whitespace-nowrap align-middle min-w-[150px]"><span class="bg-slate-100 text-slate-700 text-[11px] px-2.5 py-0.5 rounded-full font-medium inline-block">${esc(row[7]) || '-'}</span></td>
     <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap align-middle min-w-[130px]">${esc(row[10]) || '-'}</td>
     <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap align-middle min-w-[130px]">${esc(row[11]) || '-'}</td>
-    <td class="px-4 py-3 text-center whitespace-nowrap align-middle min-w-[160px]">${badgeStatusVerifikasi(row[18], row[19])}${badgeRekomendasiMui(row[7], row[20])}</td>
+    <td class="px-4 py-3 text-center whitespace-nowrap align-middle min-w-[160px]">${badgeStatusVerifikasi(row[18], row[19])}${badgeRekomendasiMui(row[7], row[20])}${typeof badgePenginputMui === 'function' ? badgePenginputMui(row) : ''}</td>
     <td class="w-24 px-4 py-3 text-center whitespace-nowrap align-middle">
       <div class="flex items-center justify-center">
         <button onclick="tampilkanDetailKeModalOnDemand(${row[0]})" class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 active:scale-95 text-sky-700 border border-sky-200/80 rounded-lg font-semibold text-xs transition shadow-2xs">
@@ -2336,9 +2338,11 @@ function halamanBerikutnya() {
       </div>`;
     }
     h += `</div>`;
+    if (window.djpmPenandaMui) h += window.djpmPenandaMui.htmlDetail(d); // "Diinput oleh ..." (UTAMA & MUI)
     const tglLaporPerbaikan = d[38] || "";
     const dilaporOlehPerbaikan = d[39] || "";
-    if (isRoleKecKem_(dataPengguna.role) && statusVerif === "Berkas Tidak Lengkap") {
+    // Akun MUI hanya melapor perbaikan untuk data yang DIA input sendiri (d[51], dari server).
+    if ((isRoleKecKem_(dataPengguna.role) || (dataPengguna.role === "MUI" && d[51] === true)) && statusVerif === "Berkas Tidak Lengkap") {
       if (tglLaporPerbaikan) {
         h += `<div class="mb-4 bg-sky-50 border border-sky-200 rounded-lg px-4 py-3">
           <p class="text-xs text-sky-800">Sudah dilaporkan diperbaiki oleh <strong>${esc(dilaporOlehPerbaikan)}</strong> pada ${esc(tglLaporPerbaikan)} — menunggu dicek ulang Admin Utama.</p>
@@ -2498,7 +2502,7 @@ function halamanBerikutnya() {
     // Riwayat edit
     h += `<div id="riwayat-edit-wrap" class="mt-4 border-t border-slate-200 pt-4"><p class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Riwayat Perubahan</p><div id="riwayat-edit-isi" class="text-xs text-slate-400 italic">Memuat...</div></div>`;
     // Info sakelar tutup untuk kecamatan/kemenag
-    if (isRoleKecKem_(dataPengguna.role) && inputDitutupGlobal) {
+    if ((isRoleKecKem_(dataPengguna.role) || (dataPengguna.role === "MUI" && d[51] === true)) && inputDitutupGlobal) {
       h += `<div class="mt-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
         <p class="text-sm text-amber-900 font-semibold mb-1">Periode Input Telah Ditutup</p>
         <p class="text-xs text-amber-800 leading-relaxed">
@@ -2993,7 +2997,9 @@ function halamanBerikutnya() {
           const isUtama = r === "UTAMA";
           const isKecKem = isRoleKecKem_(r);
           const statusVerifData = dataAktif[32] || "Proses Verifikasi";
-          const bolehEdit = (statusVerifData !== "Tidak Memenuhi Syarat") && (isUtama || (isKecKem && !inputDitutupGlobal));
+          // MUI: hanya data Ustadz/Ustadzah yang DIA input sendiri (dataAktif[51] dari server) dan periode terbuka.
+          const muiMilikSendiri = r === "MUI" && dataAktif[51] === true && LAYANAN_INPUT_MUI.includes(String(dataAktif[7] || "").toUpperCase().trim());
+          const bolehEdit = (statusVerifData !== "Tidak Memenuhi Syarat") && (isUtama || ((isKecKem || muiMilikSendiri) && !inputDitutupGlobal));
           if (bolehEdit) {
             btnEdit.classList.remove('hidden');
           } else {
@@ -3094,7 +3100,9 @@ function ambilDataMemenuhiSyarat() {
       // (logic pemotongan umum, bukan yang memang ditujukan untuk kasus ini) -- kebetulan hasilnya
       // benar, tapi rapuh: kalau struktur masterDataLihat berubah, pemotongan generik itu bisa
       // salah potong kolom tanpa ada error sama sekali.
-      dataLolos.push([nomor++, row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[12], row[13], row[14], row[15], row[16], row[17]]);
+      // Indeks 18-19 = penginput (kategori, nama akun) untuk kolom "DIINPUT OLEH"; kosong bagi peran selain Admin Utama/MUI
+      // (server hanya mengirim keterangan itu kepada keduanya), sehingga kolomnya tidak muncul di ekspor peran lain.
+      dataLolos.push([nomor++, row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[12], row[13], row[14], row[15], row[16], row[17], row[23] || "", row[24] || ""]);
     }
   }
   return dataLolos;

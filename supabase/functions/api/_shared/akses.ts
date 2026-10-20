@@ -4,6 +4,32 @@ import type { DataSesi } from "./sesi.ts";
 export type Instansi = "SUPERADMIN" | "KECAMATAN" | "KEMENAG" | "MUI";
 export type SubFilterGsm = "" | "KATOLIK" | "BUKAN_KATOLIK";
 
+// Layanan yang boleh DIINPUT (dan diedit, bila milik sendiri) oleh akun MUI -- keputusan 2026-10-20
+// (plans/plan-akun-mui-bisa-input.md). Satu sumber kebenaran untuk simpan, edit, dan lapor perbaikan.
+// Bentuk gabungan lama "USTADZ/USTADZAH" sengaja TIDAK termasuk: hanya untuk membaca data lama.
+export const LAYANAN_INPUT_MUI = ["USTADZ", "USTADZAH"];
+
+export function layananBolehDiinputMui(layanan: unknown): boolean {
+  const lay = String(layanan ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+  return LAYANAN_INPUT_MUI.includes(lay);
+}
+
+export type KategoriPenginput = "UTAMA" | "KECAMATAN" | "KEMENAG" | "MUI" | "";
+
+/**
+ * Kelompok akun yang menginput sebuah data, dari `akun.role` penginputnya. Dipakai untuk penanda
+ * "Input MUI" dsb. di Lihat Data (hanya Admin Utama & MUI yang menerimanya). Peran yang tidak dikenali
+ * atau data tanpa pelacak -> "" (tidak ditandai).
+ */
+export function kategoriPenginput(role: unknown, listLayananKemenag: string[]): KategoriPenginput {
+  const r = String(role ?? "").trim().toUpperCase();
+  if (r === "UTAMA") return "UTAMA";
+  if (r === "MUI") return "MUI";
+  if (r === "KECAMATAN") return "KECAMATAN";
+  if (r && listLayananKemenag.includes(r)) return "KEMENAG";
+  return "";
+}
+
 // Port dari daftarLayananKemenagUpper_() di Kode.gs.
 export async function daftarLayananKemenagUpper(): Promise<string[]> {
   const master = await getMasterLayanan();

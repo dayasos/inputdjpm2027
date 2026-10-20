@@ -19,6 +19,9 @@ const JENIS_FILTER_ADMIN = [
 const JENIS_PER_ROLE: Record<string, string[]> = {
   UTAMA: JENIS_RUMAH_IBADAH_VALID,
   KECAMATAN: JENIS_RUMAH_IBADAH_VALID,
+  // MUI menginput Ustadz/Ustadzah, yang tempat tugasnya Masjid/Musholla (lihat modal Ustadz di app-admin.js).
+  // Tidak terikat kecamatan (sesiTerikatKecamatan false) -> daftar se-Kota Medan.
+  MUI: ["MASJID", "MUSHOLLA"],
   "GURU SEKOLAH BUDDHA": ["VIHARA"],
   "GURU SEKOLAH HINDU": ["KUIL"],
   "GURU SEKOLAH KONG HU CHU": ["KLENTENG"],

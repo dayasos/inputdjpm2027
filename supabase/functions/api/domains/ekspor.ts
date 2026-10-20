@@ -1,4 +1,5 @@
 import { wajibSesi } from "../_shared/sesi.ts";
+import { susunBarisEkspor } from "../_shared/eksporBaris.ts";
 import {
   muatExcelJS,
   terapkanBorderData,
@@ -22,13 +23,6 @@ import {
 // Frontend index.html membuat link download dari base64 ini.
 // ---------------------------------------------------------------------------
 
-// Header kolom sesuai Kode.gs baris 1530-1534
-const HEADER_EKSPOR = [
-  "NO", "NAMA", "NIK", "JENIS KELAMIN", "TEMPAT LAHIR", "TANGGAL LAHIR", "ALAMAT",
-  "JENIS LAYANAN", "TEMPAT TUGAS", "ALAMAT TUGAS", "KECAMATAN", "KELURAHAN",
-  "NAMA REKENING", "NOMOR REKENING", "KANTOR CABANG", "NO. KONTAK", "STATUS BPJS TK", "UMUR",
-];
-
 export async function eksporDataKeSpreadsheet(
   token: string,
   dataRows: unknown[][],
@@ -41,28 +35,8 @@ export async function eksporDataKeSpreadsheet(
   }
 
   try {
-    // Bersihkan & normalkan setiap baris (port Kode.gs baris 1545-1559)
-    const rowsToExport: unknown[][] = [];
-    for (const r of dataRows) {
-      const row = Array.isArray(r) ? [...r] : [];
-
-      // Pastikan panjang sama dengan header
-      while (row.length < HEADER_EKSPOR.length) row.push("");
-      const rowTrimmed = row.slice(0, HEADER_EKSPOR.length);
-
-      // Bersihkan leading-quote untuk NIK (idx 2), rekening (idx 13), kontak (idx 15)
-      rowTrimmed[2] = rowTrimmed[2] != null ? String(rowTrimmed[2]).replace(/^'+/, "").trim() : "";
-      rowTrimmed[5] = rowTrimmed[5] != null ? String(rowTrimmed[5]).trim() : "";
-      rowTrimmed[13] = rowTrimmed[13] != null ? String(rowTrimmed[13]).replace(/^'+/, "").trim() : "";
-      rowTrimmed[15] = rowTrimmed[15] != null ? String(rowTrimmed[15]).replace(/^'+/, "").trim() : "";
-
-      // TIDAK di-prefix "'" seperti Kode.gs baris 1553-1555. Trik itu khusus Google Sheets API
-      // (setValues() menafsirkan awalan kutip sebagai "paksa format teks" dan MEMBUANG kutipnya).
-      // exceljs (sama seperti xlsx sebelumnya) TIDAK mengenal konvensi itu -- nilai string JS
-      // biasa sudah otomatis tersimpan sebagai sel bertipe teks berdasarkan typeof, tanpa perlu
-      // trik apa pun, jadi tidak ada risiko notasi ilmiah.
-      rowsToExport.push(rowTrimmed);
-    }
+    // Penyusunan header & baris (termasuk kolom DIINPUT OLEH untuk Admin Utama/MUI) ada di _shared/eksporBaris.ts.
+    const { header: HEADER_EKSPOR, rows: rowsToExport } = susunBarisEkspor(dataRows);
 
     const ExcelJS = await muatExcelJS();
     const wb = new ExcelJS.Workbook();

@@ -194,10 +194,12 @@ export async function periksaIzinInput(
   listLayananKemenag?: string[],
 ): Promise<KeputusanInput> {
   const peran = (sesi.role || "").toString().trim().toUpperCase();
-  if (peran === "UTAMA" || peran === "MUI") return { izin: true, tenggang: false, terbatas: false };
+  if (peran === "UTAMA") return { izin: true, tenggang: false, terbatas: false };
 
+  // MUI ikut penutupan periode seperti Kecamatan/Kemenag sejak akun MUI bisa menginput (2026-10-20).
+  // Verifikasi rekomendasi MUI tidak melewati gerbang ini, jadi tetap berjalan saat periode ditutup.
   const daftar = listLayananKemenag ?? await daftarLayananKemenagUpper();
-  const terbatas = peran === "KECAMATAN" || daftar.includes(peran);
+  const terbatas = peran === "KECAMATAN" || peran === "MUI" || daftar.includes(peran);
   if (!terbatas) return { izin: true, tenggang: false, terbatas: false };
 
   const akses = hitungAksesInput(await ambilKeadaanPeriode(sesi.userId));

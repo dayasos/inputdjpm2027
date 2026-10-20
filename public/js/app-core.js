@@ -814,6 +814,8 @@ const ROLE_KEMENAG_BEBAS = [
   "PENATUA GEREJA"
 ];
 const ROLE_KEMENAG_TERIKAT = ["GURU MAGHRIB MENGAJI"];
+// Layanan yang boleh diinput akun MUI. Sama dengan LAYANAN_INPUT_MUI di supabase/functions/api/_shared/akses.ts -- jaga sinkron.
+const LAYANAN_INPUT_MUI = ["USTADZ", "USTADZAH"];
 
 function isRoleKemenagBebas(role) { return ROLE_KEMENAG_BEBAS.includes(String(role).toUpperCase()); }
 function isRoleKemenagTerikat(role) { return ROLE_KEMENAG_TERIKAT.includes(String(role).toUpperCase()); }
@@ -855,22 +857,15 @@ function terapkanHakAkses(role, kecamatan, inputDitutup) {
   const _btnKec = document.getElementById('btn-instansi-kec');
   const _btnKem = document.getElementById('btn-instansi-kem');
 
+  // Akun MUI bisa menginput Ustadz/Ustadzah se-Kota Medan sejak 2026-10-20 (plans/plan-akun-mui-bisa-input.md):
+  // tab Input tampil dan menjadi tampilan awal seperti peran lain. Dashboard/Data Detail/Retur tetap disembunyikan.
   const isMui = role === "MUI";
   if (_tabInput) {
-    if (isMui) {
-      _tabInput.classList.add('hidden');
-      _tabInput.disabled = true;
-    } else {
-      _tabInput.classList.remove('hidden');
-      _tabInput.disabled = false;
-    }
+    _tabInput.classList.remove('hidden');
+    _tabInput.disabled = false;
   }
   if (_tabRekap) _tabRekap.classList.remove('hidden');
-  if (isMui) {
-    if (_tabRekap) _tabRekap.click();
-  } else {
-    if (_tabInput) _tabInput.click();
-  }
+  if (_tabInput) _tabInput.click();
 
   const btnReturKematian = document.getElementById('btn-retur-kematian');
   if (btnReturKematian) btnReturKematian.classList.toggle('hidden', isMui);
@@ -930,6 +925,22 @@ function terapkanHakAkses(role, kecamatan, inputDitutup) {
       controlKec.dispatchEvent(new Event('change'));
     }
 
+  } else if (isMui) {
+    // MUI: tombol Kemenag TIDAK berfungsi; instansi Kecamatan aktif dengan layanan hanya Ustadz & Ustadzah
+    // (renderDropdownLayanan sadar-MUI); kecamatan lokasi tugas BEBAS (se-Kota Medan, tidak dikunci).
+    murniGantiInstansi("KECAMATAN", _btnKec, _btnKem);   // menimpa className tombol lain -> nonaktifkan SESUDAHNYA
+    if (_btnKem) {
+      _btnKem.disabled = true;
+      _btnKem.classList.add('opacity-40', 'cursor-not-allowed');
+      _btnKem.title = 'Akun MUI hanya untuk layanan Ustadz dan Ustadzah';
+    }
+    const controlKec = document.getElementById('control-kecamatan');
+    if (controlKec) {
+      controlKec.disabled = false;
+      controlKec.classList.remove('bg-slate-100', 'cursor-not-allowed');
+      controlKec.classList.add('bg-white');
+    }
+
   } else if (isRoleKemenagBebas(role)) {
     if (_btnKec) { _btnKec.disabled = true; _btnKec.classList.add('opacity-40', 'cursor-not-allowed'); }
     murniGantiInstansi("KEMENAG", _btnKem, _btnKec);
@@ -960,17 +971,7 @@ function terapkanHakAkses(role, kecamatan, inputDitutup) {
     renderDropdownLayananTunggal(role);
   }
 
-  if (isMui) {
-    if (_tabInput) { _tabInput.classList.add('hidden'); _tabInput.disabled = true; _tabInput.style.pointerEvents = 'none'; }
-    if (_panelInput) _panelInput.classList.add('hidden');
-    if (_fsContainer) {
-      _fsContainer.disabled = true;
-      _fsContainer.classList.add('opacity-50', 'pointer-events-none');
-    }
-    const banner = document.getElementById('banner-tutup');
-    if (banner) banner.classList.add('hidden');
-    if (_tabRekap) _tabRekap.click();
-  } else if (inputDitutup && role !== "UTAMA") {
+  if (inputDitutup && role !== "UTAMA") {
     if (_tabInput) { _tabInput.classList.add('hidden'); _tabInput.disabled = true; _tabInput.style.pointerEvents = 'none'; }
     if (_panelInput) _panelInput.classList.add('hidden');
 
@@ -1050,7 +1051,7 @@ function terapkanHakAkses(role, kecamatan, inputDitutup) {
 // Fungsi periksaStatusAkses: memeriksa status buka/tutup input berdasarkan role pengguna
 // dan memperbarui UI (banner, tab) sesuai kondisi terkini dari server.
 function periksaStatusAkses() {
-  if (!dataPengguna.token || dataPengguna.role === "UTAMA" || dataPengguna.role === "MUI") return;
+  if (!dataPengguna.token || dataPengguna.role === "UTAMA") return;
   const _tabInput = document.getElementById('tab-input');
   google.script.run
     .withSuccessHandler(function (st) {
@@ -1216,10 +1217,6 @@ window.setTabTidakAktif = setTabTidakAktif;
 window.setTabAktif = setTabAktif;
 
 tabInput.addEventListener('click', () => {
-  if (dataPengguna.role === "MUI") {
-    tampilkanToast("Akses ditolak: Akun MUI hanya memiliki hak akses melihat data.", "info");
-    return;
-  }
   if (inputDitutupGlobal && dataPengguna.role !== "UTAMA") {
     tampilkanToast("Periode input telah ditutup. Anda hanya bisa melihat data.", "info");
     return;
@@ -1271,6 +1268,18 @@ tabInput.addEventListener('click', () => {
       controlKecamatan.classList.remove('bg-white');
       controlKecamatan.dispatchEvent(new Event('change'));
     }
+    fsContainer.disabled = false;
+    fsContainer.classList.remove('opacity-50', 'pointer-events-none');
+  } else if (dataPengguna.role === "MUI") {
+    // Dropdown layanan dirender sekali (murniGantiInstansi -> renderDropdownLayanan sadar-MUI) supaya pilihan
+    // pengguna tidak hilang tiap pindah tab; kecamatan lokasi tugas bebas.
+    if (instansiAktif !== "KECAMATAN") {
+      murniGantiInstansi("KECAMATAN", btnKec, btnKem);
+    }
+    if (btnKem) { btnKem.disabled = true; btnKem.classList.add('opacity-40', 'cursor-not-allowed'); }
+    controlKecamatan.disabled = false;
+    controlKecamatan.classList.remove('bg-slate-100', 'cursor-not-allowed');
+    controlKecamatan.classList.add('bg-white');
     fsContainer.disabled = false;
     fsContainer.classList.remove('opacity-50', 'pointer-events-none');
   } else if (isRoleKemenagBebas(dataPengguna.role)) {
@@ -1668,6 +1677,7 @@ btnKem.addEventListener('click', () => { murniGantiInstansi("KEMENAG", btnKem, b
 
 function murniGantiInstansi(instansi, targetBtn, otherBtn) {
   if (dataPengguna.role === "KECAMATAN" && instansi === "KEMENAG") return;
+  if (dataPengguna.role === "MUI" && instansi === "KEMENAG") return; // tombol Kemenag tidak berfungsi untuk MUI
   if (isRoleKemenag(dataPengguna.role) && instansi === "KECAMATAN") return;
   formPembayaran.reset();
   inputUmur.value = "";
@@ -1688,7 +1698,9 @@ function murniGantiInstansi(instansi, targetBtn, otherBtn) {
 
 function renderDropdownLayanan(instansi) {
   selectLayanan.innerHTML = '<option value="">-- PILIH LAYANAN --</option>';
-  const list = instansi === "KECAMATAN" ? masterLayanan.kecamatan : masterLayanan.kemenag;
+  // Akun MUI: hanya Ustadz & Ustadzah, apa pun isi master layanan (server juga menolak layanan lain).
+  const list = dataPengguna.role === "MUI" ? LAYANAN_INPUT_MUI
+    : (instansi === "KECAMATAN" ? masterLayanan.kecamatan : masterLayanan.kemenag);
   list.forEach((l) => {
     const opt = document.createElement('option');
     opt.value = l; opt.textContent = l;

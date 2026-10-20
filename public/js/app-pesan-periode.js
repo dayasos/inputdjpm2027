@@ -124,7 +124,8 @@
   function peranTerbatas() {
     return typeof dataPengguna !== 'undefined' && !!dataPengguna && !!dataPengguna.token && !!dataPengguna.role && dataPengguna.role !== 'UTAMA';
   }
-  function adalahMui() { return role() === 'MUI'; }
+  // Akun MUI ikut penutupan periode seperti Kecamatan/Kemenag sejak bisa menginput (2026-10-20): tidak ada
+  // lagi pengecualian MUI di banner, toast, modal penutupan, maupun penguncian layar.
   function sekarangServer() { return Date.now() + selisihMs; }
 
   function sudahDibaca(p) { return !!(p && (p.sudahDibaca || baca('djpm_pesan_dibaca_' + p.id))); }
@@ -173,7 +174,7 @@
 
   function terapkanStatus() {
     // Samakan penguncian layar dengan status server (mis. jadwal tutup baru saja berjalan, atau dibuka lagi).
-    if (!adalahMui() && typeof terapkanHakAkses === 'function' && typeof inputDitutupGlobal !== 'undefined' &&
+    if (typeof terapkanHakAkses === 'function' && typeof inputDitutupGlobal !== 'undefined' &&
       !!st.ditutup !== !!inputDitutupGlobal) {
       // Buang cache lokal 'setelan' (tanpa disiarkan) SEKALI saat status berubah: jalur lama (periksaStatusAkses)
       // membaca statusInputKecKem yang di-cache sampai 2 menit, jadi tanpa ini ia bisa sesaat membuka kunci lagi
@@ -227,7 +228,7 @@
 
   function renderBannerHitung() {
     var j = st && st.jadwalTutup;
-    var tampil = !!st && !adalahMui() && !st.ditutup && !!j && peranTerbatas();
+    var tampil = !!st && !st.ditutup && !!j && peranTerbatas();
     var sisa = tampil ? Date.parse(j.waktuISO) - sekarangServer() : 0;
     if (!tampil || sisa <= 0 || sisa > BATAS_BANNER) {
       var ada = $('banner-hitung-mundur');
@@ -271,7 +272,7 @@
   ];
 
   function cekToast(sisa, kunciJadwal) {
-    if (adalahMui() || sisa <= 0) return;
+    if (sisa <= 0) return;
     var terlewat = null;
     for (var i = 0; i < AMBANG.length; i++) if (sisa <= AMBANG[i].ms) terlewat = AMBANG[i];
     if (!terlewat) return;
@@ -332,7 +333,7 @@
       teks.appendChild(p);
       $('bt-baca').addEventListener('click', function () { tampilkanModalTutupPeriode(null, true); });
     }
-    var tampil = !!st && !!st.pesan && !!st.ditutup && !adalahMui();
+    var tampil = !!st && !!st.pesan && !!st.ditutup;
     p.classList.toggle('hidden', !tampil);
     if (tampil) isiTeks($('bt-judul'), st.pesan.judul);
   }
@@ -451,7 +452,7 @@
   };
 
   // ---------------------------------------------------------------------------------------------
-  // Modal pesan umum (periode masih terbuka, pesan INFO/BUKA, dan akun MUI)
+  // Modal pesan umum (periode masih terbuka, pesan INFO/BUKA)
   // ---------------------------------------------------------------------------------------------
   var GAYA_PESAN = {
     TUTUP: { header: 'px-5 py-4 flex items-start gap-3 shrink-0 bg-amber-500', tombol: 'w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl transition', sub: 'Mengenai penutupan periode input' },
@@ -511,7 +512,6 @@
   function mungkinTampilkanPesan() {
     var p = st && st.pesan;
     if (!perluTampil(p)) return;
-    if (adalahMui()) { tampilkanPesanModal(p, false); return; }
     if (st.ditutup) {
       // Periode tertutup: pesan dibawa modal penutupan yang sudah ada.
       if (!modalTutupTerbuka()) tampilkanModalTutupPeriode(null, false);
@@ -550,14 +550,19 @@
   // ---------------------------------------------------------------------------------------------
   // Pemicu: login/pemulihan sesi/penyegaran (lewat terapkanHakAkses), tab aktif lagi, online, berkala
   // ---------------------------------------------------------------------------------------------
-  // Skrip admin hanya dimuat untuk UTAMA, setelah login: modal Jadwal & Pesan (±15 KB gzip) dan
-  // laporan PDF Dashboard Progres (plans/plan-pdf-dashboard-progres.md). Gagal muat satu skrip tidak
+  // Skrip khusus peran, dimuat malas setelah login. UTAMA: modal Jadwal & Pesan (±15 KB gzip), laporan PDF Dashboard
+  // Progres (plans/plan-pdf-dashboard-progres.md), dan penanda "diinput oleh MUI". MUI: hanya penanda
+  // (plans/plan-akun-mui-bisa-input.md). Peran lain tidak mengunduh satu pun. Gagal muat satu skrip tidak
   // memengaruhi yang lain, dan masing-masing dicoba lagi pada pemicu berikutnya.
-  var SKRIP_ADMIN = ['/js/app-jadwal-pesan.js', '/js/app-laporan-progres.js'];
+  var SKRIP_PER_PERAN = {
+    UTAMA: ['/js/app-jadwal-pesan.js', '/js/app-laporan-progres.js', '/js/app-penanda-mui.js'],
+    MUI: ['/js/app-penanda-mui.js']
+  };
   var skripAdminDimuat = {};
   function muatSkripAdmin() {
-    if (role() !== 'UTAMA' || typeof dataPengguna === 'undefined' || !dataPengguna.token) return;
-    SKRIP_ADMIN.forEach(function (url) {
+    var daftarSkrip = Object.prototype.hasOwnProperty.call(SKRIP_PER_PERAN, role()) ? SKRIP_PER_PERAN[role()] : null;
+    if (!daftarSkrip || typeof dataPengguna === 'undefined' || !dataPengguna.token) return;
+    daftarSkrip.forEach(function (url) {
       if (skripAdminDimuat[url]) return;
       skripAdminDimuat[url] = true;
       var s = document.createElement('script');
