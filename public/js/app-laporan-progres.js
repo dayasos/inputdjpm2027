@@ -20,8 +20,13 @@
   var ID_STYLE_STATIS = 'lp-style-statis';
   var ID_STYLE_HALAMAN = 'lp-style-halaman';
   var ID_TOMBOL = 'btn-cetak-laporan-progres';
+  var ID_TOMBOL_UNDUH = 'btn-unduh-laporan-progres';
+  // Versi (?v=) skrip ini, dipakai juga untuk memuat pustaka PDF supaya cache ikut terbuang bersama-sama.
+  var VERSI = '';
+  try { VERSI = ((document.currentScript && /[?&]v=([^&]+)/.exec(document.currentScript.src)) || [])[1] || ''; } catch (_e) { VERSI = ''; }
   var BATAS_TUNGGU_MS = 45000;
   var BATAS_BERSIH_MS = 5 * 60 * 1000;
+  var BATAS_PUSTAKA_MS = 30000;
 
   var sedangMenyiapkan = false;
   var pembersihTerakhir = null;
@@ -201,36 +206,54 @@
   var IKON_CETAK = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
     '<path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z"/></svg>';
 
+  var IKON_UNDUH = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+    '<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>';
+
+  // Urutan di footer: [Unduh PDF] [Cetak] [Tutup]
+  var DEF_TOMBOL = [
+    { id: ID_TOMBOL_UNDUH, ikon: IKON_UNDUH, label: 'Unduh PDF', warna: 'bg-emerald-600 hover:bg-emerald-700', judul: 'Unduh laporan sebagai file PDF.', mode: 'unduh' },
+    { id: ID_TOMBOL, ikon: IKON_CETAK, label: 'Cetak', warna: 'bg-sky-600 hover:bg-sky-700', judul: 'Cetak laporan. Di dialog cetak pilih Tujuan: Simpan sebagai PDF.', mode: 'cetak' }
+  ];
+
+  function semuaTombol() {
+    return DEF_TOMBOL.map(function (d) { return $(d.id); }).filter(Boolean);
+  }
+
   function aturTombol(tombol, menyiapkan) {
+    var def = tombol.__lp;
     tombol.disabled = !!menyiapkan;
     var label = tombol.querySelector('.lp-label');
     if (!label) {
-      tombol.innerHTML = IKON_CETAK;
+      tombol.innerHTML = def.ikon;
       label = document.createElement('span');
       label.className = 'lp-label';
       tombol.appendChild(label);
     }
-    label.textContent = menyiapkan ? 'Menyiapkan…' : 'Cetak Laporan PDF';
+    label.textContent = menyiapkan ? 'Menyiapkan…' : def.label;
   }
 
   function sinkronTombol() {
     var modal = $('modal-dashboard-progres');
-    var tombol = $(ID_TOMBOL);
-    if (!adalahUtama()) { if (tombol) tombol.classList.add('hidden'); return; }
+    if (!adalahUtama()) { semuaTombol().forEach(function (t) { t.classList.add('hidden'); }); return; }
     if (!modal) return;
-    if (!tombol) {
-      var kotak = modal.firstElementChild;
-      var footer = kotak && kotak.lastElementChild;
-      if (!footer) return;
-      tombol = buat('button', 'px-4 py-2 mr-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-medium transition inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed');
-      tombol.id = ID_TOMBOL;
-      tombol.type = 'button';
-      tombol.title = 'Unduh laporan PDF. Di dialog cetak pilih Tujuan: Simpan sebagai PDF.';
-      aturTombol(tombol, false);
-      tombol.addEventListener('click', cetakLaporan);
-      footer.insertBefore(tombol, footer.firstChild);
+    var kotak = modal.firstElementChild;
+    var footer = kotak && kotak.lastElementChild;
+    for (var i = DEF_TOMBOL.length - 1; i >= 0; i--) {
+      var def = DEF_TOMBOL[i];
+      var tombol = $(def.id);
+      if (!tombol) {
+        if (!footer) return;
+        tombol = buat('button', 'px-4 py-2 mr-2 ' + def.warna + ' text-white rounded-xl text-xs font-medium transition inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed');
+        tombol.id = def.id;
+        tombol.type = 'button';
+        tombol.title = def.judul;
+        tombol.__lp = def;
+        aturTombol(tombol, false);
+        tombol.addEventListener('click', def.mode === 'unduh' ? unduhLaporan : cetakLaporan);
+        footer.insertBefore(tombol, footer.firstChild);
+      }
+      tombol.classList.remove('hidden');
     }
-    tombol.classList.remove('hidden');
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -456,33 +479,249 @@
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Unduh PDF: digambar langsung dengan jsPDF (vektor: tajam, teks bisa dicari, ±50-100 KB), bukan dari
+  // tangkapan layar. Pustaka disimpan di proyek (public/js/vendor, MIT) dan baru dimuat saat tombol diklik.
+  // ---------------------------------------------------------------------------------------------
+  var janjiJsPdf = null;
+  function muatJsPdf() {
+    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf);
+    if (janjiJsPdf) return janjiJsPdf;
+    janjiJsPdf = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      var timer = null;
+      function gagal() {
+        clearTimeout(timer);
+        janjiJsPdf = null;                                  // percobaan berikutnya memuat ulang
+        if (s.parentNode) s.parentNode.removeChild(s);
+        reject(new Error('Pustaka PDF gagal dimuat. Periksa koneksi, lalu coba lagi.'));
+      }
+      timer = setTimeout(gagal, BATAS_PUSTAKA_MS);
+      s.onload = function () {
+        clearTimeout(timer);
+        if (window.jspdf && window.jspdf.jsPDF) resolve(window.jspdf); else gagal();
+      };
+      s.onerror = gagal;
+      s.async = true;
+      s.src = '/js/vendor/jspdf.umd.min.js' + (VERSI ? '?v=' + VERSI : '');
+      document.head.appendChild(s);
+    });
+    return janjiJsPdf;
+  }
+
+  /** Huruf standar PDF (Helvetica) hanya mengenal Latin-1: buang karakter lain agar tidak jadi sandi acak. */
+  function latin(v) { return String(v == null ? '' : v).replace(/[^\x20-\x7E -ÿ]/g, ''); }
+  function rgb(hex) { return [parseInt(hex.substr(1, 2), 16), parseInt(hex.substr(3, 2), 16), parseInt(hex.substr(5, 2), 16)]; }
+
+  function gambarPdf(lib, data, kecFilter, nama) {
+    var res = data.res;
+    var kel = kelompokkan(res.kartu, data.master);
+    var daftarA = kel.A.map(function (i) { return res.kartu[i]; });
+    var daftarB = kel.B.map(function (i) { return res.kartu[i]; });
+    var jA = jumlahkan(daftarA), jB = jumlahkan(daftarB), jT = jumlahkan(res.kartu);
+    var pencetak = latin((dataPengguna && dataPengguna.username) || '').slice(0, 40);
+
+    var doc = new lib.jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait', compress: true });
+    doc.setProperties({ title: nama.replace(/\.pdf$/, ''), subject: 'Laporan Progres Verifikasi DJPM 2027', creator: 'Aplikasi DJPM 2027' });
+    var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+    var ML = 34, CW = W - 2 * ML, ATAS = 40, BAWAH = H - 48;
+    var y = ATAS;
+
+    function isi(h) { var c = rgb(h); doc.setFillColor(c[0], c[1], c[2]); }
+    function garis(h) { var c = rgb(h); doc.setDrawColor(c[0], c[1], c[2]); }
+    function tinta(h) { var c = rgb(h); doc.setTextColor(c[0], c[1], c[2]); }
+    function huruf(tebal, ukuran, miring) { doc.setFont('helvetica', miring ? 'italic' : (tebal ? 'bold' : 'normal')); doc.setFontSize(ukuran); }
+
+    // --- Judul & identitas ---
+    huruf(true, 16); tinta('#0f172a');
+    doc.text('LAPORAN PROGRES VERIFIKASI', W / 2, y, { align: 'center' });
+    y += 14; huruf(false, 8.5); tinta('#334155');
+    doc.text(NAMA_PROGRAM, W / 2, y, { align: 'center' });
+    y += 20;
+    var x0 = W / 2 - 120;
+    [['Cakupan', kecFilter ? 'Kecamatan ' + kecFilter : 'Seluruh Kecamatan'], ['Data per', waktuPanjang(data.waktu)]].forEach(function (m) {
+      huruf(true, 9); tinta('#0f172a'); doc.text(m[0], x0, y);
+      huruf(false, 9); doc.text(': ' + latin(m[1]), x0 + 46, y);
+      y += 12;
+    });
+    y += 2; garis('#0f172a'); doc.setLineWidth(1.5); doc.line(ML, y, W - ML, y);
+    y += 16;
+
+    // --- Ringkasan ---
+    huruf(true, 9.5); tinta('#0f172a'); doc.text('RINGKASAN', ML, y);
+    y += 6;
+    var skala = CW / 527;
+    var lebar = [83, 40, 44, 44, 44, 52, 52, 54, 56, 58].map(function (v) { return v * skala; });   // jumlah 527
+    var judulKolom = ['Kelompok', 'Jumlah Layanan', 'Kuota', 'Total Data', 'Sisa Kuota', 'Proses Verifikasi', 'Memenuhi Syarat', 'Berkas Tidak Lengkap', 'Tidak Memenuhi Syarat', '% Terverifikasi'];
+    huruf(true, 7);
+    var barisKepala = judulKolom.map(function (t, i) { return doc.splitTextToSize(t, lebar[i] - 4); });
+    var maksBaris = barisKepala.reduce(function (m, b) { return Math.max(m, b.length); }, 1);
+    var hk = maksBaris * 8.5 + 6;
+    doc.setLineWidth(0.5); garis('#94a3b8');
+    var cx = ML;
+    barisKepala.forEach(function (b, i) {
+      // Warna isi HARUS ditetapkan tepat sebelum tiap bentuk: di PDF warna teks & warna isi memakai operator yang
+      // sama, jadi setTextColor() di sel sebelumnya menimpa warna isi sel berikutnya.
+      isi('#e2e8f0'); doc.rect(cx, y, lebar[i], hk, 'FD');
+      tinta('#0f172a');
+      b.forEach(function (t, n) { doc.text(t, cx + lebar[i] / 2, y + 9 + n * 8.5, { align: 'center' }); });
+      cx += lebar[i];
+    });
+    y += hk;
+    [['A. Kecamatan', jA, false], ['B. Kemenag', jB, false], ['JUMLAH', jT, true]].forEach(function (r) {
+      var j = r[1];
+      var nilai = [r[0], angka(j.layanan), angka(j.kuota), angka(j.total), angka(j.sisa), angka(j.proses), angka(j.ms), angka(j.btl), angka(j.tms), j.persen + '%'];
+      var px = ML;
+      nilai.forEach(function (v, i) {
+        isi(r[2] ? '#e0f2fe' : '#ffffff'); doc.rect(px, y, lebar[i], 15, 'FD');
+        huruf(r[2] || i === 0, 8); tinta('#0f172a');
+        if (i === 0) doc.text(v, px + 4, y + 10.5); else doc.text(v, px + lebar[i] - 4, y + 10.5, { align: 'right' });
+        px += lebar[i];
+      });
+      y += 15;
+    });
+    y += 10;
+    isi('#e2e8f0'); doc.roundedRect(ML, y, CW, 7, 3.5, 3.5, 'F');
+    if (jT.persen > 0) { isi('#0d9488'); doc.roundedRect(ML, y, Math.max(7, CW * jT.persen / 100), 7, 3.5, 3.5, 'F'); }
+    y += 17; huruf(false, 7.5); tinta('#475569');
+    doc.text(jT.persen + '% sudah diverifikasi (gabungan A + B)', ML, y);
+    y += 22;
+
+    // --- Kartu (sama dengan layar) ---
+    function siapKartu(k, cw) {
+      huruf(true, 7);
+      var teksKuota = 'Kuota: ' + (Number(k.kuota) || 0);
+      var bw = doc.getTextWidth(teksKuota) + 10;
+      huruf(true, 8.5);
+      var judul = doc.splitTextToSize(latin(k.layanan).toUpperCase(), cw - 16 - bw - 6);
+      if (k.kecamatanLabel) judul.push(latin(k.kecamatanLabel).toUpperCase());
+      return { teksKuota: teksKuota, bw: bw, judul: judul };
+    }
+
+    function kartu(k, s, x, y0, cw, L, tinggi) {
+      var P = 8;
+      var total = Number(k.total) || 0;
+      var persen = total > 0 ? Math.round((((Number(k.memenuhiSyarat) || 0) + (Number(k.tidakMemenuhiSyarat) || 0)) / total) * 100) : 0;
+      isi('#f8fafc'); garis('#bae6fd'); doc.setLineWidth(1.2);
+      doc.roundedRect(x, y0, cw, tinggi, 7, 7, 'FD');
+      huruf(true, 7);
+      isi('#e0f2fe'); doc.roundedRect(x + cw - P - s.bw, y0 + P - 1, s.bw, 12, 6, 6, 'F');
+      tinta('#0369a1'); doc.text(s.teksKuota, x + cw - P - s.bw / 2, y0 + P + 7.5, { align: 'center' });
+      huruf(true, 8.5); tinta('#1e293b');
+      s.judul.forEach(function (t, n) { doc.text(t, x + P, y0 + P + 8 + n * 10); });
+      var ty = y0 + P + L * 10 + 11;
+      huruf(false, 8); tinta('#64748b'); doc.text('Total: ', x + P, ty);
+      var px = x + P + doc.getTextWidth('Total: ');
+      huruf(true, 8); tinta('#0f172a'); doc.text(String(total), px, ty);
+      px += doc.getTextWidth(String(total));
+      huruf(false, 8); tinta('#64748b'); doc.text(' data', px, ty);
+      var sisa = Number(k.sisaKuota) || 0;
+      huruf(true, 8); tinta(sisa <= 0 ? '#dc2626' : '#059669');
+      doc.text('Sisa Kuota: ' + sisa, x + cw - P, ty, { align: 'right' });
+      var baris = [['Proses Verifikasi', k.prosesVerifikasi, '#64748b', '#0f172a'], ['Memenuhi Syarat', k.memenuhiSyarat, '#059669', '#047857'],
+        ['Berkas Tidak Lengkap', k.berkasTidakLengkap, '#d97706', '#b45309'], ['Tidak Memenuhi Syarat', k.tidakMemenuhiSyarat, '#ef4444', '#dc2626']];
+      var ry = ty + 16;
+      baris.forEach(function (b) {
+        huruf(false, 8); tinta(b[2]); doc.text(b[0], x + P, ry);
+        huruf(true, 8); tinta(b[3]); doc.text(String(Number(b[1]) || 0), x + cw - P, ry, { align: 'right' });
+        ry += 12;
+      });
+      var by = ry - 5;
+      isi('#f1f5f9'); doc.roundedRect(x + P, by, cw - 2 * P, 5, 2.5, 2.5, 'F');
+      if (persen > 0) { isi('#0d9488'); doc.roundedRect(x + P, by, Math.max(5, (cw - 2 * P) * persen / 100), 5, 2.5, 2.5, 'F'); }
+      huruf(false, 7); tinta('#94a3b8'); doc.text(persen + '% sudah diverifikasi', x + P, by + 13);
+    }
+
+    function bagian(judul, namaKosong, daftar, j, halamanBaru) {
+      var GAP = 8, cw = (CW - 2 * GAP) / 3;
+      var siap = daftar.map(function (k) { return siapKartu(k, cw); });
+      function ukuranBaris(i) {
+        var L = 1;
+        for (var c = i; c < Math.min(i + 3, siap.length); c++) L = Math.max(L, siap[c].judul.length);
+        return { L: L, h: 100 + 10 * L };
+      }
+      if (halamanBaru || (daftar.length && y + 30 + ukuranBaris(0).h > BAWAH)) { doc.addPage(); y = ATAS; }
+      huruf(true, 10.5); tinta('#0f172a'); doc.text(judul, ML, y);
+      huruf(false, 8); tinta('#475569');
+      doc.text('Total ' + angka(j.total) + ' · Sisa Kuota ' + angka(j.sisa) + ' · ' + j.persen + '% sudah diverifikasi', W - ML, y, { align: 'right' });
+      y += 5; garis('#94a3b8'); doc.setLineWidth(0.6); doc.line(ML, y, W - ML, y);
+      y += 10;
+      if (!daftar.length) {
+        huruf(false, 9, true); tinta('#64748b');
+        doc.text('Belum ada data untuk layanan ' + namaKosong + '.', ML, y + 9);
+        y += 24;
+        return;
+      }
+      for (var i = 0; i < daftar.length; i += 3) {
+        var u = ukuranBaris(i);
+        if (y + u.h > BAWAH) { doc.addPage(); y = ATAS; }
+        for (var c = 0; c < 3 && i + c < daftar.length; c++) kartu(daftar[i + c], siap[i + c], ML + c * (cw + GAP), y, cw, u.L, u.h);
+        y += u.h + GAP;
+      }
+    }
+
+    bagian('A. LAYANAN KECAMATAN', 'Kecamatan', daftarA, jA, false);
+    bagian('B. LAYANAN KEMENAG', 'Kemenag', daftarB, jB, true);
+
+    // --- Kaki halaman di setiap halaman ---
+    var jumlahHalaman = doc.getNumberOfPages();
+    var kaki = 'Dicetak dari Aplikasi DJPM 2027' + (pencetak ? ' oleh ' + pencetak : '') + ' · ' + waktuPendek(data.waktu);
+    for (var p = 1; p <= jumlahHalaman; p++) {
+      doc.setPage(p);
+      huruf(false, 7.5); tinta('#475569');
+      doc.text(kaki, ML, H - 24);
+      doc.text('Halaman ' + p + ' dari ' + jumlahHalaman, W - ML, H - 24, { align: 'right' });
+    }
+    return doc;
+  }
+
+  function unduhPdf(janjiPustaka, data, kecFilter, tokenAwal) {
+    return janjiPustaka.then(function (lib) {
+      if (!adalahUtama() || dataPengguna.token !== tokenAwal) return;      // sesi berganti selagi memuat pustaka
+      var nama = namaBerkas(kecFilter, tanggalIso(data.waktu)) + '.pdf';
+      var doc = gambarPdf(lib, data, kecFilter, nama);
+      doc.save(nama);
+      toast('Laporan PDF diunduh: ' + nama, 'sukses', 7000);
+    });
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // Alur cetak
   // ---------------------------------------------------------------------------------------------
   function bersihkanHasilCetak() {
     if (pembersihTerakhir) { var f = pembersihTerakhir; pembersihTerakhir = null; f(); }
   }
 
-  function cetakLaporan() {
+  function cetakLaporan() { jalankan('cetak'); }
+  function unduhLaporan() { jalankan('unduh'); }
+
+  // Alur bersama: periksa peran -> kunci tombol/filter -> ambil data SEGAR -> (unduh: gambar & simpan PDF)
+  // atau (cetak: susun area cetak & window.print()). Satu penjaga (sedangMenyiapkan) untuk kedua tombol.
+  function jalankan(mode) {
     if (sedangMenyiapkan) return;
     if (!adalahUtama()) {
-      toast('Cetak laporan hanya dapat dilakukan oleh Admin Utama.', 'gagal');
-      var t0 = $(ID_TOMBOL); if (t0) t0.classList.add('hidden');
+      toast('Laporan hanya dapat dibuat oleh Admin Utama.', 'gagal');
+      semuaTombol().forEach(function (t) { t.classList.add('hidden'); });
       return;
     }
-    var tombol = $(ID_TOMBOL);
+    var tombol = $(mode === 'unduh' ? ID_TOMBOL_UNDUH : ID_TOMBOL);
     var pilih = $('filter-dashboard-kecamatan');
     var kecFilter = pilih ? String(pilih.value || '') : '';
     var tokenAwal = dataPengguna.token;
 
     sedangMenyiapkan = true;
     bersihkanHasilCetak();
+    semuaTombol().forEach(function (t) { t.disabled = true; });
     if (tombol) aturTombol(tombol, true);
     if (pilih) pilih.disabled = true;
     function pulih() {
       sedangMenyiapkan = false;
-      var t = $(ID_TOMBOL); if (t) aturTombol(t, false);
+      semuaTombol().forEach(function (t) { aturTombol(t, false); });
       var p = $('filter-dashboard-kecamatan'); if (p) p.disabled = false;
     }
+
+    // Pustaka PDF dimuat bersamaan dengan pengambilan data (hanya untuk unduh).
+    var janjiPustaka = mode === 'unduh' ? muatJsPdf() : null;
+    if (janjiPustaka) janjiPustaka.catch(function () { /* galatnya ditangani di rantai utama */ });
 
     ambilSegar(kecFilter).then(function (data) {
       if (!adalahUtama() || dataPengguna.token !== tokenAwal) { pulih(); return; }   // sesi berganti selagi menunggu
@@ -492,6 +731,8 @@
         }
       } catch (_e) { /* abaikan */ }
       if (typeof window.renderDashboardProgres === 'function') window.renderDashboardProgres(data.res, kecFilter);
+
+      if (mode === 'unduh') return unduhPdf(janjiPustaka, data, kecFilter, tokenAwal).then(pulih);
 
       var kartuLayar = ambilKartuLayar(data.res);
       if (!kartuLayar) throw new Error('Kartu di layar tidak sesuai dengan data. Muat ulang dashboard lalu coba lagi.');
