@@ -1033,6 +1033,7 @@ document.getElementById('input-nama-rek').addEventListener('input', resetKonfirm
 formPembayaran.addEventListener('submit', (e) => {
   e.preventDefault();
   if (!pastikanLogin()) return;
+  if (!selectLayanan.value) { tampilkanToast("Jenis layanan belum dipilih!", "gagal"); selectLayanan.focus(); return; } // select terkunci tak kena 'required' bawaan
   // Kolom readonly dilewati validasi bawaan browser -> cek manual tempat tugas yang wajib dipilih dari pop up.
   if (!inputTempatTugas.value.trim() || !inputAlamatTugas.value.trim()) {
     tampilkanToast(layananHarusPilihTempat()

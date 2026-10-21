@@ -81,6 +81,7 @@ export async function cekKuotaTersedia(kecamatan: string, layanan: string, jumla
   try {
     const kecUpper = String(kecamatan || "").trim().toUpperCase();
     const layUpper = String(layanan || "").trim().toUpperCase();
+    if (!layUpper) return { tersedia: false, pesan: "Jenis layanan belum dipilih. Pilih Jenis Layanan Jasa terlebih dahulu." };
 
     const rowsKuota = await sql`
       select kuota_maks from kuota where kecamatan = ${kecUpper} and layanan = ${layUpper} limit 1
@@ -285,6 +286,12 @@ export async function validasiDataBaru(
     sesi = await wajibSesi(token);
   } catch (e) {
     return { valid: false, pesan: e instanceof Error ? e.message : String(e) };
+  }
+
+  // Layanan kosong dulu pernah jatuh ke cek kuota dan tampil sbg "Kuota layanan  untuk <kec> belum diset"
+  // (laporan petugas Labuhandeli 2026-10-21) -- tolak dgn pesan yang menunjuk akar masalahnya.
+  if (!String(layananBaru || "").trim()) {
+    return { valid: false, pesan: "Jenis layanan belum dipilih. Pilih Jenis Layanan Jasa terlebih dahulu." };
   }
 
   try {
