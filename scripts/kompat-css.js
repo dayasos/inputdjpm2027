@@ -6,8 +6,12 @@
 // Simpan jadi transparan sedangkan tulisannya putih -> tombol tampak "tidak ada" (laporan Sidorejo,
 // 2026-10-21; sebelumnya juga Asam Kumbang), garis tepi jadi hitam, dst.
 //
+// Gradien (`bg-gradient-to-*`) juga memakai "in oklab" yang baru dikenal Chrome 111+: tombol "Instal" PWA dan bar
+// progres unggah kehilangan latarnya (laporan Sidorejo, foto ke-2). Diperbaiki di bagian "Gradien" di bawah.
+//
 // Pemakaian: node scripts/kompat-css.js [berkas.css]   (bawaan: public/css/tailwind.css). Aman dijalankan ulang.
-// Dipanggil otomatis oleh `npm run build:css`. Opsi --periksa: hanya cek (exit 1 bila masih ada oklch()).
+// Dipanggil otomatis oleh `npm run build:css`. Opsi --periksa: hanya cek (exit 1 bila masih ada oklch()
+// atau gradien "in <ruang>" di luar @supports).
 const fs = require('fs');
 const path = require('path');
 
@@ -57,21 +61,70 @@ function ubah(teks) {
   });
 }
 
+// ---- Gradien: `to right in oklab` (interpolasi warna di dalam linear-gradient) juga baru dikenal Chrome 111+.
+// Di browser lama deklarasi itu tidak valid -> background-image batal -> tombol bergradien (mis. "Instal" PWA,
+// bar progres unggah) tampil TANPA latar. Perbaikan: buang " in <ruang>" dari arah gradien, lalu pulihkan di
+// @supports khusus browser baru sehingga tampilan Chrome modern TIDAK berubah.
+const PENANDA_GRADIEN = '/*kompat-gradien*/';
+
+// Buang blok @supports (termasuk bersarang) supaya pemeriksaan hanya melihat aturan yang berlaku di browser lama.
+function tanpaSupports(s) {
+  let hasil = '', i = 0;
+  while (i < s.length) {
+    const j = s.indexOf('@supports', i);
+    if (j < 0) { hasil += s.slice(i); break; }
+    hasil += s.slice(i, j);
+    let k = s.indexOf('{', j), d = 1;
+    k++;
+    while (k < s.length && d > 0) { if (s[k] === '{') d++; else if (s[k] === '}') d--; k++; }
+    i = k;
+  }
+  return hasil;
+}
+
+const RE_GRADIEN = /(\.[^{}]+)\{--tw-gradient-position:([^;}]*?)\s+in\s+([a-z-]+)([;}])/g;
+const gradienBermasalah = (css) => (tanpaSupports(css).match(/--tw-gradient-position:[^;}]*\sin\s[a-z-]+/g) || []).length;
+
+function ubahGradien(css) {
+  if (css.includes(PENANDA_GRADIEN)) return { css, jumlah: 0 };   // sudah diproses: idempoten
+  const pulih = [];
+  const baru = css.replace(RE_GRADIEN, (_semua, sel, arah, ruang, akhir) => {
+    pulih.push({ sel, arah, ruang });
+    return `${sel}{--tw-gradient-position:${arah}${akhir}`;
+  });
+  if (pulih.length === 0) return { css, jumlah: 0 };
+  const perRuang = {};
+  pulih.forEach((p) => { (perRuang[p.ruang] = perRuang[p.ruang] || []).push(p); });
+  let blok = PENANDA_GRADIEN;
+  Object.keys(perRuang).forEach((ruang) => {
+    const aturan = perRuang[ruang].map((p) => `${p.sel}{--tw-gradient-position:${p.arah} in ${ruang}}`).join('');
+    blok += `@layer utilities{@supports (background-image:linear-gradient(in ${ruang},red,red)){${aturan}}}`;
+  });
+  return { css: baru + blok, jumlah: pulih.length };
+}
+
 const asli = fs.readFileSync(berkas, 'utf8');
 const sisa = (asli.match(/oklch\(/gi) || []).length;
+const gradienSisa = gradienBermasalah(asli);
 if (hanyaPeriksa) {
-  console.log(sisa === 0 ? `OK  ${berkas}: tanpa oklch()` : `MASIH ADA ${sisa} oklch() di ${berkas}`);
-  process.exit(sisa === 0 ? 0 : 1);
+  if (sisa === 0 && gradienSisa === 0) { console.log(`OK  ${berkas}: tanpa oklch() dan tanpa interpolasi gradien "in <ruang>"`); process.exit(0); }
+  console.log(`MASIH ADA di ${berkas}: ${sisa} oklch(), ${gradienSisa} gradien "in <ruang>" di luar @supports`);
+  process.exit(1);
 }
-if (sisa === 0) {
-  console.log(`kompat-css: ${berkas} sudah tanpa oklch(), tidak ada yang diubah.`);
+if (sisa === 0 && gradienSisa === 0) {
+  console.log(`kompat-css: ${berkas} sudah kompatibel, tidak ada yang diubah.`);
   process.exit(0);
 }
-const baru = ubah(asli);
-const tersisa = (baru.match(/oklch\(/gi) || []).length;
+const hasilWarna = sisa > 0 ? ubah(asli) : asli;
+const tersisa = (hasilWarna.match(/oklch\(/gi) || []).length;
 if (tersisa > 0) {
   console.error(`kompat-css: GAGAL, ${tersisa} oklch() tidak dikenali formatnya; berkas tidak diubah.`);
   process.exit(1);
 }
-fs.writeFileSync(berkas, baru);
-console.log(`kompat-css: ${sisa} warna oklch() -> hex di ${berkas}.`);
+const hasilGradien = ubahGradien(hasilWarna);
+if (gradienBermasalah(hasilGradien.css) > 0) {
+  console.error('kompat-css: GAGAL, masih ada gradien "in <ruang>" di luar @supports; berkas tidak diubah.');
+  process.exit(1);
+}
+fs.writeFileSync(berkas, hasilGradien.css);
+console.log(`kompat-css: ${sisa} warna oklch() -> hex, ${hasilGradien.jumlah} gradien dipulihkan via @supports, di ${berkas}.`);
