@@ -46,6 +46,10 @@ export async function verifikasiSatuData(
   // "Memenuhi Syarat": keterangan tidak dipakai (dikosongkan) dan laporan perbaikan ikut direset,
   // sama seperti tandaiSudahDiperbaiki. Dua status lain tetap wajib berketerangan.
   const memenuhi = statusBaru === "Memenuhi Syarat";
+  // Putaran perbaikan baru: "Memenuhi Syarat" (selesai) ATAU "Berkas Tidak Lengkap" (admin menolak perbaikan sebelumnya / menetapkan
+  // ulang) -> tanda laporan lama dikosongkan supaya user bisa melapor lagi dan Detail tidak lagi menampilkan "sudah dilaporkan".
+  // Dulu hanya Memenuhi Syarat yang mengosongkannya, jadi admin harus memutar lewat Tandai Sudah Diperbaiki (K9, 2026-10-22).
+  const putaranBaru = memenuhi || statusBaru === "Berkas Tidak Lengkap";
   const keteranganBersih = memenuhi ? "" : (keterangan || "").toString().trim();
   if (!memenuhi && !keteranganBersih) return { sukses: false, pesan: "Keterangan hasil verifikasi wajib diisi." };
 
@@ -82,8 +86,9 @@ export async function verifikasiSatuData(
         tanggal_verifikasi = ${waktuVerifikasi},
         diverifikasi_oleh = ${namaVerifikator},
         batas_waktu_perbaikan = ${batasWaktuBersih || null},
-        tanggal_lapor_perbaikan = case when ${memenuhi}::boolean then null else tanggal_lapor_perbaikan end,
-        dilapor_oleh = case when ${memenuhi}::boolean then null else dilapor_oleh end
+        tanggal_lapor_perbaikan = case when ${putaranBaru}::boolean then null else tanggal_lapor_perbaikan end,
+        dilapor_oleh = case when ${putaranBaru}::boolean then null else dilapor_oleh end,
+        tanggal_berkas_diubah = null
       where id = ${id} and tahun = ${TAHUN_AKTIF}
         and (${statusDiharapkan} = '' or status_verifikasi = ${statusDiharapkan})
       returning id
@@ -221,7 +226,8 @@ export async function tandaiSudahDiperbaiki(token: string, nomorBarisAsli: numbe
         diverifikasi_oleh = ${namaVerifikator},
         batas_waktu_perbaikan = null,
         tanggal_lapor_perbaikan = null,
-        dilapor_oleh = null
+        dilapor_oleh = null,
+        tanggal_berkas_diubah = null
       where id = ${id} and tahun = ${TAHUN_AKTIF} and status_verifikasi = 'Berkas Tidak Lengkap'
       returning id
     `;
@@ -385,6 +391,10 @@ export async function cekBatasWaktuVerifikasi() {
         and status_verifikasi = 'Berkas Tidak Lengkap'
         and batas_waktu_perbaikan is not null
         and batas_waktu_perbaikan < ${hariIniISO}::date
+        -- Plan wajib lapor perbaikan (K5, 2026-10-22): data yang berkasnya SUDAH diganti user, atau sudah dilaporkan sudah
+        -- diperbaiki, jangan ditolak otomatis -- Admin Utama yang memutuskan setelah memeriksa berkasnya.
+        and tanggal_berkas_diubah is null
+        and tanggal_lapor_perbaikan is null
       returning id, nama
     `;
 

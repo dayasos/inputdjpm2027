@@ -44,6 +44,20 @@ function kolomPenginput(row: any, boleh: boolean, listLayananKemenag: string[]):
   return [kategoriPenginput(row.penginput_role, listLayananKemenag), String(row.penginput_nama ?? "").trim()];
 }
 
+// ---------------------------------------------------------------------------
+// "Perlu lapor" (plan wajib lapor perbaikan, 2026-10-22): data Berkas Tidak Lengkap yang berkasnya sudah diganti user
+// (penerima.tanggal_berkas_diubah) tetapi belum dilaporkan SESUDAH penggantian itu. Dikirim ke semua peran (bukan data
+// sensitif): Admin Utama memakainya untuk lencana/filter, user pemilik data untuk gerbang tutup Detail.
+//   daftar : indeks 25 (boolean) · detail : [52] waktu berkas diubah (WIB), [53] boolean yang sama
+// Murni dari kolom baris -> bisa dihitung di JS tanpa query tambahan.
+// ---------------------------------------------------------------------------
+// deno-lint-ignore no-explicit-any
+export function perluLaporBerkas(row: any): boolean {
+  if ((row.status_verifikasi || "") !== "Berkas Tidak Lengkap" || !row.tanggal_berkas_diubah) return false;
+  if (!row.tanggal_lapor_perbaikan) return true;
+  return new Date(row.tanggal_berkas_diubah).getTime() > new Date(row.tanggal_lapor_perbaikan).getTime();
+}
+
 export async function ambilDataLihatDataHakAkses(token: string): Promise<string> {
   let sesi;
   try {
@@ -82,7 +96,7 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
         select id, nama, nik, jenis_kelamin, tempat_lahir, tanggal_lahir, alamat, layanan,
                tempat_tugas, alamat_tugas, kecamatan, kelurahan, nama_rekening, nomor_rekening,
                kantor_cabang, no_kontak, status_bpjs_tk, umur, status_verifikasi, tanggal_lapor_perbaikan,
-               status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui,
+               status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui, tanggal_berkas_diubah,
                pa.penginput_role, pa.penginput_nama
         from penerima
         ${joinPenginput()}
@@ -97,7 +111,7 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
         select id, nama, nik, jenis_kelamin, tempat_lahir, tanggal_lahir, alamat, layanan,
                tempat_tugas, alamat_tugas, kecamatan, kelurahan, nama_rekening, nomor_rekening,
                kantor_cabang, no_kontak, status_bpjs_tk, umur, status_verifikasi, tanggal_lapor_perbaikan,
-               status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui
+               status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui, tanggal_berkas_diubah
         from penerima
         where tahun = ${TAHUN_AKTIF}
           and upper(kecamatan) = ${kecamatanFilter}
@@ -118,7 +132,7 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
             select id, nama, nik, jenis_kelamin, tempat_lahir, tanggal_lahir, alamat, layanan,
                    tempat_tugas, alamat_tugas, kecamatan, kelurahan, nama_rekening, nomor_rekening,
                    kantor_cabang, no_kontak, status_bpjs_tk, umur, status_verifikasi, tanggal_lapor_perbaikan,
-                   status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui
+                   status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui, tanggal_berkas_diubah
             from penerima
             where tahun = ${TAHUN_AKTIF}
               and upper(layanan) = ${layananFilter}
@@ -130,7 +144,7 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
             select id, nama, nik, jenis_kelamin, tempat_lahir, tanggal_lahir, alamat, layanan,
                    tempat_tugas, alamat_tugas, kecamatan, kelurahan, nama_rekening, nomor_rekening,
                    kantor_cabang, no_kontak, status_bpjs_tk, umur, status_verifikasi, tanggal_lapor_perbaikan,
-                   status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui
+                   status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui, tanggal_berkas_diubah
             from penerima
             where tahun = ${TAHUN_AKTIF}
               and upper(layanan) = ${layananFilter}
@@ -143,7 +157,7 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
           select id, nama, nik, jenis_kelamin, tempat_lahir, tanggal_lahir, alamat, layanan,
                  tempat_tugas, alamat_tugas, kecamatan, kelurahan, nama_rekening, nomor_rekening,
                  kantor_cabang, no_kontak, status_bpjs_tk, umur, status_verifikasi, tanggal_lapor_perbaikan,
-                 status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui
+                 status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui, tanggal_berkas_diubah
           from penerima
           where tahun = ${TAHUN_AKTIF}
             and upper(layanan) in (
@@ -158,7 +172,7 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
         select id, nama, nik, jenis_kelamin, tempat_lahir, tanggal_lahir, alamat, layanan,
                tempat_tugas, alamat_tugas, kecamatan, kelurahan, nama_rekening, nomor_rekening,
                kantor_cabang, no_kontak, status_bpjs_tk, umur, status_verifikasi, tanggal_lapor_perbaikan,
-               status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui,
+               status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui, tanggal_berkas_diubah,
                pa.penginput_role, pa.penginput_nama
         from penerima
         ${joinPenginput()}
@@ -226,6 +240,7 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
         row.catatan_rekomendasi_mui || "",
         row.respon_admin_mui || "",
         ...kolomPenginput(row, bolehLihatPenginput(instansiPengguna), listLayananKemenag),
+        perluLaporBerkas(row),
       ]);
     }
 
@@ -272,6 +287,7 @@ function petakanBarisLihat(row: any, penginput: [string, string]): unknown[] {
     row.respon_admin_mui || "",
     penginput[0],
     penginput[1],
+    perluLaporBerkas(row),
   ];
 }
 
@@ -303,7 +319,7 @@ export async function ambilBarisLihatDataByIds(token: string, ids: unknown) {
       select id, nama, nik, jenis_kelamin, tempat_lahir, tanggal_lahir, alamat, layanan,
              tempat_tugas, alamat_tugas, kecamatan, kelurahan, nama_rekening, nomor_rekening,
              kantor_cabang, no_kontak, status_bpjs_tk, umur, status_verifikasi, tanggal_lapor_perbaikan,
-             status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui,
+             status_rekomendasi_mui, catatan_rekomendasi_mui, respon_admin_mui, tanggal_berkas_diubah,
              pa.penginput_role, pa.penginput_nama
       from penerima
       ${joinPenginput()}
@@ -441,6 +457,10 @@ export async function ambilDetailPenerimaPerBaris(token: string, nomorBarisAsli:
     dataLengkap[49] = penginputNama;
     dataLengkap[50] = penginputWaktu;
     dataLengkap[51] = !!row.dibuat_oleh_akun_id && String(row.dibuat_oleh_akun_id) === String(sesi.akunId);
+
+    // Penanda perbaikan berkas (indeks 52-53, non-breaking; lihat perluLaporBerkas).
+    dataLengkap[52] = formatTanggalWaktuWIB(row.tanggal_berkas_diubah);
+    dataLengkap[53] = perluLaporBerkas(row);
 
     return JSON.stringify({ sukses: true, dataLengkap });
   } catch (error) {
@@ -1088,6 +1108,7 @@ export async function editDataPenerima(
 
     // Perubahan berkas (port Kode.gs baris 2715-2747)
     // Menerima URL Drive langsung; upload sudah dilakukan di GAS microservice oleh frontend
+    let berkasBerganti = 0;
     for (const idxStr of Object.keys(berkas)) {
       const idx = Number(idxStr);
       const namaKolom = MAP_IDX_KE_KOLOM_BERKAS[idx];
@@ -1100,11 +1121,19 @@ export async function editDataPenerima(
       if (linkLama === linkBaru) continue;
 
       setValues[namaKolom] = linkBaru;
+      berkasBerganti++;
       riwayat.push({
         kolom: idx, label: labelKolom(idx),
         sebelum: linkLama ? "[link lama]" : "-",
         sesudah: "[link baru]",
       });
+    }
+
+    // Plan wajib lapor perbaikan (2026-10-22): user (bukan Admin Utama) mengganti berkas pada data Berkas Tidak Lengkap ->
+    // catat waktunya di server supaya Admin Utama tahu walau user menutup tab sebelum menekan "Laporkan Sudah Diperbaiki".
+    // Status dibaca dari baris yang sudah dimuat di atas (tanpa query baru). Perubahan teks saja TIDAK memicu.
+    if (berkasBerganti > 0 && peranSesi !== "UTAMA" && rowLama.status_verifikasi === "Berkas Tidak Lengkap") {
+      setValues["tanggal_berkas_diubah"] = new Date().toISOString();
     }
 
     // Kalau berkas di-upload lebih dulu lewat uploadSemuaBerkasKeDrive dan baris ini belum punya
@@ -1115,7 +1144,7 @@ export async function editDataPenerima(
     }
 
     if (Object.keys(setValues).length === 0) {
-      return { sukses: true, pesan: "Data berhasil diperbarui (0 kolom diubah)." };
+      return { sukses: true, pesan: "Data berhasil diperbarui (0 kolom diubah).", berkasDiubah: 0 };
     }
 
     setValues["diperbarui_at"] = new Date().toISOString();
@@ -1149,7 +1178,7 @@ export async function editDataPenerima(
       }
     }
 
-    return { sukses: true, pesan: `Data berhasil diperbarui (${riwayat.length} kolom diubah).` };
+    return { sukses: true, pesan: `Data berhasil diperbarui (${riwayat.length} kolom diubah).`, berkasDiubah: berkasBerganti };
   } catch (e) {
     return { sukses: false, pesan: "Gagal mengedit data: " + String(e) };
   }

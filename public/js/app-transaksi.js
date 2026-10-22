@@ -1142,7 +1142,7 @@ function perbaruiStatusDiMasterData(nomorBaris, statusBaru, tandaLapor) {
   for (let i = 0; i < masterDataLihat.length; i++) {
     if (String(masterDataLihat[i][0]) === target) {
       masterDataLihat[i][18] = statusBaru;
-      if (tandaLapor !== undefined) masterDataLihat[i][19] = tandaLapor; // penanda "sudah dilaporkan" (reset saat Memenuhi Syarat)
+      if (tandaLapor !== undefined) { masterDataLihat[i][19] = tandaLapor; masterDataLihat[i][25] = false; } // "sudah dilaporkan" (reset saat putaran baru) + "perlu lapor" [25] ikut bersih
       break;
     }
   }
@@ -1847,12 +1847,12 @@ function saringDanTampilkanTabel() {
     const lolosKel = !valKel || row[11] === valKel;
     const lolosLay = !valLay || row[7] === valLay;
     const statusRowIni = row[18] || "Proses Verifikasi";
-    const sudahLaporIni = !!row[19];
+    const sudahLaporIni = !!row[19] && row[25] !== true; // laporan lama yang berkasnya diganti lagi (row[25]) dianggap BELUM dilaporkan
     const statusMuiRow = (row[20] || "BELUM_DIPERIKSA").toString().toUpperCase();
     const layRow = (row[7] || "").toString().toUpperCase().trim();
     const isLayananMui = layRow === "USTADZ" || layRow === "USTADZAH" || layRow === "USTADZ/USTADZAH";
     const lolosVerif = !valVerif
-      || (valVerif === "Sudah Dilaporkan" ? (statusRowIni === "Berkas Tidak Lengkap" && sudahLaporIni)
+      || (valVerif === "Perlu Dilaporkan" ? row[25] === true : valVerif === "Sudah Dilaporkan" ? (statusRowIni === "Berkas Tidak Lengkap" && sudahLaporIni)
       : valVerif === "MUI: Perlu Koreksi" ? (isLayananMui && statusMuiRow === "PERLU_KOREKSI")
       : valVerif === "MUI: Sah" ? (isLayananMui && statusMuiRow === "SESUAI")
       : (valVerif === "MUI: Belum Cek" || valVerif === "MUI: Belum Diperiksa") ? (isLayananMui && statusMuiRow === "BELUM_DIPERIKSA")
@@ -1888,7 +1888,7 @@ function saringDanTampilkanTabel() {
     <td class="px-4 py-3 whitespace-nowrap align-middle min-w-[150px]"><span class="bg-slate-100 text-slate-700 text-[11px] px-2.5 py-0.5 rounded-full font-medium inline-block">${esc(row[7]) || '-'}</span></td>
     <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap align-middle min-w-[130px]">${esc(row[10]) || '-'}</td>
     <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap align-middle min-w-[130px]">${esc(row[11]) || '-'}</td>
-    <td class="px-4 py-3 text-center whitespace-nowrap align-middle min-w-[160px]">${badgeStatusVerifikasi(row[18], row[19])}${badgeRekomendasiMui(row[7], row[20])}${typeof badgePenginputMui === 'function' ? badgePenginputMui(row) : ''}</td>
+    <td class="px-4 py-3 text-center whitespace-nowrap align-middle min-w-[160px]">${badgeStatusVerifikasi(row[18], row[25] === true ? '' : row[19])}${badgeRekomendasiMui(row[7], row[20])}${typeof badgePenginputMui === 'function' ? badgePenginputMui(row) : ''}${typeof badgePerluLapor === 'function' ? badgePerluLapor(row) : ''}</td>
     <td class="w-24 px-4 py-3 text-center whitespace-nowrap align-middle">
       <div class="flex items-center justify-center">
         <button onclick="tampilkanDetailKeModalOnDemand(${row[0]})" class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 active:scale-95 text-sky-700 border border-sky-200/80 rounded-lg font-semibold text-xs transition shadow-2xs">
@@ -2339,12 +2339,12 @@ function halamanBerikutnya() {
       </div>`;
     }
     h += `</div>`;
-    if (window.djpmPenandaMui) h += window.djpmPenandaMui.htmlDetail(d); // "Diinput oleh ..." (UTAMA & MUI)
+    if (window.djpmPenandaMui) h += window.djpmPenandaMui.htmlDetail(d); if (window.djpmWajibLapor) h += window.djpmWajibLapor.htmlDetail(d); // "Diinput oleh ..." (UTAMA & MUI); gerbang wajib lapor
     const tglLaporPerbaikan = d[38] || "";
     const dilaporOlehPerbaikan = d[39] || "";
     // Akun MUI hanya melapor perbaikan untuk data yang DIA input sendiri (d[51], dari server).
     if ((isRoleKecKem_(dataPengguna.role) || (dataPengguna.role === "MUI" && d[51] === true)) && statusVerif === "Berkas Tidak Lengkap") {
-      if (tglLaporPerbaikan) {
+      if (tglLaporPerbaikan && d[53] !== true) { // d[53]: berkas diganti SESUDAH laporan lama -> tombol laporan harus tersedia lagi (jangan jebak user di gerbang tanpa jalan keluar)
         h += `<div class="mb-4 bg-sky-50 border border-sky-200 rounded-lg px-4 py-3">
           <p class="text-xs text-sky-800">Sudah dilaporkan diperbaiki oleh <strong>${esc(dilaporOlehPerbaikan)}</strong> pada ${esc(tglLaporPerbaikan)} — menunggu dicek ulang Admin Utama.</p>
         </div>`;
@@ -2360,7 +2360,7 @@ function halamanBerikutnya() {
     if (dataPengguna.role === "UTAMA") {
       if (statusVerif === "Berkas Tidak Lengkap") {
         h += `<div class="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
-          ${tglLaporPerbaikan ? `<p class="text-xs text-emerald-800 mb-2">Dilaporkan sudah diperbaiki oleh <strong>${esc(dilaporOlehPerbaikan)}</strong> (${esc(tglLaporPerbaikan)}). Cek berkasnya, lalu:</p>` : `<p class="text-xs text-emerald-800 mb-2">Kalau sudah dicek dan berkasnya benar sudah lengkap:</p>`}
+          ${tglLaporPerbaikan && d[53] !== true ? `<p class="text-xs text-emerald-800 mb-2">Dilaporkan sudah diperbaiki oleh <strong>${esc(dilaporOlehPerbaikan)}</strong> (${esc(tglLaporPerbaikan)}). Cek berkasnya, lalu:</p>` : `<p class="text-xs text-emerald-800 mb-2">Kalau sudah dicek dan berkasnya benar sudah lengkap:</p>`}
           <button id="btn-tandai-sudah-diperbaiki" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
             Tandai Sudah Diperbaiki
           </button>
@@ -2376,7 +2376,7 @@ function halamanBerikutnya() {
             Tandai Memenuhi Syarat
           </button>` : ''}
           <button id="btn-tandai-berkas-tidak-lengkap" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
-            Tandai Berkas Tidak Lengkap
+            ${statusVerif === "Berkas Tidak Lengkap" ? "Kembalikan ke Berkas Tidak Lengkap" : "Tandai Berkas Tidak Lengkap"}
           </button>
           <button id="btn-tandai-tidak-memenuhi" class="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
             Tandai Tidak Memenuhi Syarat
@@ -2513,7 +2513,7 @@ function halamanBerikutnya() {
     }
     isiKonten.innerHTML = h;
     function jalankanVerifikasi(statusBaru, tombolAktif, teksAsliTombol) {
-      const memenuhi = statusBaru === "Memenuhi Syarat";
+      const memenuhi = statusBaru === "Memenuhi Syarat", putaranBaru = memenuhi || statusBaru === "Berkas Tidak Lengkap"; // putaran baru: tanda laporan dikosongkan server (K9)
       // Memenuhi Syarat: keterangan tidak diperlukan (dikosongkan, sama seperti "Tandai Sudah Diperbaiki").
       const ket = memenuhi ? "" : document.getElementById('input-keterangan-verifikasi').value.trim().toUpperCase();
       if (!memenuhi && !ket) { tampilkanToast('Keterangan hasil verifikasi wajib diisi.', 'gagal'); return; }
@@ -2541,16 +2541,16 @@ function halamanBerikutnya() {
       dataAktif[34] = "menyimpan...";
       dataAktif[35] = (dataPengguna.username || "").toString().toUpperCase();
       dataAktif[36] = batasWaktu;
-      if (memenuhi) { dataAktif[38] = ""; dataAktif[39] = ""; } // laporan perbaikan ikut direset server
+      if (putaranBaru) { dataAktif[38] = ""; dataAktif[39] = ""; dataAktif[52] = ""; dataAktif[53] = false; } // laporan perbaikan ikut direset server
       renderBaca(dataAktif);
-      perbaruiStatusDiMasterData(nomorTarget, statusBaru, memenuhi ? "" : undefined);
+      perbaruiStatusDiMasterData(nomorTarget, statusBaru, putaranBaru ? "" : undefined);
       function selesai() { _verifSedangJalan = false; }
       // statusServer: status terkini di server bila diketahui (konflik). sinkronPenuh: hasil request
       // tidak pasti (timeout/putus -- bisa saja sudah tersimpan), jadi tarik ulang daftar dari server.
       function batalkan(pesan, statusServer, sinkronPenuh) {
         selesai();
         window._abaikanMuatUlangLihatSampai = 0; // refresh normal boleh jalan lagi
-        perbaruiStatusDiMasterData(nomorTarget, statusServer || statusTabelLama, memenuhi ? (snapshotLama[6] || "") : undefined);
+        perbaruiStatusDiMasterData(nomorTarget, statusServer || statusTabelLama, putaranBaru ? (snapshotLama[6] || "") : undefined);
         if (statusServer || sinkronPenuh) {
           invalidateCacheDataTransaksi();
           if (sinkronPenuh && typeof inisialisasiMenuLihatData === 'function') inisialisasiMenuLihatData();
@@ -2575,14 +2575,14 @@ function halamanBerikutnya() {
             return;
           }
           selesai();
-          perbaruiStatusDiMasterData(nomorTarget, res.status, memenuhi ? "" : undefined);
+          perbaruiStatusDiMasterData(nomorTarget, res.status, putaranBaru ? "" : undefined);
           if (nomorBarisAktif === nomorTarget) {
             dataAktif[32] = res.status;
             dataAktif[33] = res.keterangan;
             dataAktif[34] = res.tanggal;
             dataAktif[35] = res.verifikator;
             dataAktif[36] = res.batasWaktu || "";
-            if (memenuhi) { dataAktif[38] = ""; dataAktif[39] = ""; }
+            if (putaranBaru) { dataAktif[38] = ""; dataAktif[39] = ""; dataAktif[52] = ""; dataAktif[53] = false; }
             renderBaca(dataAktif);
           }
           // Cache dibuang, tapi data di memori sudah benar: tahan muat ulang penuh Lihat Data dari event
@@ -2634,9 +2634,9 @@ function halamanBerikutnya() {
         btnLaporPerbaikan.innerText = 'Mengirim...';
         google.script.run
           .withSuccessHandler(function (res) {
-            if (!res.sukses) { tampilkanToast('Gagal: ' + res.pesan, 'gagal'); btnLaporPerbaikan.disabled = false; btnLaporPerbaikan.innerHTML = teksAsli; return; }
+            if (!res.sukses) { tampilkanToast('Gagal: ' + res.pesan, 'gagal'); btnLaporPerbaikan.disabled = false; btnLaporPerbaikan.innerHTML = teksAsli; if (window.djpmWajibLapor) window.djpmWajibLapor.laporGagal(res); return; }
             dataAktif[38] = res.tanggalLapor;
-            dataAktif[39] = res.dilaporOleh;
+            dataAktif[39] = res.dilaporOleh; dataAktif[53] = false; // laporan terkirim: gerbang tutup Detail (app-wajib-lapor.js) terbuka
             renderBaca(dataAktif);
             perbaruiStatusDiMasterData(nomorBarisAktif, dataAktif[32] || "Berkas Tidak Lengkap", res.tanggalLapor);
             invalidateCacheDataTransaksi();
@@ -2898,7 +2898,7 @@ function halamanBerikutnya() {
           btnSimpan.disabled = false;
           btnSimpan.textContent = "Simpan Perubahan";
           if (res && res.sukses) {
-            bersihkanCacheUploadUntukNik(dataAktif[2], dataAktif[7]);
+            bersihkanCacheUploadUntukNik(dataAktif[2], dataAktif[7]); if (window.djpmWajibLapor) window.djpmWajibLapor.setelahSimpanBerkas(dataAktif, res); // pasang gerbang tutup Detail segera
             tampilkanToast(res.pesan, "sukses");
             modeEdit = false;
             berkasBaruMap = {};
@@ -3063,7 +3063,7 @@ function ambilDataLolosFilter() {
     const layRow = (row[7] || "").toString().toUpperCase().trim();
     const isLayananMui = layRow === "USTADZ" || layRow === "USTADZAH" || layRow === "USTADZ/USTADZAH";
     const lolosVerif = !valVerif
-      || (valVerif === "Sudah Dilaporkan" ? (statusRowIni === "Berkas Tidak Lengkap" && !!row[19])
+      || (valVerif === "Perlu Dilaporkan" ? row[25] === true : valVerif === "Sudah Dilaporkan" ? (statusRowIni === "Berkas Tidak Lengkap" && !!row[19] && row[25] !== true)
       : valVerif === "MUI: Perlu Koreksi" ? (isLayananMui && statusMuiRow === "PERLU_KOREKSI")
       : valVerif === "MUI: Sah" ? (isLayananMui && statusMuiRow === "SESUAI")
       : (valVerif === "MUI: Belum Cek" || valVerif === "MUI: Belum Diperiksa") ? (isLayananMui && statusMuiRow === "BELUM_DIPERIKSA")

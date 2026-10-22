@@ -59,7 +59,7 @@
   <!-- Tailwind di-compile saat build (npm run build:css), BUKAN Play CDN -- CDN itu
        eksplisit tidak direkomendasikan untuk production oleh Tailwind sendiri: JIT-compile
        ulang di browser tiap render + 1 request blocking ke CDN pihak ketiga. -->
-  <link rel="stylesheet" href="/css/tailwind.css?v=20271025">
+  <link rel="stylesheet" href="/css/tailwind.css?v=20271026">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -1155,6 +1155,7 @@
               <option value="Tidak Memenuhi Syarat">Tidak Memenuhi Syarat</option>
               <option value="Berkas Tidak Lengkap">Berkas Tidak Lengkap</option>
               <option value="Sudah Dilaporkan">Sudah Dilaporkan</option>
+              <option value="Perlu Dilaporkan">Berkas Diubah (Belum Dilaporkan)</option>
               <option value="MUI: Perlu Koreksi">⚠️ MUI: Perlu Koreksi</option>
               <option value="MUI: Sah">✓ MUI: Rekomendasi Sah</option>
               <option value="MUI: Belum Cek">MUI: Belum Diperiksa</option>
@@ -1597,7 +1598,7 @@
             <span>Batal Edit</span>
           </button>
         </div>
-        <button onclick="document.getElementById('modal-detail-penerima').classList.add('hidden')"
+        <button id="btn-tutup-detail" onclick="document.getElementById('modal-detail-penerima').classList.add('hidden')"
           class="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-700 rounded-xl text-xs font-semibold transition">
           Tutup Detail
         </button>
@@ -3468,7 +3469,8 @@
   <!-- MODUL JAVASCRIPT DJPM 2027 (Standar Maksimal 3.000 Baris Kode per File)  -->
   <!-- ========================================================================= -->
   <script src="/js/app-core.js?v=20271022" defer></script>
-  <script src="/js/app-transaksi.js?v=20271023" defer></script>
+  <script src="/js/app-transaksi.js?v=20271029" defer></script>
+  <script src="/js/app-wajib-lapor.js?v=20271029" defer></script>
   <script src="/js/app-admin.js?v=20271019" defer></script>
   <script src="/js/app-kelola-data.js?v=20271007" defer></script>
   <script src="/js/app-kelola-user.js?v=20271017" defer></script>
