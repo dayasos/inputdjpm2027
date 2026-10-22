@@ -1055,7 +1055,16 @@ function periksaStatusAkses() {
   const _tabInput = document.getElementById('tab-input');
   google.script.run
     .withSuccessHandler(function (st) {
-      const ditutup = st && st.sukses ? !!st.ditutup : false;
+      // Jawaban gagal (server hanya mengirim sukses:false saat galat, mis. batas koneksi database) TIDAK memuat status periode: pertahankan
+      // keadaan terakhir (sesuai withFailureHandler di bawah). Dulu dianggap "terbuka" -> layar yang sedang ditutup terbuka sendiri.
+      if (!st || !st.sukses) return;
+      const ditutup = !!st.ditutup;
+      // HANYA terapkan ulang bila status buka/tutup benar-benar BERUBAH. terapkanHakAkses() untuk Kecamatan/Kemenag memanggil
+      // murniGantiInstansi() yang MERESET SELURUH FORMULIR dan memindahkan ke tab Input; periksaStatusAkses dipicu setiap sinyal realtime
+      // 'setelan'/'*' dari klien MANA PUN (mis. pengguna lain logout, admin mengubah pengaturan/akun) -> isian petugas yang sedang menginput
+      // tiba-tiba kosong (laporan petugas 2026-10-22; juga layanan kosong di Labuhandeli 2026-10-21). Role & kecamatan yang diteruskan
+      // di bawah selalu sama dengan dataPengguna, jadi tanpa perubahan status tidak ada yang perlu diterapkan.
+      if (ditutup === !!inputDitutupGlobal) return;
       terapkanHakAkses(dataPengguna.role, dataPengguna.kecamatan, ditutup);
     })
     .withFailureHandler(function () { /* silent: pertahankan status terakhir */ })
