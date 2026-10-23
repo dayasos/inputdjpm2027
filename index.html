@@ -211,7 +211,7 @@
        -- jangan hapus defer dari salah satu tanpa menambahkannya ke semua, lihat urutan sama
        di penutup body. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-  <script src="/js/api-bridge.js?v=20271019" defer></script>
+  <script src="/js/api-bridge.js?v=20271031" defer></script>
 </head>
 
 <body class="bg-slate-100 min-h-screen flex flex-col overflow-x-hidden">
@@ -1067,12 +1067,12 @@
           <!-- Aksi Massal -->
           <button id="btn-verifikasi-massal"
             class="hidden bg-amber-600 hover:bg-amber-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition shadow-sm flex items-center gap-1.5 shrink-0"
-            title="Tandai data yang proses verifikasi menjadi Memenuhi Syarat">
+            title="Tandai data yang proses verifikasi menjadi Memenuhi Syarat (pilih semua layanan atau satu layanan)">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24"
               stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span>Verifikasi Semua</span>
+            <span>Verifikasi Massal</span>
           </button>
           <!-- Dua broadcast terpisah (grup WA berbeda): layanan Kecamatan & layanan Kemenag. Khusus UTAMA. -->
           <button id="btn-salin-wa-kecamatan"
@@ -3469,7 +3469,7 @@
   <!-- MODUL JAVASCRIPT DJPM 2027 (Standar Maksimal 3.000 Baris Kode per File)  -->
   <!-- ========================================================================= -->
   <script src="/js/app-core.js?v=20271030" defer></script>
-  <script src="/js/app-transaksi.js?v=20271029" defer></script>
+  <script src="/js/app-transaksi.js?v=20271031" defer></script>
   <script src="/js/app-wajib-lapor.js?v=20271029" defer></script>
   <script src="/js/app-admin.js?v=20271019" defer></script>
   <script src="/js/app-kelola-data.js?v=20271007" defer></script>
@@ -3477,8 +3477,8 @@
   <script src="/js/app-kelola-ibadah.js?v=20271017" defer></script>
   <script src="/js/app-retur.js?v=20271012" defer></script>
   <script src="/js/app-retur-status.js?v=20271012" defer></script>
-  <!-- app-pesan-periode.js memuat skrip khusus peran secara malas dgn versi (?v=) yang sama: UTAMA = jadwal & pesan, laporan PDF, penanda MUI; MUI = penanda MUI; peran lain tidak memuat apa pun -->
-  <script src="/js/app-pesan-periode.js?v=20271022" defer></script>
+  <!-- app-pesan-periode.js memuat skrip khusus peran secara malas dgn versi (?v=) yang sama: UTAMA = jadwal & pesan, laporan PDF, penanda MUI, verifikasi massal per layanan; MUI = penanda MUI; peran lain tidak memuat apa pun -->
+  <script src="/js/app-pesan-periode.js?v=20271031" defer></script>
   <script src="/js/modal-a11y.js?v=20271008" defer></script>
 
 </body>

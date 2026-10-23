@@ -551,11 +551,11 @@
   // Pemicu: login/pemulihan sesi/penyegaran (lewat terapkanHakAkses), tab aktif lagi, online, berkala
   // ---------------------------------------------------------------------------------------------
   // Skrip khusus peran, dimuat malas setelah login. UTAMA: modal Jadwal & Pesan (±15 KB gzip), laporan PDF Dashboard
-  // Progres (plans/plan-pdf-dashboard-progres.md), dan penanda "diinput oleh MUI". MUI: hanya penanda
+  // Progres (plans/plan-pdf-dashboard-progres.md), dan penanda "diinput oleh MUI", serta Verifikasi Massal per layanan. MUI: hanya penanda
   // (plans/plan-akun-mui-bisa-input.md). Peran lain tidak mengunduh satu pun. Gagal muat satu skrip tidak
   // memengaruhi yang lain, dan masing-masing dicoba lagi pada pemicu berikutnya.
   var SKRIP_PER_PERAN = {
-    UTAMA: ['/js/app-jadwal-pesan.js', '/js/app-laporan-progres.js', '/js/app-penanda-mui.js'],
+    UTAMA: ['/js/app-jadwal-pesan.js', '/js/app-laporan-progres.js', '/js/app-penanda-mui.js', '/js/app-verifikasi-massal.js'],
     MUI: ['/js/app-penanda-mui.js']
   };
   var skripAdminDimuat = {};

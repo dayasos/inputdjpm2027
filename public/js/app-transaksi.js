@@ -3169,41 +3169,15 @@ document.getElementById('btn-export-xlsx').addEventListener('click', function ()
     .eksporDataKeSpreadsheet(dataPengguna.token, dataEkspor, buatNamaFile());
 });
 
+// Verifikasi Massal per layanan: logika ada di app-verifikasi-massal.js (dimuat malas khusus UTAMA oleh app-pesan-periode.js).
+// Bila skrip itu belum/gagal dimuat, beri tahu -- jangan membiarkan tombol mati diam-diam.
 document.getElementById('btn-verifikasi-massal').addEventListener('click', function () {
   if (!pastikanLogin()) return;
-  const btn = this;
-  konfirmasiAksi({
-    judul: "Verifikasi Massal Memenuhi Syarat",
-    pesan: "Ini akan menandai SEMUA data yang masih berstatus 'Proses Verifikasi' menjadi 'Memenuhi Syarat', tanpa memandang filter yang sedang aktif.\n\nData yang sudah berstatus 'Tidak Memenuhi Syarat' tidak akan disentuh. Lanjutkan?",
-    tipe: "warning",
-    teksBatal: "Batal",
-    teksKonfirmasi: "Ya, Verifikasi Semua"
-  }).then(function (setuju) {
-    if (!setuju) return;
-    setTombolMemuat(btn, "Memproses...");
-    google.script.run
-      .withSuccessHandler(function (res) {
-        pulihkanTombol(btn);
-        if (!res.sukses) { tampilkanToast('Gagal: ' + res.pesan, 'gagal', { durasi: 6000 }); return; }
-        tampilkanToast('Selesai! ' + res.jumlah + ' data ditandai "Memenuhi Syarat".', 'sukses');
-        for (let i = 0; i < masterDataLihat.length; i++) {
-          if ((masterDataLihat[i][18] || "Proses Verifikasi") === "Proses Verifikasi") {
-            masterDataLihat[i][18] = "Memenuhi Syarat";
-          }
-        }
-        saringDanTampilkanTabel();
-        invalidateCacheDataTransaksi();
-        // inisialisasiMenuLihatData() tidak menerima parameter -- ini menyinkronkan dengan data
-        // resmi server tanpa skeleton loader karena masterDataLihat sudah diisi lewat update
-        // optimistis di atas (lihat komentar fungsinya: skeleton cuma tampil kalau array kosong).
-        inisialisasiMenuLihatData();
-      })
-      .withFailureHandler(function (err) {
-        pulihkanTombol(btn);
-        tampilkanToast(pesanErrorRamah(err), 'gagal', { durasi: 6000 });
-      })
-      .verifikasiMassalMemenuhiSyarat(dataPengguna.token);
-  });
+  if (typeof window.bukaVerifikasiMassal !== 'function') {
+    tampilkanToast('Fitur belum siap dimuat. Muat ulang halaman lalu coba lagi.', 'gagal', { durasi: 6000 });
+    return;
+  }
+  window.bukaVerifikasiMassal();
 });
 
 window.bukaModalKonfirmasiLogout = function () {

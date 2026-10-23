@@ -61,6 +61,7 @@ import {
   laporkanPerbaikanBerkas,
   tandaiSudahDiperbaiki,
   verifikasiMassalMemenuhiSyarat,
+  ringkasanVerifikasiMassal,
   verifikasiSatuData,
 } from "./domains/verifikasi.ts";
 import {
@@ -162,6 +163,7 @@ const ALLOWED: Record<string, Handler> = {
   laporkanPerbaikanBerkas,
   tandaiSudahDiperbaiki,
   verifikasiMassalMemenuhiSyarat,
+  ringkasanVerifikasiMassal,
   getDaftarBerkasTidakLengkapUntukWA,
   cekBatasWaktuVerifikasi,
   statusInputKecKem,

@@ -358,6 +358,7 @@ const AKSI_BACA_AMAN_DIRETRY = new Set([
   'ambilStatusPeriode', // alias statusInputKecKem TANPA cache: jam server selalu segar
   'ambilDetailBatchPembayaran',
   'getDaftarBerkasTidakLengkapUntukWA',
+  'ringkasanVerifikasiMassal', // pratinjau verifikasi massal: SELECT murni, tanpa cache SWR (angka harus segar)
   'ambilDaftarAkunLengkap',
   // Kelola Data & Berkas: adminDaftarData/adminDetailData (aksi BACA murni) sudah masuk lewat
   // SWR_CONFIG di atas. Aksi tulisnya (adminUbahData/adminHapusBerkasMassal/adminHapusData/

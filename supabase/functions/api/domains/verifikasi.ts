@@ -260,33 +260,137 @@ export async function tandaiSudahDiperbaiki(token: string, nomorBarisAsli: numbe
 // Port 1:1 dari verifikasiMassalMemenuhiSyarat() (Kode.gs baris 3122-3169) — khusus UTAMA.
 // Hanya menyentuh baris yang MASIH "" atau "Proses Verifikasi" (case-insensitive, sama seperti
 // asli) — status lain (termasuk Berkas Tidak Lengkap) TIDAK disentuh.
-export async function verifikasiMassalMemenuhiSyarat(token: string) {
+//
+// Verifikasi massal per layanan (plan-verifikasi-massal-per-layanan.md, 2026-10-23). Parameter baru SEMUA opsional:
+// tanpa parameter = perilaku lama persis (semua layanan, tanpa pagar waktu), jadi frontend lama tetap bekerja.
+//   layanan           kosong = semua layanan; terisi = hanya layanan itu (case-insensitive).
+//   batasWaktu        ISO time dari ringkasanVerifikasiMassal: hanya data yang dibuat SEBELUM/SAAT batas ini yang diverifikasi,
+//                     sehingga data yang masuk antara pratinjau dan klik "Ya" tidak ikut (angka yang disetujui = angka yang berubah).
+//   lewatiMuiKoreksi  true = Ustadz/Ustadzah yang rekomendasi MUI-nya PERLU_KOREKSI dilewati (tetap Proses Verifikasi).
+const LAYANAN_MUI_SQL = ["USTADZ", "USTADZAH", "USTADZ/USTADZAH"];
+
+async function wajibUtama(token: string) {
   let sesi;
   try {
     sesi = await wajibSesi(token);
   } catch (e) {
-    return { sukses: false, pesan: e instanceof Error ? e.message : String(e) };
+    return { galat: { sukses: false, pesan: e instanceof Error ? e.message : String(e) } };
   }
   if ((sesi.role || "").toString().trim().toUpperCase() !== "UTAMA") {
-    return { sukses: false, pesan: "Fitur ini khusus Admin Utama." };
+    return { galat: { sukses: false, pesan: "Fitur ini khusus Admin Utama." } };
   }
+  return { sesi };
+}
+
+// Pratinjau (baca-saja): jumlah data menunggu verifikasi per layanan. Predikat "menunggu" IDENTIK dengan UPDATE di bawah.
+// `batasWaktu` diambil DULU lalu dipakai untuk menghitung, jadi angka pratinjau = angka yang akan dieksekusi.
+export async function ringkasanVerifikasiMassal(token: string) {
+  const u = await wajibUtama(token);
+  if (u.galat) return u.galat;
+  try {
+    const t = await sql`select now() as batas`;
+    const batas: Date = t[0].batas;
+    const rows = await sql`
+      select upper(trim(layanan)) as layanan,
+             count(*)::int as jumlah,
+             count(*) filter (
+               where upper(trim(layanan)) = any(${LAYANAN_MUI_SQL}::text[]) and coalesce(status_rekomendasi_mui, '') = 'PERLU_KOREKSI'
+             )::int as mui_perlu_koreksi
+      from penerima
+      where tahun = ${TAHUN_AKTIF}
+        and (status_verifikasi = '' or upper(trim(status_verifikasi)) = 'PROSES VERIFIKASI')
+        and dibuat_at <= ${batas}
+      group by upper(trim(layanan))
+      order by jumlah desc, layanan
+    `;
+    const perLayanan = rows.map((r: any) => ({
+      layanan: r.layanan as string,
+      jumlah: Number(r.jumlah),
+      muiPerluKoreksi: Number(r.mui_perlu_koreksi),
+    }));
+    return {
+      sukses: true,
+      total: perLayanan.reduce((a: number, r: { jumlah: number }) => a + r.jumlah, 0),
+      perLayanan,
+      batasWaktu: batas.toISOString(),
+    };
+  } catch (error) {
+    return { sukses: false, pesan: String(error) };
+  }
+}
+
+export async function verifikasiMassalMemenuhiSyarat(
+  token: string,
+  layanan?: string,
+  batasWaktu?: string,
+  lewatiMuiKoreksi?: boolean,
+) {
+  const u = await wajibUtama(token);
+  if (u.galat) return u.galat;
+  const sesi = u.sesi;
+
+  const layananBersih = (layanan || "").toString().trim().toUpperCase();
+  let batas: Date | null = null;
+  if (batasWaktu) {
+    batas = new Date(batasWaktu);
+    if (isNaN(batas.getTime())) return { sukses: false, pesan: "Batas waktu pratinjau tidak valid. Muat ulang pilihan layanan." };
+  }
+  const lewati = lewatiMuiKoreksi === true;
 
   try {
     const namaVerifikator = (sesi.username || "UTAMA").toString().toUpperCase();
 
-    const rows = await sql`
-      update penerima set
-        status_verifikasi = 'Memenuhi Syarat',
-        keterangan_verifikasi = '',
-        tanggal_verifikasi = now(),
-        diverifikasi_oleh = ${namaVerifikator},
-        batas_waktu_perbaikan = null
-      where tahun = ${TAHUN_AKTIF}
-        and (status_verifikasi = '' or upper(trim(status_verifikasi)) = 'PROSES VERIFIKASI')
-      returning id
-    `;
+    if (layananBersih) {
+      // Layanan yang tidak dikenal ditolak dengan pesan jelas (bukan "0 data" yang diam-diam).
+      const ada = await sql`
+        select 1 from penerima where tahun = ${TAHUN_AKTIF} and upper(trim(layanan)) = ${layananBersih} limit 1
+      `;
+      if (ada.length === 0) return { sukses: false, pesan: 'Layanan "' + layananBersih + '" tidak ditemukan. Muat ulang pilihan layanan.' };
+    }
 
-    return { sukses: true, jumlah: rows.length };
+    // Transaksi: UPDATE data + catatan log atomik (tanpa log yatim / data berubah tanpa catatan).
+    const idDiubah: number[] = await sql.begin(async (trx: any) => {
+      const rows = await trx`
+        update penerima set
+          status_verifikasi = 'Memenuhi Syarat',
+          keterangan_verifikasi = '',
+          tanggal_verifikasi = now(),
+          diverifikasi_oleh = ${namaVerifikator},
+          batas_waktu_perbaikan = null,
+          tanggal_lapor_perbaikan = null,
+          dilapor_oleh = null,
+          tanggal_berkas_diubah = null
+        where tahun = ${TAHUN_AKTIF}
+          and (status_verifikasi = '' or upper(trim(status_verifikasi)) = 'PROSES VERIFIKASI')
+          and (${layananBersih} = '' or upper(trim(layanan)) = ${layananBersih})
+          and (${batas}::timestamptz is null or dibuat_at <= ${batas}::timestamptz)
+          and not (
+            ${lewati}::boolean
+            and upper(trim(layanan)) = any(${LAYANAN_MUI_SQL}::text[])
+            and coalesce(status_rekomendasi_mui, '') = 'PERLU_KOREKSI'
+          )
+        returning id
+      `;
+      const ids = rows.map((r: any) => Number(r.id));
+      if (ids.length > 0) {
+        // JANGAN `${JSON.stringify(ids)}::jsonb`: postgres.js menyerialkan ulang parameter jsonb sehingga yang tersimpan jsonb STRING, bukan array
+        // (lihat catatan di penerima.ts, idempotency_keys). Array bigint -> to_jsonb() menghasilkan jsonb array yang benar.
+        await trx`
+          insert into log_verifikasi_massal (username, tahun, layanan, jumlah, ids)
+          values (${namaVerifikator}, ${TAHUN_AKTIF}, ${layananBersih}, ${ids.length}, to_jsonb(${ids}::bigint[]))
+        `;
+      }
+      return ids;
+    });
+
+    // Sinkron data_detail non-blocking (idempoten; kegagalannya tidak menggagalkan respons).
+    if (idDiubah.length > 0) {
+      pastikanDataDetailTersinkron(TAHUN_AKTIF).catch((e) => {
+        console.error("verifikasiMassalMemenuhiSyarat: pastikanDataDetailTersinkron gagal (non-blocking):", e);
+      });
+    }
+
+    return { sukses: true, jumlah: idDiubah.length, layanan: layananBersih };
   } catch (error) {
     return { sukses: false, pesan: String(error) };
   }
