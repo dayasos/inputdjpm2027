@@ -341,6 +341,24 @@
   };
 
   // ---- Detail & Edit Data ---------------------------------------------------------------------------------------------
+  function potong(t, n) { t = String(t); return t.length > n ? t.slice(0, n - 1) + '...' : t; }
+  /** Uraian ringkas untuk isi koordinat yang SALAH berupa TAUTAN (agar tautan panjang tidak membanjiri layar); null bila bukan tautan. */
+  function uraianSalah(nilai) {
+    var m = String(nilai).match(/https?:\/\/[^\s<>"']+/i);
+    if (!m) return null;
+    var awalan = bersihkan(String(nilai).replace(m[0], ' ')).length > 3 ? 'alamat disertai ' : '';
+    var host = '', jalur = '', u;
+    try { u = new URL(m[0].replace(/[.,;:)\]}]+$/, '')); host = u.hostname.toLowerCase(); jalur = u.pathname.toLowerCase(); }
+    catch (e) { return awalan + 'tautan yang tidak valid dan bukan tautan lokasi dari Google Maps'; }
+    var isi;
+    if (/^(www\.)?google\.[a-z.]+$/.test(host) && /^\/search/.test(jalur)) isi = 'tautan hasil pencarian Google dan bukan tautan lokasi dari Google Maps';
+    else if (host.indexOf('share.google') >= 0) isi = 'tautan bagikan Google (share.google) dan bukan tautan lokasi dari Google Maps';
+    else if (host.indexOf('timemark') >= 0) isi = 'tautan aplikasi kamera Timemark dan bukan tautan lokasi dari Google Maps';
+    else if (normalisasiKoordinat(nilai).pesan.indexOf('luar Kota Medan') >= 0) isi = 'tautan Google Maps yang lokasinya berada di luar Kota Medan';
+    else isi = 'tautan dari ' + host + ' dan bukan tautan lokasi dari Google Maps';
+    return awalan + isi;
+  }
+
   // Kelas disusun sebagai LITERAL utuh (bukan dirangkai) supaya terbaca oleh pemindai Tailwind saat build.
   var IKON_PERINGATAN = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>';
   var KOTAK = {
@@ -377,7 +395,7 @@
         '<a href="' + esc2(h.tautan) + '" target="_blank" rel="noopener noreferrer" class="ml-2 text-xs font-semibold text-sky-700 underline">Buka di Google Maps &#8599;</a></div></div>';
     }
     var saatIni = nilai
-      ? '<p class="text-xs text-red-700">Yang tercatat sekarang (<b>salah</b>):</p><p class="mt-0.5 text-sm font-bold text-red-800 break-words" id="detail-koordinat-isi">' + esc2(nilai) + '</p>'
+      ? '<p class="text-xs text-red-700">Yang tercatat sekarang (<b>salah</b>):</p><p class="mt-0.5 text-sm font-bold text-red-800 break-words" id="detail-koordinat-isi" title="' + esc2(nilai) + '">' + esc2(uraianSalah(nilai) || potong(nilai, 160)) + '</p>'
       : '<p class="text-sm font-bold text-red-800" id="detail-koordinat-isi">Belum diisi</p>';
     return '<div class="' + KOTAK.merah + '" id="detail-koordinat-lokasi" data-perlu-perbaikan="1">' +
       '<p class="' + JUDUL.merah + '">' + TEKS_JUDUL.merah + '</p>' + saatIni +
@@ -415,7 +433,7 @@
     if (!d || !layananWajib(d[7])) return '';
     var nilai = bersihkan(d[31]);
     if (nilai && normalisasiKoordinat(nilai).ok) return '';
-    var isi = nilai ? 'Koordinat lokasi data ini masih SALAH: "' + (nilai.length > 80 ? nilai.slice(0, 79) + '...' : nilai) + '".' : 'Koordinat lokasi data ini masih BELUM DIISI.';
+    var isi = nilai ? 'Koordinat lokasi data ini masih SALAH: ' + (uraianSalah(nilai) || '"' + potong(nilai, 80) + '"') + '.' : 'Koordinat lokasi data ini masih BELUM DIISI.';
     return isi + '\n\nYakin sudah diperbaiki dan ingin melaporkan? Bila belum, pilih "Kembali", klik Edit, lalu isi koordinat yang benar.';
   };
   /** Dipanggil simpanEdit(nilaiTersimpan): pesan galat bila kolom koordinat DIUBAH menjadi tidak valid ('' = boleh lanjut). */
