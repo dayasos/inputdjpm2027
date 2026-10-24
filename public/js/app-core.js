@@ -2114,7 +2114,9 @@ selectLayanan.addEventListener('change', function () { jalankanCekKuota(false); 
     'input-nik', 'input-no-rek', 'input-kontak',
     'input-tgl-lahir', 'input-umur',
     'login-username', 'login-password',
-    'gp-lama', 'gp-username', 'gp-baru', 'gp-konfirm'
+    'gp-lama', 'gp-username', 'gp-baru', 'gp-konfirm',
+    // Koordinat lokasi berisi tautan/angka: spasi setelah titik MERUSAK (maps.app.goo.gl -> "maps. app. goo. gl", 3.56 -> "3. 56")
+    'input-koordinat-manual', 'input-koordinat-manual-ibadah', 'edit-31'
   ];
 
   function terapkanAtorSpasi(e) {

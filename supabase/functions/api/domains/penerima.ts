@@ -14,6 +14,7 @@ import {
 import { periksaIzinInput } from "./setelan.ts";
 import { cekKuotaTersedia } from "./validasi.ts";
 import { cariRumahIbadah, kelurahanAdaDiKecamatan, tentukanWilayahTugas } from "../_shared/wilayahTugas.ts";
+import { layananWajibKoordinat, normalisasiKoordinat } from "../_shared/koordinat.ts";
 
 // ---------------------------------------------------------------------------
 // Penanda PENGINPUT di Lihat Data (rencana akun MUI, 2026-10-20): data hasil input akun MUI diberi tanda
@@ -488,6 +489,7 @@ export const MAP_IDX_KE_KOLOM_TEKS: Record<number, string> = {
   14: "kantor_cabang",
   15: "no_kontak",
   16: "status_bpjs_tk",
+  31: "link_koordinat_lokasi", // hanya layanan Guru; divalidasi/dinormalkan di editDataPenerima
 };
 
 export const MAP_IDX_KE_KOLOM_BERKAS: Record<number, string> = {
@@ -518,7 +520,7 @@ export function labelKolom(idx: number): string {
     22: "Domisili Kelurahan", 23: "Formulir Pendataan", 24: "Berkas Pendukung",
     25: "Foto Plank", 26: "Foto Lokasi Ibadah", 27: "Foto Kegiatan",
     28: "Rekomendasi BKM", 29: "Rekomendasi Pengurus Rumah Ibadah",
-    40: "Unggah Domisili Rumah Ibadah",
+    31: "Koordinat Lokasi", 40: "Unggah Domisili Rumah Ibadah",
   };
   return MAP[idx] || ("Kolom " + idx);
 }
@@ -652,7 +654,7 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
     const kantorCabang = ((formObject.inputKantorCabang as string) || "").trim().toUpperCase();
     const noKontak = String(formObject.inputNoKontak || "").trim();
     const statusBpjs = ((formObject.selectBpjs as string) || "").trim().toUpperCase();
-    const koordinatLink = ((formObject.koordinatLink as string) || "").trim();
+    let koordinatLink = ((formObject.koordinatLink as string) || "").trim();
     const catatanPerbedaanNama = ((formObject.catatanPerbedaanNama as string) || "").trim();
 
     // Link berkas dari GAS microservice upload (bukan base64)
@@ -711,6 +713,15 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
     }
     if (!nama || nik.length !== 16 || nomorRekening.length !== 14 || !layanan || !kecamatan) {
       return { sukses: false, pesan: "GAGAL: Data wajib tidak lengkap atau format NIK/Rekening salah." };
+    }
+
+    // Koordinat lokasi (plans/plan-koordinat-lokasi-pintar.md): untuk layanan Guru WAJIB koordinat/tautan Maps yang sah. Server menjadi
+    // penentu terakhir (layar bisa dilewati / halaman lama masih mengirim teks bebas); nilai disimpan dalam bentuk ternormalisasi.
+    // Sengaja SESUDAH cek hak akses & data wajib: peran yang tidak berhak tetap menerima pesan hak-akses, bukan pesan koordinat.
+    if (layananWajibKoordinat(layanan)) {
+      const hk = normalisasiKoordinat(koordinatLink);
+      if (!hk.ok) return { sukses: false, pesan: "GAGAL: Koordinat lokasi tidak valid. " + hk.pesan };
+      koordinatLink = hk.tautan;
     }
 
     // ── Wilayah tugas: kecamatan & kelurahan dari rumah ibadah / sesi login (lihat wilayahTugas.ts) ──
@@ -1075,14 +1086,23 @@ export async function editDataPenerima(
     const setValues: Record<string, any> = {};
 
     // Perubahan teks (port Kode.gs baris 2689-2713)
+    let koordinatDiubah = false;
     for (const idxStr of Object.keys(teks)) {
       const idx = Number(idxStr);
       const namaKolom = MAP_IDX_KE_KOLOM_TEKS[idx];
       if (!namaKolom) continue;
 
       let nilaiBaru: string = String(teks[idxStr] || "").trim();
-      // Uppercase kecuali kolom numerik/kontak (NIK=2, rekening=13, kontak=15)
-      if (![2, 13, 15].includes(idx)) nilaiBaru = nilaiBaru.toUpperCase();
+      if (idx === 31) {
+        // Koordinat lokasi: hanya layanan Guru; wajib sah (tautan Maps / angka koordinat / Plus Code) dan disimpan ternormalisasi.
+        if (!layananWajibKoordinat(layananSheet)) continue;
+        const hk = normalisasiKoordinat(nilaiBaru);
+        if (!hk.ok) return { sukses: false, pesan: "GAGAL: Koordinat lokasi tidak valid. " + hk.pesan };
+        nilaiBaru = hk.tautan;
+      } else if (![2, 13, 15].includes(idx)) {
+        // Uppercase kecuali kolom numerik/kontak (NIK=2, rekening=13, kontak=15)
+        nilaiBaru = nilaiBaru.toUpperCase();
+      }
 
       const nilaiLama = (rowLama[namaKolom] !== null && rowLama[namaKolom] !== undefined)
         ? rowLama[namaKolom].toString().trim()
@@ -1102,6 +1122,7 @@ export async function editDataPenerima(
       } else {
         setValues[namaKolom] = nilaiBaru;
       }
+      if (idx === 31) koordinatDiubah = true;
 
       riwayat.push({ kolom: idx, label: labelKolom(idx), sebelum: nilaiLama, sesudah: nilaiBaru });
     }
@@ -1132,7 +1153,7 @@ export async function editDataPenerima(
     // Plan wajib lapor perbaikan (2026-10-22): user (bukan Admin Utama) mengganti berkas pada data Berkas Tidak Lengkap ->
     // catat waktunya di server supaya Admin Utama tahu walau user menutup tab sebelum menekan "Laporkan Sudah Diperbaiki".
     // Status dibaca dari baris yang sudah dimuat di atas (tanpa query baru). Perubahan teks saja TIDAK memicu.
-    if (berkasBerganti > 0 && peranSesi !== "UTAMA" && rowLama.status_verifikasi === "Berkas Tidak Lengkap") {
+    if ((berkasBerganti > 0 || koordinatDiubah) && peranSesi !== "UTAMA" && rowLama.status_verifikasi === "Berkas Tidak Lengkap") {
       setValues["tanggal_berkas_diubah"] = new Date().toISOString();
     }
 
@@ -1178,7 +1199,7 @@ export async function editDataPenerima(
       }
     }
 
-    return { sukses: true, pesan: `Data berhasil diperbarui (${riwayat.length} kolom diubah).`, berkasDiubah: berkasBerganti };
+    return { sukses: true, pesan: `Data berhasil diperbarui (${riwayat.length} kolom diubah).`, berkasDiubah: berkasBerganti + (koordinatDiubah ? 1 : 0) };
   } catch (e) {
     return { sukses: false, pesan: "Gagal mengedit data: " + String(e) };
   }

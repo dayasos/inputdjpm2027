@@ -850,9 +850,12 @@
                       <p class="text-[11px] text-red-600 mb-2">Kemungkinan dikirim sebagai "Foto" di WhatsApp, bukan
                         "Dokumen". Silakan ganti foto, atau tempel tautan Google Maps lokasi tersebut secara manual di
                         bawah ini.</p>
-                      <input type="text" id="input-koordinat-manual" placeholder="Tempel tautan Google Maps di sini..."
-                        class="w-full text-xs p-2.5 border border-red-300 rounded-lg"
-                        oninput="cekKoordinatManualDiisi('plank')">
+                    </div>
+                    <button type="button" id="tombol-manual-koordinat-plank" class="mt-2 text-[11px] font-semibold underline text-amber-800" onclick="djpmKoordinat.tampilkanManual('plank', true)">Isi lokasi manual (tautan Google Maps, angka koordinat, atau Plus Code)</button>
+                    <div id="manual-koordinat-plank" class="hidden mt-2">
+                      <input type="text" id="input-koordinat-manual" aria-label="Lokasi manual" autocomplete="off" style="text-transform:none" placeholder="Tempel tautan Google Maps, angka koordinat, atau Plus Code" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg" oninput="cekKoordinatManualDiisi('plank')" onchange="cekKoordinatManualDiisi('plank')">
+                      <p id="pesan-koordinat-manual" class="hidden mt-1 text-[11px] text-red-600 font-semibold"></p>
+                      <p class="mt-1 text-[10px] text-slate-500 leading-snug">Foto yang dikirim lewat &quot;Foto&quot; WhatsApp tidak membawa lokasi. Cara mudah: buka Google Maps, tekan lama pada titik lokasi, pilih Bagikan, lalu Salin tautan.</p>
                     </div>
                   </div>
                   <div id="wrapper-foto-ibadah"
@@ -890,10 +893,12 @@
                       <p class="text-[11px] text-red-600 mb-2">Kemungkinan dikirim sebagai "Foto" di WhatsApp, bukan
                         "Dokumen". Silakan ganti foto, atau tempel tautan Google Maps lokasi tersebut secara manual di
                         bawah ini.</p>
-                      <input type="text" id="input-koordinat-manual-ibadah"
-                        placeholder="Tempel tautan Google Maps di sini..."
-                        class="w-full text-xs p-2.5 border border-red-300 rounded-lg"
-                        oninput="cekKoordinatManualDiisi('ibadah')">
+                    </div>
+                    <button type="button" id="tombol-manual-koordinat-ibadah" class="mt-2 text-[11px] font-semibold underline text-amber-800" onclick="djpmKoordinat.tampilkanManual('ibadah', true)">Isi lokasi manual (tautan Google Maps, angka koordinat, atau Plus Code)</button>
+                    <div id="manual-koordinat-ibadah" class="hidden mt-2">
+                      <input type="text" id="input-koordinat-manual-ibadah" aria-label="Lokasi manual" autocomplete="off" style="text-transform:none" placeholder="Tempel tautan Google Maps, angka koordinat, atau Plus Code" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg" oninput="cekKoordinatManualDiisi('ibadah')" onchange="cekKoordinatManualDiisi('ibadah')">
+                      <p id="pesan-koordinat-manual-ibadah" class="hidden mt-1 text-[11px] text-red-600 font-semibold"></p>
+                      <p class="mt-1 text-[10px] text-slate-500 leading-snug">Foto yang dikirim lewat &quot;Foto&quot; WhatsApp tidak membawa lokasi. Cara mudah: buka Google Maps, tekan lama pada titik lokasi, pilih Bagikan, lalu Salin tautan.</p>
                     </div>
                   </div>
                   <div id="wrapper-foto-kegiatan"
@@ -3468,8 +3473,9 @@
   <!-- ========================================================================= -->
   <!-- MODUL JAVASCRIPT DJPM 2027 (Standar Maksimal 3.000 Baris Kode per File)  -->
   <!-- ========================================================================= -->
-  <script src="/js/app-core.js?v=20271030" defer></script>
-  <script src="/js/app-transaksi.js?v=20271031" defer></script>
+  <script src="/js/app-core.js?v=20271032" defer></script>
+  <script src="/js/koordinat-lokasi.js?v=20271032" defer></script>
+  <script src="/js/app-transaksi.js?v=20271032" defer></script>
   <script src="/js/app-wajib-lapor.js?v=20271029" defer></script>
   <script src="/js/app-admin.js?v=20271019" defer></script>
   <script src="/js/app-kelola-data.js?v=20271007" defer></script>

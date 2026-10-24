@@ -163,22 +163,16 @@ function resetStatusKoordinat(mode) {
   document.getElementById(cfg.idGagal).classList.add('hidden');
   const inputManual = document.getElementById(cfg.idInputManual);
   if (inputManual) inputManual.value = '';
+  if (window.djpmKoordinat) window.djpmKoordinat.reset(mode);
   updateStatusTombolSimpan();
 }
 function resetSemuaStatusKoordinat() {
   Object.keys(KONFIG_KOORDINAT).forEach(resetStatusKoordinat);
 }
 function cekKoordinatManualDiisi(mode) {
-  const cfg = KONFIG_KOORDINAT[mode];
-  const val = document.getElementById(cfg.idInputManual).value.trim();
-  if (val.length > 10) {
-    document.getElementById(cfg.idHidden).value = val;
-    cfg.siap = true;
-  } else {
-    document.getElementById(cfg.idHidden).value = '';
-    cfg.siap = false;
-  }
-  updateStatusTombolSimpan();
+  // Penerjemah koordinat (koordinat-lokasi.js): tautan Maps / angka / Plus Code -> disimpan ternormalisasi; selain itu ditolak.
+  if (window.djpmKoordinat) window.djpmKoordinat.periksaManual(mode);
+  else tampilkanToast("Halaman belum termuat sempurna. Muat ulang halaman lalu coba lagi.", "gagal");
 }
 async function prosesKoordinatDariFoto(file, mode) {
   resetStatusKoordinat(mode);
@@ -193,6 +187,8 @@ async function prosesKoordinatDariFoto(file, mode) {
       const lat = gps.latitude.toFixed(6);
       const lng = gps.longitude.toFixed(6);
       const mapsLink = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+      const galatGps = window.djpmKoordinat ? window.djpmKoordinat.periksaGps(mapsLink) : '';
+      if (galatGps) { window.djpmKoordinat.tampilkanManual(mode, true, galatGps); cfg.siap = false; updateStatusTombolSimpan(); return; } // GPS di luar Kota Medan
       document.getElementById(cfg.idHidden).value = mapsLink;
       document.getElementById(cfg.idTeksOk).innerText = lat + ', ' + lng;
       document.getElementById(cfg.idLinkOk).onclick = function () { window.open(mapsLink, '_blank'); };
@@ -200,11 +196,13 @@ async function prosesKoordinatDariFoto(file, mode) {
       cfg.siap = true;
     } else {
       document.getElementById(cfg.idGagal).classList.remove('hidden');
+      if (window.djpmKoordinat) window.djpmKoordinat.tampilkanManual(mode, true);
       cfg.siap = false;
     }
   } catch (e) {
     document.getElementById(cfg.idCek).classList.add('hidden');
     document.getElementById(cfg.idGagal).classList.remove('hidden');
+    if (window.djpmKoordinat) window.djpmKoordinat.tampilkanManual(mode, true);
     cfg.siap = false;
   }
   updateStatusTombolSimpan();
@@ -1045,14 +1043,14 @@ formPembayaran.addEventListener('submit', (e) => {
   for (const modeKoordinat of Object.keys(KONFIG_KOORDINAT)) {
     const cfgKoordinat = KONFIG_KOORDINAT[modeKoordinat];
     if (cfgKoordinat.layananList.indexOf(selectLayanan.value) !== -1 && !cfgKoordinat.siap) {
-      tampilkanToast("Koordinat lokasi foto wajib terisi (otomatis dari GPS foto, atau tempel tautan Google Maps manual) sebelum data bisa disimpan.", "gagal", { durasi: 6000 });
+      tampilkanToast("Koordinat lokasi wajib terisi (otomatis dari GPS foto, atau isi manual: tautan Google Maps, angka koordinat, atau Plus Code) sebelum data bisa disimpan.", "gagal", { durasi: 6000 });
       document.getElementById(cfgKoordinat.wrapperId).scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
   }
   // Uppercase semua field teks sebelum validasi
   const semuaInputTeks = formPembayaran.querySelectorAll('input[type="text"]');
-  semuaInputTeks.forEach(input => { input.value = input.value.trim().toUpperCase(); });
+  semuaInputTeks.forEach(input => { if (input.id.indexOf('input-koordinat-manual') !== 0) input.value = input.value.trim().toUpperCase(); }); // tautan Maps peka huruf besar/kecil
   // Cek Kesesuaian Nama Rekening
   if (!cekKesesuaianNama()) return;
   // Validasi lokal cepat sebelum tampilkan modal
@@ -2280,6 +2278,7 @@ function halamanBerikutnya() {
     12: { label: "Nama Rekening", type: "text", maks: 100 }, 13: { label: "Nomor Rekening", type: "text" },
     14: { label: "Kantor Cabang", type: "text", maks: 100 }, 15: { label: "No. Kontak", type: "text", hint: "Diawali 08" },
     16: { label: "Status BPJS TK", type: "select", opsi: ["YA", "TIDAK"] },
+    31: { label: "Koordinat Lokasi", type: "text" }, // hanya layanan Guru (kolomnya dibuat koordinat-lokasi.js)
   };
   const KOLOM_BERKAS = {
     18: ["KTP"], 19: ["Buku Rekening"], 20: ["Surat Permohonan"],
@@ -2484,6 +2483,7 @@ function halamanBerikutnya() {
       }
     }
     h += `</div>`;
+    if (window.djpmKoordinat) h += window.djpmKoordinat.htmlDetail(d); // Koordinat Lokasi (layanan Guru)
     // Berkas sesuai layanan
     const berkasList = getBerkasSesuaiLayanan(d[7]);
     h += `<div class="mt-5 border-t border-slate-200/80 pt-4">
@@ -2817,6 +2817,7 @@ function halamanBerikutnya() {
       }
     }
     h += `</div>`;
+    if (window.djpmKoordinat) h += window.djpmKoordinat.htmlEdit(d); // Koordinat Lokasi (layanan Guru)
     // Berkas sesuai layanan
     const berkasList = getBerkasSesuaiLayanan(d[7]);
     h += `<div class="mt-5 border-t border-slate-200/80 pt-4">
@@ -2883,10 +2884,12 @@ function halamanBerikutnya() {
     Object.keys(KOLOM_TEKS).forEach(function (i) {
       const el = document.getElementById('edit-' + i);
       if (!el) return;
-      const nilaiInput = el.value.toString().trim().toUpperCase();
-      const nilaiLama = String(dataAktif[Number(i)] !== undefined && dataAktif[Number(i)] !== null ? dataAktif[Number(i)] : "").toString().trim().toUpperCase();
-      if (nilaiInput !== nilaiLama) teks[i] = el.value.toString().trim();
+      const peka = i === '31'; // tautan Maps peka huruf besar/kecil: bandingkan apa adanya
+      const nilaiInput = peka ? el.value.toString().trim() : el.value.toString().trim().toUpperCase();
+      const nilaiLama = String(dataAktif[Number(i)] !== undefined && dataAktif[Number(i)] !== null ? dataAktif[Number(i)] : "").toString().trim();
+      if (nilaiInput !== (peka ? nilaiLama : nilaiLama.toUpperCase())) teks[i] = el.value.toString().trim();
     });
+    if (window.djpmKoordinat) { const gk = window.djpmKoordinat.galatEdit(dataAktif[31]); if (gk) { tampilkanToast(gk, "gagal", { durasi: 6000 }); return; } }
     if (Object.keys(teks).length === 0 && Object.keys(berkasBaruMap).length === 0) {
       tampilkanToast("Tidak ada perubahan yang dilakukan.", "info"); return;
     }
@@ -2910,7 +2913,7 @@ function halamanBerikutnya() {
             // OPTIMISTIC UPDATE: Update data lokal di masterDataLihat agar tabel instan berubah
             const barisTarget = masterDataLihat.find(function (r) { return r[0] == nomorBarisAktif; });
             if (barisTarget) {
-              Object.keys(teks).forEach(function (i) { barisTarget[Number(i)] = teks[i]; });
+              Object.keys(teks).forEach(function (i) { if (Number(i) < 26) barisTarget[Number(i)] = teks[i]; });
               saringDanTampilkanTabel(); // Render seketika 0ms
             }
             // Invalidate cache saja, fetch ulang akan terjadi secara asinkron di belakang
