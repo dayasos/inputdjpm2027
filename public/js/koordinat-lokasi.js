@@ -341,44 +341,82 @@
   };
 
   // ---- Detail & Edit Data ---------------------------------------------------------------------------------------------
-  /** HTML baris "Koordinat Lokasi" di Detail (d[31]); kosong untuk layanan yang tidak memakainya. */
+  // Kelas disusun sebagai LITERAL utuh (bukan dirangkai) supaya terbaca oleh pemindai Tailwind saat build.
+  var IKON_PERINGATAN = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>';
+  var KOTAK = {
+    netral: 'mt-5 border-t border-slate-200/80 pt-4',
+    merah: 'mt-5 rounded-xl border-2 border-red-400 bg-red-50 p-3.5',
+    hijau: 'mt-5 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-3.5'
+  };
+  var JUDUL = {
+    netral: 'text-[10px] font-bold text-sky-600 uppercase tracking-wider mb-1 flex items-center gap-1.5',
+    merah: 'text-[11px] font-bold text-red-700 uppercase tracking-wider mb-1 flex items-center gap-1.5',
+    hijau: 'text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-1 flex items-center gap-1.5'
+  };
+  var INPUT = {
+    netral: 'w-full border border-slate-300 rounded-lg p-2 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition',
+    merah: 'w-full border-2 border-red-500 rounded-lg p-2 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300 transition',
+    hijau: 'w-full border-2 border-emerald-500 rounded-lg p-2 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300 transition'
+  };
+  var TEKS_JUDUL = {
+    netral: 'Koordinat Lokasi',
+    merah: IKON_PERINGATAN + '<span>Koordinat Lokasi &mdash; HARUS DIPERBAIKI</span>',
+    hijau: 'Koordinat Lokasi &mdash; sudah benar'
+  };
+  var PETUNJUK_PERBAIKI = 'Cara memperbaiki: klik tombol <b>Edit</b>, lalu isi kolom Koordinat Lokasi dengan tautan Google Maps (buka Google Maps, tekan lama pada titik lokasi, Bagikan, Salin tautan), angka koordinat, atau kode lokasi (Plus Code).';
+
+  /** HTML baris "Koordinat Lokasi" di Detail (d[31]); kosong untuk layanan yang tidak memakainya. Salah/kosong -> kotak MERAH. */
   api.htmlDetail = function (d) {
     if (!layananWajib(d[7])) return '';
     var nilai = bersihkan(d[31]);
     var h = nilai ? normalisasiKoordinat(nilai) : null;
-    var isi;
     if (h && h.ok) {
-      isi = '<span class="text-sm font-semibold text-slate-800">' + esc2(teksTitik(h)) + '</span> ' +
-        '<a href="' + esc2(h.tautan) + '" target="_blank" rel="noopener noreferrer" class="ml-2 text-xs font-semibold text-sky-700 underline">Buka di Google Maps &#8599;</a>';
-    } else if (nilai) {
-      isi = '<span class="text-sm text-slate-700 break-words">' + esc2(nilai) + '</span> ' +
-        '<span class="ml-1 inline-block text-[10px] font-bold text-red-700 bg-red-50 border border-red-300 rounded px-1.5 py-0.5">Koordinat belum valid &mdash; perlu diperbaiki</span>';
-    } else {
-      isi = '<span class="inline-block text-[10px] font-bold text-red-700 bg-red-50 border border-red-300 rounded px-1.5 py-0.5">Koordinat belum diisi</span>';
+      return '<div class="' + KOTAK.netral + '" id="detail-koordinat-lokasi">' +
+        '<p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Koordinat Lokasi</p><div>' +
+        '<span class="text-sm font-semibold text-slate-800">' + esc2(teksTitik(h)) + '</span> ' +
+        '<a href="' + esc2(h.tautan) + '" target="_blank" rel="noopener noreferrer" class="ml-2 text-xs font-semibold text-sky-700 underline">Buka di Google Maps &#8599;</a></div></div>';
     }
-    return '<div class="mt-5 border-t border-slate-200/80 pt-4" id="detail-koordinat-lokasi">' +
-      '<p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Koordinat Lokasi</p><div>' + isi + '</div></div>';
+    var saatIni = nilai
+      ? '<p class="text-xs text-red-700">Yang tercatat sekarang (<b>salah</b>):</p><p class="mt-0.5 text-sm font-bold text-red-800 break-words" id="detail-koordinat-isi">' + esc2(nilai) + '</p>'
+      : '<p class="text-sm font-bold text-red-800" id="detail-koordinat-isi">Belum diisi</p>';
+    return '<div class="' + KOTAK.merah + '" id="detail-koordinat-lokasi" data-perlu-perbaikan="1">' +
+      '<p class="' + JUDUL.merah + '">' + TEKS_JUDUL.merah + '</p>' + saatIni +
+      '<p class="mt-2 text-[11px] leading-relaxed text-red-700">' + PETUNJUK_PERBAIKI + '</p></div>';
   };
-  /** HTML kolom edit "Koordinat Lokasi" (id edit-31, ikut alur simpanEdit); kosong untuk layanan lain. */
+  /** HTML kolom edit "Koordinat Lokasi" (id edit-31, ikut alur simpanEdit); kosong untuk layanan lain. Salah/kosong -> kotak MERAH. */
   api.htmlEdit = function (d) {
     if (!layananWajib(d[7])) return '';
-    return '<div class="mt-5 border-t border-slate-200/80 pt-4">' +
-      '<p class="text-[10px] font-bold text-sky-600 uppercase tracking-wider mb-1">Koordinat Lokasi ' +
-      '<span class="font-normal text-slate-400 normal-case">tempel tautan Google Maps, angka koordinat, atau kode lokasi (Plus Code)</span></p>' +
-      '<input id="edit-31" type="text" autocomplete="off" style="text-transform:none" value="' + esc2(bersihkan(d[31])) + '" ' +
-      'class="w-full border border-slate-300 rounded-lg p-2 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition" ' +
+    var nilai = bersihkan(d[31]);
+    var salah = !nilai || !normalisasiKoordinat(nilai).ok;
+    var s = salah ? 'merah' : 'netral';
+    return '<div class="' + KOTAK[s] + '" id="edit-31-kotak">' +
+      '<p class="' + JUDUL[s] + '" id="edit-31-judul">' + TEKS_JUDUL[s] + '</p>' +
+      '<p class="mb-1.5 text-[11px] text-slate-500">Tempel tautan Google Maps, angka koordinat, atau kode lokasi (Plus Code).</p>' +
+      '<input id="edit-31" type="text" autocomplete="off" style="text-transform:none" value="' + esc2(nilai) + '" class="' + INPUT[s] + '" ' +
       'oninput="djpmKoordinat.periksaEdit()" onchange="djpmKoordinat.periksaEdit()">' +
-      '<p id="edit-31-info" class="hidden mt-1 text-[11px]"></p></div>';
+      '<p id="edit-31-info" class="' + (salah ? 'mt-1 text-[11px] font-semibold text-red-700' : 'hidden mt-1 text-[11px]') + '">' +
+      (salah ? (nilai ? 'Isi saat ini salah. Ganti dengan koordinat yang benar.' : 'Koordinat belum diisi. Isi dengan koordinat yang benar.') : '') + '</p></div>';
   };
-  /** Umpan balik langsung di kolom edit. */
+  /** Umpan balik langsung di kolom edit: merah bila salah/kosong, hijau bila sah. */
   api.periksaEdit = function () {
-    var el = $('edit-31'), info = $('edit-31-info');
+    var el = $('edit-31'), info = $('edit-31-info'), kotak = $('edit-31-kotak'), judul = $('edit-31-judul');
     if (!el || !info) return;
     var nilai = el.value.trim();
-    if (!nilai) { info.classList.add('hidden'); return; }
-    var h = normalisasiKoordinat(nilai);
-    info.className = 'mt-1 text-[11px] ' + (h.ok ? 'text-emerald-700' : 'text-red-600');
-    info.textContent = h.ok ? 'Koordinat terdeteksi: ' + teksTitik(h) : h.pesan;
+    var h = nilai ? normalisasiKoordinat(nilai) : null;
+    var s = h && h.ok ? 'hijau' : 'merah';
+    if (kotak) kotak.className = KOTAK[s];
+    if (judul) { judul.className = JUDUL[s]; judul.innerHTML = TEKS_JUDUL[s]; }
+    el.className = INPUT[s];
+    info.className = 'mt-1 text-[11px] font-semibold ' + (s === 'hijau' ? 'text-emerald-700' : 'text-red-700');
+    info.textContent = !nilai ? 'Koordinat belum diisi. Isi dengan koordinat yang benar.' : (h.ok ? 'Koordinat terdeteksi: ' + teksTitik(h) : h.pesan);
+  };
+  /** Dipanggil tombol "Laporkan Sudah Diperbaiki": pesan peringatan bila koordinat data (layanan Guru) MASIH salah/kosong; '' = tidak perlu. */
+  api.peringatanLapor = function (d) {
+    if (!d || !layananWajib(d[7])) return '';
+    var nilai = bersihkan(d[31]);
+    if (nilai && normalisasiKoordinat(nilai).ok) return '';
+    var isi = nilai ? 'Koordinat lokasi data ini masih SALAH: "' + (nilai.length > 80 ? nilai.slice(0, 79) + '...' : nilai) + '".' : 'Koordinat lokasi data ini masih BELUM DIISI.';
+    return isi + '\n\nYakin sudah diperbaiki dan ingin melaporkan? Bila belum, pilih "Kembali", klik Edit, lalu isi koordinat yang benar.';
   };
   /** Dipanggil simpanEdit(nilaiTersimpan): pesan galat bila kolom koordinat DIUBAH menjadi tidak valid ('' = boleh lanjut). */
   api.galatEdit = function (nilaiTersimpan) {

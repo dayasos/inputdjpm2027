@@ -2629,6 +2629,13 @@ function halamanBerikutnya() {
     const btnLaporPerbaikan = document.getElementById('btn-lapor-perbaikan');
     if (btnLaporPerbaikan) {
       btnLaporPerbaikan.addEventListener('click', function () {
+        // Koordinat (layanan Guru) masih salah/kosong -> konfirmasi dulu (koordinat-lokasi.js); setelah "Tetap laporkan" tombol diklik ulang dan lanjut.
+        const peringatanKoordinat = (window.djpmKoordinat && !btnLaporPerbaikan.dataset.koordinatDikonfirmasi) ? window.djpmKoordinat.peringatanLapor(dataAktif) : '';
+        if (peringatanKoordinat) {
+          konfirmasiAksi({ judul: 'Koordinat masih salah', pesan: peringatanKoordinat, tipe: 'warning', teksBatal: 'Kembali', teksKonfirmasi: 'Tetap laporkan' })
+            .then(function (lanjut) { if (lanjut) { btnLaporPerbaikan.dataset.koordinatDikonfirmasi = '1'; btnLaporPerbaikan.click(); } });
+          return;
+        }
         const teksAsli = btnLaporPerbaikan.innerHTML;
         btnLaporPerbaikan.disabled = true;
         btnLaporPerbaikan.innerText = 'Mengirim...';

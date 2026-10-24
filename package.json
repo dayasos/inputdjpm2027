@@ -8,6 +8,8 @@
     "watch:css": "tailwindcss -i ./tailwind.input.css -o ./public/css/tailwind.css --watch",
     "preview": "vite preview",
     "check-lines": "node scripts/verify-lines.js",
+    "check-css": "node scripts/cek-css-terbaru.js",
+    "check-koordinat": "node scripts/sinkron-koordinat.js --cek",
     "sync:2026": "node scripts/sync-2026.js"
   },
   "devDependencies": {
