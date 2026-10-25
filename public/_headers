@@ -1,5 +1,5 @@
-# Header keamanan untuk Cloudflare Pages — padanan dari blok "headers" di vercel.json.
-# Vite menyalin isi folder public/ ke root dist/ apa adanya, dan Cloudflare Pages membaca file
+# Header keamanan untuk Cloudflare Workers (Static Assets) — padanan dari blok "headers" di vercel.json.
+# Vite menyalin isi folder public/ ke root dist/ apa adanya, dan Cloudflare Workers (Static Assets) membaca file
 # _headers ini otomatis dari root hasil build. Format: https://developers.cloudflare.com/pages/configuration/headers/
 /*
   X-Content-Type-Options: nosniff

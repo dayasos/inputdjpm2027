@@ -10,7 +10,9 @@
     "check-lines": "node scripts/verify-lines.js",
     "check-css": "node scripts/cek-css-terbaru.js",
     "check-koordinat": "node scripts/sinkron-koordinat.js --cek",
-    "sync:2026": "node scripts/sync-2026.js"
+    "sync:2026": "node scripts/sync-2026.js",
+    "cf:dev": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.3",
@@ -19,6 +21,7 @@
     "pptxgenjs": "^4.0.1",
     "supabase": "^2.116.0",
     "tailwindcss": "^4.3.3",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "wrangler": "4.152.0"
   }
 }

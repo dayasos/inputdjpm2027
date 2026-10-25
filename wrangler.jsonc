@@ -1,0 +1,22 @@
+{
+  // Worker Input DJPM 2027. Aset statis (hasil `vite build` di ./dist) dilayani langsung oleh
+  // Cloudflare; script worker/index.js hanya jalan untuk /api/* dan jadwal cron harian.
+  // Secret (JANGAN ditulis di sini): GAS_SECRET_TOKEN -> `npx wrangler secret put GAS_SECRET_TOKEN`
+  "name": "inputdjpm2027",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": true },
+  // 18:00 UTC = 01:00 WIB, sama dengan jadwal Vercel cron sebelumnya (cekBatasWaktuVerifikasi).
+  "triggers": { "crons": ["0 18 * * *"] },
+  "vars": {
+    "SUPABASE_EDGE_FUNCTION_URL": "https://wwqxbscumaakvziwzwjx.supabase.co/functions/v1/api",
+    // Kunci anon Supabase bersifat publik (sudah dikirim ke browser lewat api-bridge.js).
+    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3cXhic2N1bWFha3Z6aXd6d2p4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MjQ2MTMsImV4cCI6MjEwNDEwMDYxM30.W0hJsUzcnYaOWfF-NHKR1F3RnJR8j-vJsDDqBF636hQ"
+  }
+}

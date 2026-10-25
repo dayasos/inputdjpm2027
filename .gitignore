@@ -32,3 +32,5 @@ archive/
 
 .vercel
 .env*
+.dev.vars
+.wrangler/
