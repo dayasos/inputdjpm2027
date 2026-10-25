@@ -66,107 +66,116 @@
     opsi = opsi || {};
     var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
     var CW = W - 2 * ML;
-    var y = 38;
-
-    // --- Logo Pemko Medan (opsional: bila gagal dimuat/digambar, cover tetap jadi tanpa logo) ---
-    if (opsi.logo) {
-      try {
-        doc.addImage(opsi.logo, 'PNG', (W - LOGO_UKURAN) / 2, y, LOGO_UKURAN, LOGO_UKURAN, 'logo-pemko-medan', 'FAST');
-        y += LOGO_UKURAN + 22;
-      } catch (e) { y += 8; }
-    } else { y += 8; }
-
-    function warnaTeks(r, g, b) { doc.setTextColor(r, g, b); }
-    function huruf(tebal, ukuran) { doc.setFont('helvetica', tebal ? 'bold' : 'normal'); doc.setFontSize(ukuran); }
-
-    // --- Judul resmi ---
-    huruf(true, 15); warnaTeks(15, 23, 42);
-    doc.text('PROFIL DATA PENERIMA', W / 2, y, { align: 'center' });
-    huruf(true, 12.5);
-    y += 19; doc.text('DANA JASA PELAYANAN KEPADA WARGA PELAYAN MASYARAKAT', W / 2, y, { align: 'center' });
-    y += 17; doc.text('KOTA MEDAN TAHUN ANGGARAN ' + tahunJudul(opsi.tahun), W / 2, y, { align: 'center' });
-    y += 14;
-    doc.setDrawColor(15, 23, 42); doc.setLineWidth(1.8); doc.line(ML, y, W - ML, y);
-    doc.setLineWidth(0.5); doc.line(ML, y + 3, W - ML, y + 3);
-    y += 26;
-
-    // --- Kotak pas foto 4 x 6 cm (kanan, sejajar blok data) ---
-    var fotoX = W - ML - FOTO_L, fotoY = y, fotoBawah = fotoY + FOTO_T;
-    doc.setDrawColor(71, 85, 105); doc.setLineWidth(0.9); doc.setFillColor(255, 255, 255);
-    doc.rect(fotoX, fotoY, FOTO_L, FOTO_T, 'S');
-    huruf(true, 10); warnaTeks(148, 163, 184);
-    doc.text('PAS FOTO', fotoX + FOTO_L / 2, fotoY + FOTO_T / 2 - 4, { align: 'center' });
-    huruf(false, 8.5);
-    doc.text('4 x 6 cm', fotoX + FOTO_L / 2, fotoY + FOTO_T / 2 + 9, { align: 'center' });
-
-    var lebarSempit = CW - FOTO_L - GAP_FOTO;
-
-    function lebarSaatIni() { return y < fotoBawah + 4 ? lebarSempit : CW; }
-
-    function bagian(nama) {
-      var lebar = lebarSaatIni();
-      doc.setFillColor(226, 232, 240); doc.rect(ML, y - 10, lebar, 15, 'F');
-      huruf(true, 9.5); warnaTeks(15, 23, 42);
-      doc.text(nama, ML + 5, y + 1);
-      y += 20;
-    }
-
-    // Baris "Label : nilai". Teks dibungkus; bila melebihi batas baris, huruf diperkecil lalu dipotong ("...").
-    function baris(label, nilai, maksBaris) {
-      var lebar = lebarSaatIni();
-      var lebarNilai = lebar - LABEL_L - 10;
-      var teks = nilaiAtauStrip(nilai), ukuran = 10, lines;
-      huruf(false, ukuran);
-      lines = doc.splitTextToSize(teks, lebarNilai);
-      if (lines.length > maksBaris) { ukuran = 8.5; huruf(false, ukuran); lines = doc.splitTextToSize(teks, lebarNilai); }
-      if (lines.length > maksBaris) {
-        lines = lines.slice(0, maksBaris);
-        var akhir = lines[maksBaris - 1];
-        while (akhir.length > 1 && doc.getTextWidth(akhir + '...') > lebarNilai) akhir = akhir.slice(0, -1);
-        lines[maksBaris - 1] = akhir.replace(/ +$/, '') + '...';
-      }
-      huruf(true, 9.5); warnaTeks(51, 65, 85);
-      doc.text(label, ML + 5, y);
-      doc.text(':', ML + LABEL_L, y);
-      huruf(false, ukuran); warnaTeks(15, 23, 42);
-      for (var i = 0; i < lines.length; i++) doc.text(lines[i], ML + LABEL_L + 10, y + i * 12.5);
-      y += lines.length * 12.5 + 5;
-    }
+    var BATAS_BAWAH = H - 66;                 // isi tidak boleh melewati garis ini (di atas kaki halaman)
+    var TAMBAH_MAKS = 9;                      // tambahan jarak maksimum per baris (pt)
 
     var umur = (p.umur === '' || p.umur == null) ? '' : String(p.umur) + ' tahun';
     var ttl = [bersihkanTeks(p.tempatLahir), bersihkanTeks(p.tanggalLahir)].filter(function (x) { return x; }).join(', ');
+    var SUSUNAN = [
+      ['IDENTITAS', [['Nama', p.nama, 3], ['NIK', p.nik, 1], ['Jenis Kelamin', p.jenisKelamin, 1], ['Tempat, Tgl Lahir', ttl, 2], ['Umur', umur, 1], ['Alamat', p.alamat, 6]]],
+      ['TUGAS PELAYANAN', [['Layanan', p.layanan, 2], ['Tempat Tugas', p.tempatTugas, 3], ['Alamat Tugas', p.alamatTugas, 4], ['Kecamatan', p.kecamatan, 1], ['Kelurahan', p.kelurahan, 1]]],
+      ['KONTAK DAN REKENING', [['No. Kontak', p.noKontak, 1], ['Status BPJS TK', p.statusBpjsTk, 1], ['Nama Rekening', p.namaRekening, 3], ['No. Rekening', p.nomorRekening, 1], ['Kantor Cabang', p.kantorCabang, 3]]]
+    ];
 
-    bagian('IDENTITAS');
-    baris('Nama', p.nama, 3);
-    baris('NIK', p.nik, 1);
-    baris('Jenis Kelamin', p.jenisKelamin, 1);
-    baris('Tempat, Tgl Lahir', ttl, 2);
-    baris('Umur', umur, 1);
-    baris('Alamat', p.alamat, 6);
-    y += 6;
+    // Satu putaran tata letak. kering=true: hanya mengukur (tidak menggambar) untuk mengetahui sisa ruang halaman;
+    // putaran kedua memakai tambahan jarak (extra) agar isi menyebar, bukan menumpuk di atas halaman.
+    function jalankan(kering, extra) {
+      var noop = function () { };
+      var D = kering ? {
+        text: noop, rect: noop, line: noop, addImage: noop, setFillColor: noop, setDrawColor: noop, setLineWidth: noop, setTextColor: noop,
+        setFont: function (a, b) { doc.setFont(a, b); }, setFontSize: function (n) { doc.setFontSize(n); },
+        splitTextToSize: function (t, w) { return doc.splitTextToSize(t, w); }, getTextWidth: function (t) { return doc.getTextWidth(t); }
+      } : doc;
+      var y = 44;
+      var jumlahBaris = 0, jumlahBagian = 0;
 
-    bagian('TUGAS PELAYANAN');
-    baris('Layanan', p.layanan, 2);
-    baris('Tempat Tugas', p.tempatTugas, 3);
-    baris('Alamat Tugas', p.alamatTugas, 4);
-    baris('Kecamatan', p.kecamatan, 1);
-    baris('Kelurahan', p.kelurahan, 1);
-    y += 6;
+      function warnaTeks(r, g, b) { D.setTextColor(r, g, b); }
+      function huruf(tebal, ukuran) { D.setFont('helvetica', tebal ? 'bold' : 'normal'); D.setFontSize(ukuran); }
 
-    bagian('KONTAK DAN REKENING');
-    baris('No. Kontak', p.noKontak, 1);
-    baris('Status BPJS TK', p.statusBpjsTk, 1);
-    baris('Nama Rekening', p.namaRekening, 3);
-    baris('No. Rekening', p.nomorRekening, 1);
-    baris('Kantor Cabang', p.kantorCabang, 3);
+      // --- Logo Pemko Medan (opsional: bila gagal dimuat/digambar, cover tetap jadi tanpa logo) ---
+      if (opsi.logo) {
+        try {
+          D.addImage(opsi.logo, 'PNG', (W - LOGO_UKURAN) / 2, y, LOGO_UKURAN, LOGO_UKURAN, 'logo-pemko-medan', 'FAST');
+          y += LOGO_UKURAN + 30;
+        } catch (e) { y += 10; }
+      } else { y += 10; }
+
+      // --- Judul resmi ---
+      huruf(true, 15); warnaTeks(15, 23, 42);
+      D.text('PROFIL DATA PENERIMA', W / 2, y, { align: 'center' });
+      huruf(true, 12.5);
+      y += 22; D.text('DANA JASA PELAYANAN KEPADA WARGA PELAYAN MASYARAKAT', W / 2, y, { align: 'center' });
+      y += 19; D.text('KOTA MEDAN TAHUN ANGGARAN ' + tahunJudul(opsi.tahun), W / 2, y, { align: 'center' });
+      y += 18;
+      D.setDrawColor(15, 23, 42); D.setLineWidth(1.8); D.line(ML, y, W - ML, y);
+      D.setLineWidth(0.5); D.line(ML, y + 3, W - ML, y + 3);
+      y += 40;
+
+      // --- Kotak pas foto 4 x 6 cm (kanan, sejajar blok data) ---
+      var fotoX = W - ML - FOTO_L, fotoY = y, fotoBawah = fotoY + FOTO_T;
+      D.setDrawColor(71, 85, 105); D.setLineWidth(0.9); D.setFillColor(255, 255, 255);
+      D.rect(fotoX, fotoY, FOTO_L, FOTO_T, 'S');
+      huruf(true, 10); warnaTeks(148, 163, 184);
+      D.text('PAS FOTO', fotoX + FOTO_L / 2, fotoY + FOTO_T / 2 - 4, { align: 'center' });
+      huruf(false, 8.5);
+      D.text('4 x 6 cm', fotoX + FOTO_L / 2, fotoY + FOTO_T / 2 + 9, { align: 'center' });
+
+      var lebarSempit = CW - FOTO_L - GAP_FOTO;
+      function lebarSaatIni() { return y < fotoBawah + 4 ? lebarSempit : CW; }
+
+      function bagian(nama) {
+        jumlahBagian++;
+        var lebar = lebarSaatIni();
+        D.setFillColor(226, 232, 240); D.rect(ML, y - 11, lebar, 17, 'F');
+        huruf(true, 10); warnaTeks(15, 23, 42);
+        D.text(nama, ML + 5, y + 1);
+        y += 24 + extra;
+      }
+
+      // Baris "Label : nilai". Teks dibungkus; bila melebihi batas baris, huruf diperkecil lalu dipotong ("...").
+      function baris(label, nilai, maksBaris) {
+        jumlahBaris++;
+        var lebar = lebarSaatIni();
+        var lebarNilai = lebar - LABEL_L - 10;
+        var teks = nilaiAtauStrip(nilai), ukuran = 10, lines;
+        huruf(false, ukuran);
+        lines = D.splitTextToSize(teks, lebarNilai);
+        if (lines.length > maksBaris) { ukuran = 8.5; huruf(false, ukuran); lines = D.splitTextToSize(teks, lebarNilai); }
+        if (lines.length > maksBaris) {
+          lines = lines.slice(0, maksBaris);
+          var akhir = lines[maksBaris - 1];
+          while (akhir.length > 1 && D.getTextWidth(akhir + '...') > lebarNilai) akhir = akhir.slice(0, -1);
+          lines[maksBaris - 1] = akhir.replace(/ +$/, '') + '...';
+        }
+        huruf(true, 9.5); warnaTeks(51, 65, 85);
+        D.text(label, ML + 5, y);
+        D.text(':', ML + LABEL_L, y);
+        huruf(false, ukuran); warnaTeks(15, 23, 42);
+        for (var i = 0; i < lines.length; i++) D.text(lines[i], ML + LABEL_L + 10, y + i * 12.5);
+        y += lines.length * 12.5 + 6 + extra;
+      }
+
+      SUSUNAN.forEach(function (bg, n) {
+        if (n > 0) y += 8 + extra;
+        bagian(bg[0]);
+        bg[1].forEach(function (b) { baris(b[0], b[1], b[2]); });
+      });
+      return { y: y, baris: jumlahBaris, bagian: jumlahBagian };
+    }
+
+    var ukur = jalankan(true, 0);
+    var sisa = BATAS_BAWAH - ukur.y;
+    var unit = ukur.baris + ukur.bagian + 2;          // baris + judul bagian + celah antarbagian
+    var tambah = sisa > 0 ? Math.min(TAMBAH_MAKS, sisa / unit) : 0;
+    var hasil = jalankan(false, tambah);
 
     // --- Kaki halaman ---
     var kaki = 'Dicetak dari Aplikasi DJPM 2027' + (opsi.pencetak ? ' oleh ' + bersihkanTeks(opsi.pencetak).slice(0, 40) : '') +
       (opsi.waktu ? ' - ' + bersihkanTeks(opsi.waktu) : '');
-    huruf(false, 7.5); warnaTeks(100, 116, 139);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(100, 116, 139);
     doc.setDrawColor(203, 213, 225); doc.setLineWidth(0.5); doc.line(ML, H - 40, W - ML, H - 40);
     doc.text(kaki, ML, H - 28);
-    return y;
+    return hasil.y;
   }
 
   function dokumenBaru(lib, judul) {
