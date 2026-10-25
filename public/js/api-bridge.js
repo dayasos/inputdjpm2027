@@ -30,7 +30,7 @@ function _getSessionToken() {
 
 /**
  * Fetch langsung ke Supabase Edge Function dengan X-Session-Token header.
- * Mengeliminasi hop Vercel proxy → latensi turun ~100-500ms per request.
+ * Mengeliminasi hop proxy Worker (/api/gas) → latensi turun ~100-500ms per request.
  * _secret tidak pernah ada di browser.
  */
 async function _fetchEdgeDirect(payload, sessionToken, signal) {
@@ -52,7 +52,7 @@ async function _fetchEdgeDirect(payload, sessionToken, signal) {
 }
 
 /**
- * Fetch via Vercel proxy (/api/gas) — dipakai sebagai fallback utk aksi yang tetap memerlukan
+ * Fetch via proxy Worker (/api/gas) (/api/gas) — dipakai sebagai fallback utk aksi yang tetap memerlukan
  * _secret di body (mis. pulihkanSesi, logoutPengguna yang tidak bisa diautentikasi via session
  * token, atau cron internal).
  */
@@ -168,7 +168,7 @@ const _AKSI_PUBLIK_LANGSUNG = new Set([
   'loginPengguna',
 ]);
 
-// Aksi-aksi yang SELALU lewat Vercel proxy (butuh _secret, tidak bisa via session token)
+// Aksi-aksi yang SELALU lewat proxy Worker (/api/gas) (butuh _secret, tidak bisa via session token)
 const _PROXY_ONLY_ACTIONS = new Set([
   'pulihkanSesi',
   'logoutPengguna',
@@ -644,7 +644,7 @@ class GoogleScriptRunProxy {
           if (!fetchPromise) {
             const payload = { action, args };
 
-            // Pilih strategi fetch: langsung ke Edge Function atau via Vercel proxy.
+            // Pilih strategi fetch: langsung ke Edge Function atau via proxy Worker (/api/gas).
             // Aksi yang butuh _secret (pulihkan sesi, logout) tetap via proxy. Aksi publik
             // (loginPengguna) langsung ke Edge Function walau BELUM ada session token. Aksi
             // lain pakai Edge Function langsung jika session token tersedia.
@@ -670,7 +670,7 @@ class GoogleScriptRunProxy {
                   if (res.status === 413) {
                     // Sejak upload berkas dipindah ke jalur proxy Drive (driveProxy.ts, 2026-09-18),
                     // byte file TIDAK lagi lewat jalur aksi JSON ini -- jadi 413 di sini bukan lagi
-                    // soal ukuran FOTO/BERKAS (pesan lama sebut "batas Vercel 4.5MB" sudah usang &
+                    // soal ukuran FOTO/BERKAS (pesan lama sebut "batas proxy lama 4.5MB" sudah usang &
                     // salah diagnosis). Kalau muncul, ini soal ukuran PAYLOAD AKSI itu sendiri
                     // (mis. terlalu banyak data terkirim di satu panggilan), bukan berkas upload.
                     throw new Error('Ukuran permintaan terlalu besar untuk diproses server. Coba lagi dengan data yang lebih kecil.');

@@ -1,4 +1,4 @@
-// Worker Cloudflare untuk Input DJPM 2027. Pengganti api/gas.js + api/cron.js (Vercel).
+// Worker Cloudflare untuk Input DJPM 2027. Menggantikan hosting lama (Vercel), yang sudah dihapus.
 // - /api/gas  : proxy ke Supabase Edge Function (menyisipkan _secret yang tak boleh ada di browser)
 // - /api/health : cek cepat versi/konfigurasi tanpa memanggil backend
 // - scheduled : cekBatasWaktuVerifikasi tiap 18:00 UTC (01:00 WIB)
@@ -173,7 +173,13 @@ async function jalankanCron(env) {
 
 export default {
   async fetch(request, env) {
-    const { pathname } = new URL(request.url);
+    const url = new URL(request.url);
+    const { pathname } = url;
+    // www.* dialihkan ke apex supaya hanya ada satu origin (localStorage, sesi, dan PWA tidak terpecah).
+    if (url.hostname.startsWith('www.')) {
+      url.hostname = url.hostname.slice(4);
+      return Response.redirect(url.toString(), 301);
+    }
     if (pathname === '/api/gas') return tanganiGas(request, env);
     if (pathname === '/api/health') return tanganiHealth(env);
     if (pathname.startsWith('/api/')) return jsonResponse({ error: 'Not Found' }, 404);

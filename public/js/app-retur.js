@@ -401,7 +401,7 @@
   // Halaman admin "Ekspor Data Retur" (khusus Admin Utama)
   // Unggah Excel rekening retur dari bank -> pratinjau -> simpan -> tabel data retur & rekening tidak ditemukan.
   // ---------------------------------------------------------------------------
-  var MAKS_BERKAS = 2 * 1024 * 1024; // di bawah batas badan permintaan proxy Vercel (base64 = 4/3 ukuran berkas)
+  var MAKS_BERKAS = 2 * 1024 * 1024; // di bawah batas badan permintaan proxy Worker (base64 = 4/3 ukuran berkas)
 
   function chip(label, nilai, kelas) {
     return '<div class="rounded-lg border px-3 py-2 ' + (kelas || 'border-slate-200 bg-white') + '"><div class="text-[11px] text-slate-500">' + esc(label) + '</div><div class="text-base font-bold text-slate-800">' + esc(nilai) + '</div></div>';
