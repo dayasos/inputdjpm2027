@@ -573,6 +573,29 @@
     });
   }
 
+  // Cover berkas penerima (plans/plan-cover-berkas-penerima.md): dimuat malas, hanya saat Data Detail dibuka
+  // (semua peran yang punya tombol Data Detail; MUI tidak). Gagal muat tidak mengganggu Data Detail.
+  var coverBerkasDimuat = false;
+  function muatCoverBerkas() {
+    if (coverBerkasDimuat || role() === 'MUI' || typeof dataPengguna === 'undefined' || !dataPengguna || !dataPengguna.token) return;
+    coverBerkasDimuat = true;
+    var s = document.createElement('script');
+    s.src = '/js/app-cover-berkas.js' + (VERSI ? '?v=' + VERSI : '');
+    s.async = true;
+    s.onerror = function () { coverBerkasDimuat = false; };
+    document.head.appendChild(s);
+  }
+  if (typeof window.tampilkanDataDetail === 'function' && !window.tampilkanDataDetail.__djpmCover) {
+    var asliDataDetail = window.tampilkanDataDetail;
+    var bungkusDataDetail = function () {
+      var hasil = asliDataDetail.apply(this, arguments);
+      try { muatCoverBerkas(); } catch (_e) { /* cover opsional */ }
+      return hasil;
+    };
+    bungkusDataDetail.__djpmCover = true;
+    window.tampilkanDataDetail = bungkusDataDetail;
+  }
+
   function sesiDiterapkan() {
     muatSkripAdmin();
     if (!dalamHook) jadwalkanSinkron();
