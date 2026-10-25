@@ -12,6 +12,10 @@
     "run_worker_first": ["/api/*"]
   },
   "observability": { "enabled": true },
+  "routes": [
+    { "pattern": "djpmkotamedan.web.id", "custom_domain": true },
+    { "pattern": "www.djpmkotamedan.web.id", "custom_domain": true }
+  ],
   // 18:00 UTC = 01:00 WIB (cekBatasWaktuVerifikasi).
   "triggers": { "crons": ["0 18 * * *"] },
   "vars": {
