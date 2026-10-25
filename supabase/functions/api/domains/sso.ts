@@ -18,7 +18,7 @@ import { wajibSesi } from "../_shared/sesi.ts";
 // Payload format identik: base64url("{ u, r, k, n, j, t }") + "." + hex(HMAC-SHA256)
 // ---------------------------------------------------------------------------
 
-const DEFAULT_URL_RETUR = "https://retur2027.vercel.app";
+const DEFAULT_URL_RETUR = "https://retur.djpmkotamedan.web.id";
 
 async function hitungHmacSha256Hex(pesan: string, kunci: string): Promise<string> {
   const enc = new TextEncoder();
@@ -97,8 +97,8 @@ export async function buatTokenSSORetur(token: string) {
 
     // Ambil URL Retur dari env (dengan fallback ke default)
     let baseUrl = (Deno.env.get("SSO_URL_RETUR") || DEFAULT_URL_RETUR).trim();
-    // Jika masih mengarah ke URL GAS lama, pakai default (port logika Kode.gs baris 3913-3918)
-    if (baseUrl.includes("script.google.com")) baseUrl = DEFAULT_URL_RETUR;
+    // Jika masih mengarah ke URL GAS lama atau Vercel lama, pakai default
+    if (baseUrl.includes("script.google.com") || baseUrl.includes("retur2027.vercel.app")) baseUrl = DEFAULT_URL_RETUR;
     if (/^https?:\/\/[^/]+$/.test(baseUrl)) baseUrl += "/";
 
     const separator = baseUrl.includes("?") ? "&" : "?";
