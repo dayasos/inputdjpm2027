@@ -23,20 +23,89 @@ function tetapkanUsiaKurangSyarat() {
   if (modalUsia) modalUsia.classList.remove('hidden');
   kunciDariBlokSetelah('USIA', INDEKS_KUNCI_USIA, null);
 }
+// Tanggal lahir tidak wajar (tahun bukan 4 digit / sebelum 1900 / masa depan / usia di atas 100): kunci blok setelahnya
+// seperti usia < 18, tetapi TANPA modal. Aturan sama dengan server (validasi-tanggal-lahir.js <-> validasiPenerima.ts).
+function tetapkanTanggalLahirTidakWajar() {
+  if (modalUsia) modalUsia.classList.add('hidden');
+  kunciDariBlokSetelah('USIA', INDEKS_KUNCI_USIA, null);
+}
+// Pemeriksa dipanggil lewat fungsi agar tetap aman bila berkas pemeriksa gagal dimuat (server tetap menolak).
+function periksaTglLahirLayar(nilai) {
+  return window.djpmTanggalLahir ? window.djpmTanggalLahir.periksa(nilai) : { ok: true };
+}
+function pesanTglLahirLayar(teks, merah) {
+  if (!inputTglLahir) return;
+  let el = document.getElementById('pesan-tgl-lahir');
+  if (!el) {
+    if (!teks) return;
+    el = document.createElement('p');
+    el.id = 'pesan-tgl-lahir';
+    el.setAttribute('role', 'alert');
+    el.className = 'hidden mt-1 text-[11px] font-semibold';
+    inputTglLahir.insertAdjacentElement('afterend', el);
+  }
+  if (!teks) {
+    el.textContent = '';
+    el.classList.add('hidden');
+    el.classList.remove('text-red-700', 'text-amber-700');
+    inputTglLahir.removeAttribute('aria-invalid');
+    return;
+  }
+  el.textContent = teks;
+  el.classList.remove('hidden', 'text-red-700', 'text-amber-700');
+  el.classList.add(merah ? 'text-red-700' : 'text-amber-700');
+  if (merah) inputTglLahir.setAttribute('aria-invalid', 'true');
+}
 if (inputTglLahir) {
+  inputTglLahir.max = window.djpmTanggalLahir ? window.djpmTanggalLahir.hariIniWIB() : '';
   inputTglLahir.addEventListener('input', () => {
+    pesanTglLahirLayar('');
     if (!inputTglLahir.value) {
       if (inputUmur) inputUmur.value = "";
       tetapkanUsiaValid();
       return;
     }
-    const tglLahir = new Date(inputTglLahir.value);
-    const tglPatokan = new Date("2027-01-01");
-    let usia = tglPatokan.getFullYear() - tglLahir.getFullYear();
-    const m = tglPatokan.getMonth() - tglLahir.getMonth();
-    if (m < 0 || (m === 0 && tglPatokan.getDate() < tglLahir.getDate())) { usia--; }
-    if (inputUmur) inputUmur.value = usia >= 0 ? usia : 0;
-    if (usia < 18) tetapkanUsiaKurangSyarat(); else tetapkanUsiaValid();
+    if (!window.djpmTanggalLahir) {
+      // Cadangan: berkas pemeriksa gagal dimuat -> pakai perhitungan usia lama (server tetap penegak aturan tanggal lahir).
+      const tglLahir = new Date(inputTglLahir.value);
+      const tglPatokan = new Date("2027-01-01");
+      let usia = tglPatokan.getFullYear() - tglLahir.getFullYear();
+      const m = tglPatokan.getMonth() - tglLahir.getMonth();
+      if (m < 0 || (m === 0 && tglPatokan.getDate() < tglLahir.getDate())) { usia--; }
+      if (inputUmur) inputUmur.value = usia >= 0 ? usia : 0;
+      if (usia < 18) tetapkanUsiaKurangSyarat(); else tetapkanUsiaValid();
+      return;
+    }
+    const hasil = periksaTglLahirLayar(inputTglLahir.value);
+    if (hasil.ok) {
+      if (inputUmur && hasil.umur !== undefined) inputUmur.value = hasil.umur;
+      tetapkanUsiaValid();
+      return;
+    }
+    if (hasil.jenis === 'di_bawah_umur') {
+      if (inputUmur) inputUmur.value = hasil.umur >= 0 ? hasil.umur : 0;
+      tetapkanUsiaKurangSyarat();
+      return;
+    }
+    // Tidak wajar / tidak valid. Umur dikosongkan (tidak menampilkan angka konyol seperti 1827).
+    if (inputUmur) inputUmur.value = "";
+    const tahunDiketik = Number(String(inputTglLahir.value).slice(0, 4));
+    if (tahunDiketik < 1000) {
+      // Masih mengetik tahun (0001, 0019, 0199 ...): petunjuk lembut, jangan kunci formulir (supaya tidak berkedip).
+      pesanTglLahirLayar('Ketik tahun lahir 4 digit (mis. 1990).', false);
+    } else {
+      pesanTglLahirLayar(hasil.pesan, true);
+      tetapkanTanggalLahirTidakWajar();
+    }
+  });
+  // Saat meninggalkan kolom: beri tahu bila tanggal belum wajar (bukan saat mengetik, supaya tidak berulang).
+  inputTglLahir.addEventListener('blur', () => {
+    if (!inputTglLahir.value) return;
+    const hasil = periksaTglLahirLayar(inputTglLahir.value);
+    if (!hasil.ok && hasil.jenis !== 'di_bawah_umur') {
+      pesanTglLahirLayar(hasil.pesan, true);
+      tampilkanToast(hasil.pesan, "gagal", { durasi: 6000 });
+    }
   });
 }
 if (btnModalUsiaOk) {
@@ -1072,6 +1141,8 @@ formPembayaran.addEventListener('submit', (e) => {
     (elKecDomisili.value ? elKelDomisili : elKecDomisili).focus();
     return;
   }
+  const cekTglLahir = periksaTglLahirLayar(inputTglLahir.value);
+  if (!cekTglLahir.ok) { tampilkanToast(cekTglLahir.pesan, "gagal", { durasi: 6000 }); inputTglLahir.focus(); return; }
   if (parseInt(inputUmur.value) < 18) { tampilkanToast("Umur di bawah 18 tahun!", "gagal"); inputTglLahir.focus(); return; }
   if (inputNik.value.length !== 16) { tampilkanToast("NIK wajib 16 digit!", "gagal"); inputNik.focus(); return; }
   if (inputNoRek.value.length !== 14) { tampilkanToast("No Rekening wajib 14 digit!", "gagal"); inputNoRek.focus(); return; }
@@ -2897,6 +2968,16 @@ function halamanBerikutnya() {
       if (nilaiInput !== (peka ? nilaiLama : nilaiLama.toUpperCase())) teks[i] = el.value.toString().trim();
     });
     if (window.djpmKoordinat) { const gk = window.djpmKoordinat.galatEdit(dataAktif[31]); if (gk) { tampilkanToast(gk, "gagal", { durasi: 6000 }); return; } }
+    // Tanggal lahir (kolom 5) dan kelurahan tugas (kolom 11) yang DIUBAH harus wajar/terisi -- aturan sama dengan server.
+    if (teks[5] !== undefined) {
+      const ct = periksaTglLahirLayar(teks[5]);
+      if (!ct.ok) { tampilkanToast(ct.pesan, "gagal", { durasi: 6000 }); const e5 = document.getElementById('edit-5'); if (e5) e5.focus(); return; }
+    }
+    if (teks[11] !== undefined && !String(teks[11]).trim()) {
+      tampilkanToast("Kelurahan wilayah tugas wajib dipilih.", "gagal", { durasi: 6000 });
+      const e11 = document.getElementById('edit-11'); if (e11) e11.focus();
+      return;
+    }
     if (Object.keys(teks).length === 0 && Object.keys(berkasBaruMap).length === 0) {
       tampilkanToast("Tidak ada perubahan yang dilakukan.", "info"); return;
     }

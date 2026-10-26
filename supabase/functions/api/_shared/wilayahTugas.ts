@@ -1,6 +1,7 @@
 import { sql } from "./db.ts";
 import { rapikanTeks } from "./config.ts";
 import { kelurahanTerkunciDari } from "./akses.ts";
+import { putuskanKelurahanTugas } from "./validasiPenerima.ts";
 import type { DataSesi } from "./sesi.ts";
 
 // ---------------------------------------------------------------------------
@@ -132,7 +133,20 @@ export async function tentukanWilayahTugas(params: {
   };
 
   if (peran === "UTAMA") {
-    return tolakBedaKecamatan() ?? { ok: true, kecamatan: kecKirim, kelurahan: kelKirim, dariRumahIbadah: false };
+    const tolak = tolakBedaKecamatan();
+    if (tolak) return tolak;
+    // Admin Utama tidak dibatasi wilayah, tetapi kelurahan tugas TETAP wajib terisi dan sah (sama seperti petugas lain):
+    // sebelumnya langsung diloloskan sehingga kelurahan kosong/ngawur bisa tersimpan (plans/plan-perbaikan-validasi-data-penerima.md, G5).
+    if (!kecKirim) return { ok: false, pesan: "GAGAL: Kecamatan wilayah tugas wajib dipilih." };
+    const kel = await putuskanKelurahanTugas({
+      kecamatan: kecKirim,
+      kelurahanKirim: kelKirim,
+      daftarKelurahanRumahIbadah: lokasi.filter((l) => l.kecamatan === kecKirim && l.kelurahan).map((l) => l.kelurahan),
+      tempatTugas: rapikanTeks(params.tempatTugas),
+      adaDiWilayah: kelurahanAdaDiKecamatan,
+    });
+    if (!kel.ok) return kel;
+    return { ok: true, kecamatan: kecKirim, kelurahan: kel.kelurahan, dariRumahIbadah: false };
   }
 
   if (lokasi.length > 0) {

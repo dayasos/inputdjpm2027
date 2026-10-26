@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "check-lines": "node scripts/verify-lines.js",
     "check-css": "node scripts/cek-css-terbaru.js",
+    "uji:validasi-penerima": "node --test scripts/uji/validasi-penerima.test.mjs scripts/uji/wilayah-tugas-utama.test.mjs scripts/uji/validasi-tanggal-lahir-layar.test.mjs scripts/uji/server-penerima.test.mjs scripts/uji/server-simpan-penerima.test.mjs scripts/uji/kabel-validasi-penerima.test.mjs",
     "check-koordinat": "node scripts/sinkron-koordinat.js --cek",
     "sync:2026": "node scripts/sync-2026.js",
     "cf:dev": "npm run build && wrangler dev",

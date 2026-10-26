@@ -755,18 +755,65 @@
     return out;
   }
 
+  // Pemeriksaan sisi layar (server tetap penegak utama; aturan sama: validasi-tanggal-lahir.js <-> validasiPenerima.ts):
+  // tanggal lahir yang DIUBAH harus wajar, dan kelurahan tidak boleh kosong bila kecamatan/kelurahan diubah.
+  function galatFormulir(perubahan) {
+    var g = {};
+    if ('tanggal_lahir' in perubahan && window.djpmTanggalLahir) {
+      var c = window.djpmTanggalLahir.periksa(perubahan.tanggal_lahir);
+      if (!c.ok) g.tanggal_lahir = c.pesan;
+    }
+    if ('kecamatan' in perubahan || 'kelurahan' in perubahan) {
+      var elKel = $('kd-f-kelurahan');
+      if (elKel && !String(elKel.value || '').trim()) g.kelurahan = 'Kelurahan wajib dipilih.';
+    }
+    return g;
+  }
+
+  // Pesan merah di bawah kolom yang bermasalah (dibuat/dihapus sesuai kebutuhan).
+  function tampilkanGalat(g) {
+    FIELD.forEach(function (f) {
+      var el = $('kd-f-' + f.k);
+      if (!el) return;
+      var p = $('kd-galat-' + f.k);
+      if (g[f.k]) {
+        if (!p) {
+          p = document.createElement('p');
+          p.id = 'kd-galat-' + f.k;
+          p.setAttribute('role', 'alert');
+          p.className = 'mt-1 text-[11px] font-semibold text-red-700';
+          el.insertAdjacentElement('afterend', p);
+        }
+        p.textContent = g[f.k];
+        el.setAttribute('aria-invalid', 'true');
+      } else if (p) {
+        p.parentNode.removeChild(p);
+        el.removeAttribute('aria-invalid');
+      }
+    });
+  }
+
   function tandaiPerubahan() {
     var btn = $('kd-btn-simpan'), info = $('kd-info-ubah');
     if (!btn) return;
-    var n = Object.keys(ambilPerubahan()).length;
-    btn.disabled = n === 0 || D.sibuk;
-    if (info) { info.textContent = n ? n + ' perubahan belum disimpan' : ''; info.classList.toggle('hidden', !n); }
+    var perubahan = ambilPerubahan();
+    var n = Object.keys(perubahan).length;
+    var g = galatFormulir(perubahan);
+    var adaGalat = Object.keys(g).length > 0;
+    tampilkanGalat(g);
+    btn.disabled = n === 0 || D.sibuk || adaGalat;
+    if (info) {
+      info.textContent = adaGalat ? 'Perbaiki isian yang bertanda merah' : (n ? n + ' perubahan belum disimpan' : '');
+      info.classList.toggle('hidden', !n);
+    }
   }
 
   function simpanPerubahan() {
     if (!D.data || !D.bolehUbah || D.sibuk) return;
     var perubahan = ambilPerubahan();
     if (Object.keys(perubahan).length === 0) { toast('Tidak ada perubahan.', 'info'); return; }
+    var galat = galatFormulir(perubahan), kunciGalat = Object.keys(galat);
+    if (kunciGalat.length) { toast(galat[kunciGalat[0]], 'gagal', 6000); tandaiPerubahan(); return; }
     var btn = $('kd-btn-simpan');
     D.sibuk = true;
     if (typeof setTombolMemuat === 'function') setTombolMemuat(btn, 'Menyimpan...');

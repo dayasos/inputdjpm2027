@@ -15,6 +15,7 @@ import { periksaIzinInput } from "./setelan.ts";
 import { cekKuotaTersedia } from "./validasi.ts";
 import { cariRumahIbadah, kelurahanAdaDiKecamatan, tentukanWilayahTugas } from "../_shared/wilayahTugas.ts";
 import { layananWajibKoordinat, normalisasiKoordinat } from "../_shared/koordinat.ts";
+import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
 
 // ---------------------------------------------------------------------------
 // Penanda PENGINPUT di Lihat Data (rencana akun MUI, 2026-10-20): data hasil input akun MUI diberi tanda
@@ -708,9 +709,9 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
     }
 
     // ── Validasi server (port Kode.gs baris 1087-1100) ──
-    if ((umurHitung ?? -1) < 18) {
-      return { sukses: false, pesan: "GAGAL: Usia di bawah 18 tahun tidak memenuhi syarat." };
-    }
+    // Tanggal lahir: kalender sah, tahun >= 1900, tidak di masa depan, umur 18-100 (validasiPenerima.ts; berlaku utk semua peran).
+    const cekTglLahir = periksaTanggalLahir(tglLahirRaw, { tahunAktif: TAHUN_AKTIF, hariIni: tanggalHariIniWIB() });
+    if (!cekTglLahir.ok) return { sukses: false, pesan: cekTglLahir.pesan };
     if (!nama || nik.length !== 16 || nomorRekening.length !== 14 || !layanan || !kecamatan) {
       return { sukses: false, pesan: "GAGAL: Data wajib tidak lengkap atau format NIK/Rekening salah." };
     }
@@ -1036,6 +1037,19 @@ export async function editDataPenerima(
 
     // ── Wilayah tugas saat edit (kecamatan tidak bisa diedit; hanya dicek bila tempat tugas /
     // kelurahan BERUBAH, supaya edit kolom lain pada data lama tidak tiba-tiba gagal) ──
+    // Kelurahan tugas TIDAK BOLEH dikosongkan oleh siapa pun, termasuk Admin Utama
+    // (plans/plan-perbaikan-validasi-data-penerima.md, G4).
+    const kelurahanEditBaru = teks[11] !== undefined ? rapikanTeks(teks[11]) : "";
+    const kelurahanEditBerubah = teks[11] !== undefined && kelurahanEditBaru !== rapikanTeks(rowLama.kelurahan);
+    if (kelurahanEditBerubah && !kelurahanEditBaru) {
+      return { sukses: false, pesan: "GAGAL: Kelurahan wilayah tugas wajib dipilih." };
+    }
+    if (peranSesi === "UTAMA" && kelurahanEditBerubah) {
+      const kecBarisUtama = rapikanTeks(rowLama.kecamatan);
+      if (!(await kelurahanAdaDiKecamatan(kecBarisUtama, kelurahanEditBaru))) {
+        return { sukses: false, pesan: "GAGAL: Kelurahan " + kelurahanEditBaru + " tidak berada di Kecamatan " + kecBarisUtama + "." };
+      }
+    }
     if (peranSesi !== "UTAMA") {
       const kecBaris = rapikanTeks(rowLama.kecamatan);
       const kelTerkunci = rapikanTeks(kelurahanTerkunciDari(sesi));
@@ -1072,12 +1086,11 @@ export async function editDataPenerima(
       }
     }
 
-    // Validasi umur bila tanggal lahir berubah (port Kode.gs baris 2682-2687)
+    // Validasi tanggal lahir bila berubah (port Kode.gs baris 2682-2687, diperketat: kalender sah, tahun >= 1900,
+    // tidak di masa depan, umur 18-100; sebelumnya hanya umur < 18 sehingga tahun 0199 dan tanggal masa depan lolos).
     if (teks[5] !== undefined) {
-      const umurCekBaru = hitungUmur(String(teks[5]).trim());
-      if (umurCekBaru !== null && umurCekBaru < 18) {
-        return { sukses: false, pesan: "GAGAL: Usia di bawah 18 tahun tidak memenuhi syarat." };
-      }
+      const cekTglEdit = periksaTanggalLahir(String(teks[5]).trim(), { tahunAktif: TAHUN_AKTIF, hariIni: tanggalHariIniWIB() });
+      if (!cekTglEdit.ok) return { sukses: false, pesan: cekTglEdit.pesan };
     }
 
     // ── Bangun SET clause dinamis ──
