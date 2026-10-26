@@ -1,5 +1,7 @@
 
 import { loginPengguna, logoutPengguna, pulihkanSesi } from "./domains/auth.ts";
+// Cek status penerima untuk warga: hanya lewat jalur _secret (Worker /api/cek-status), BUKAN aksi publik di gerbang.
+import { cekStatusPublik } from "./domains/cekStatusPublik.ts";
 import { ambilSesi } from "./_shared/sesi.ts";
 import {
   ambilDaftarRumahIbadahAdmin,
@@ -110,6 +112,7 @@ type Handler = (...args: any[]) => unknown | Promise<unknown>;
 
 const ALLOWED: Record<string, Handler> = {
   sinkronDataSheet2026,
+  cekStatusPublik,
   loginPengguna,
   logoutPengguna,
   pulihkanSesi,
