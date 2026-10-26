@@ -1,6 +1,6 @@
 /**
  * public/js/app-cover-berkas.js
- * Cover berkas penerima (PDF): logo Pemko Medan, judul resmi, data penerima, kotak pas foto 4x6 cm, tanpa tanda tangan.
+ * Cover berkas penerima (PDF): logo Pemko Medan, judul resmi, data penerima, tanpa kotak foto dan tanpa tanda tangan.
  * Rancangan lengkap: plans/plan-cover-berkas-penerima.md
  *
  * Dua bagian:
@@ -13,10 +13,7 @@
 (function (global) {
   'use strict';
 
-  var CM = 72 / 2.54;                       // 1 cm dalam poin PDF
-  var FOTO_L = 4 * CM, FOTO_T = 6 * CM;     // pas foto 4 x 6 cm (lebar x tinggi), potret
   var ML = 40;                              // margin kiri/kanan
-  var GAP_FOTO = 18;                        // jarak data ke kotak foto
   var LABEL_L = 92;                         // lebar kolom label
   var LOGO_UKURAN = 62;                     // logo Pemko Medan (persegi), di tengah atas judul
   var URL_LOGO = '/logo-medan.png';
@@ -111,17 +108,7 @@
       D.setLineWidth(0.5); D.line(ML, y + 3, W - ML, y + 3);
       y += 40;
 
-      // --- Kotak pas foto 4 x 6 cm (kanan, sejajar blok data) ---
-      var fotoX = W - ML - FOTO_L, fotoY = y, fotoBawah = fotoY + FOTO_T;
-      D.setDrawColor(71, 85, 105); D.setLineWidth(0.9); D.setFillColor(255, 255, 255);
-      D.rect(fotoX, fotoY, FOTO_L, FOTO_T, 'S');
-      huruf(true, 10); warnaTeks(148, 163, 184);
-      D.text('PAS FOTO', fotoX + FOTO_L / 2, fotoY + FOTO_T / 2 - 4, { align: 'center' });
-      huruf(false, 8.5);
-      D.text('4 x 6 cm', fotoX + FOTO_L / 2, fotoY + FOTO_T / 2 + 9, { align: 'center' });
-
-      var lebarSempit = CW - FOTO_L - GAP_FOTO;
-      function lebarSaatIni() { return y < fotoBawah + 4 ? lebarSempit : CW; }
+      function lebarSaatIni() { return CW; }
 
       function bagian(nama) {
         jumlahBagian++;
@@ -268,7 +255,6 @@
     bersihkanTeks: bersihkanTeks,
     gambarCover: gambarCover,
     bangunPdf: bangunPdf,
-    UKURAN_FOTO_PT: { lebar: FOTO_L, tinggi: FOTO_T },
     MAKS_HALAMAN_PER_BERKAS: MAKS_HALAMAN_PER_BERKAS
   };
 
@@ -421,7 +407,7 @@
     latar.setAttribute('aria-labelledby', 'cover-judul');
     var kotak = el('div', 'bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-5');
     kotak.appendChild(el('h3', 'text-sm font-bold text-slate-800 uppercase tracking-wide', 'Unduh Cover Berkas Penerima')).id = 'cover-judul';
-    kotak.appendChild(el('p', 'text-xs text-slate-500 mt-1', 'Satu halaman A4 per penerima: judul, data penerima, dan kotak pas foto 4x6 cm. Data sesuai tabel Data Detail yang sedang tampil.'));
+    kotak.appendChild(el('p', 'text-xs text-slate-500 mt-1', 'Satu halaman A4 per penerima: judul dan data penerima. Data sesuai tabel Data Detail yang sedang tampil.'));
 
     var labelKec = el('label', 'block text-xs font-semibold text-slate-600 mt-4', 'Kecamatan');
     var selKec = el('select', 'mt-1 w-full text-xs p-2.5 border border-slate-300 rounded-lg bg-white');
@@ -436,7 +422,7 @@
     kotak.appendChild(labelKec); kotak.appendChild(labelLay);
 
     var info = el('p', 'text-xs font-semibold text-slate-700 mt-4');
-    var catatan = el('p', 'text-[11px] text-slate-500 mt-1', 'Saat mencetak, pilih skala 100% (Ukuran sebenarnya), bukan "Muat ke halaman", agar kotak foto tepat 4x6 cm.');
+    var catatan = el('p', 'text-[11px] text-slate-500 mt-1', 'Cetak di kertas A4.');
     var progres = el('p', 'text-[11px] text-sky-700 mt-2 hidden');
     kotak.appendChild(info); kotak.appendChild(catatan); kotak.appendChild(progres);
 
