@@ -4,6 +4,7 @@
 // Menulis tangkapan layar ke folder temp bila perlu (lihat bagian akhir berkas).
 // Syarat: Chrome terpasang (atau set env CHROME_PATH), dan server lokal berjalan:  npx vite --port 3123 --strictPort
 // Aman: tidak ada permintaan ke server asli (jaringan dicegat), WebSocket realtime dimatikan.
+// Opsional: BASE_URL=https://djpmkotamedan.web.id untuk memeriksa tampilan versi yang SUDAH LIVE (hanya memanipulasi kolom di layar; tanpa login, tanpa data).
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -17,7 +18,7 @@ const tidur = (ms) => new Promise((r) => setTimeout(r, ms));
 let ws, id = 0; const tunggu = new Map();
 async function sambung() {
   for (let i = 0; i < 40; i++) { try { const r = await fetch(`http://127.0.0.1:${PORT}/json/version`); if (r.ok) break; } catch {} await tidur(250); }
-  const t = await (await fetch(`http://127.0.0.1:${PORT}/json/new?http://localhost:3123/`, { method: "PUT" })).json();
+  const t = await (await fetch(`http://127.0.0.1:${PORT}/json/new?${process.env.BASE_URL || "http://localhost:3123"}/`, { method: "PUT" })).json();
   ws = new WebSocket(t.webSocketDebuggerUrl);
   await new Promise((r) => (ws.onopen = r));
   ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && tunggu.has(m.id)) { tunggu.get(m.id)(m); tunggu.delete(m.id); } };
