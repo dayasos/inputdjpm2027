@@ -184,3 +184,17 @@ Temuan yang SUDAH diperbaiki:
 - Kode server **belum dijalankan di Deno/Supabase** dan **belum dicek tipenya** (tidak ada Deno/TypeScript di komputer ini; memasang dari internet tidak dilakukan). Yang teruji: logika murni dan perilaku fungsi server lewat bundel Node dengan database TIRUAN, ditambah pemeriksaan sintaks dan rantai impor (esbuild). Risiko residual: galat tipe/Deno yang tak terdeteksi. Mitigasi di P3: siapkan versi fungsi sebelumnya untuk dipulihkan seketika, deploy lalu jalankan uji asap (login, daftar data, simpan/edit uji yang ditolak) sebelum mengumumkan.
 - Form edit detail (Lihat Data) dan Chrome lama/HP asli belum diuji di browser; hanya sintaks dan uji kabel/kesetaraan.
 - Tiruan database tidak menguji SQL asli (mis. kueri `wilayah`); itu terbukti hanya saat berjalan di produksi (P3).
+
+### P3 — selesai (2026-10-26): commit, deploy fungsi `api`, push frontend
+**Urutan dan hasil**
+1. Cadangan fungsi live v83 (39 berkas) disimpan di scratchpad sesi (`rollback-api-v83/`; juga identik dengan git `1ea026f`: 39/39 berkas sama, jadi pemulihan cukup `git checkout 1ea026f -- supabase/functions` lalu deploy ulang).
+2. Commit lokal `0825b4e` (validasi) + `3eda5d4` (skrip uji Chrome menerima `BASE_URL`).
+3. Uji asap SEBELUM deploy (v83): 6/6 lulus. Deploy: `npx supabase functions deploy api --project-ref wwqxbscumaakvziwzwjx --no-verify-jwt` -> **v84 ACTIVE**, `verify_jwt:false`. Uji asap SESUDAH deploy: 6/6 lulus (health, pulihkanSesi token palsu = "Sesi tidak valid", getMasterLayanan via proxy, login akun palsu ditolak rapi, aksi tulis token palsu ditolak, aksi tak dikenal "tidak diizinkan").
+4. Kode live v84 vs git HEAD: **40/40 berkas identik** (termasuk `validasiPenerima.ts` baru); tidak memuat apa pun dari Cek Status.
+5. `git push` (`1ea026f..3eda5d4`); Cloudflare menayangkan versi baru ~1 menit kemudian. Diperiksa: `index.html` live memuat pemeriksa (v20271040), app-transaksi (v20271041), app-kelola-data (v20271042), `min="1900-01-01"`; uji Chrome terhadap SITUS LIVE (`BASE_URL=https://djpmkotamedan.web.id`): 20 pemeriksaan lulus; uji asap ulang lulus.
+**Yang TIDAK bisa dilakukan Claude**: uji penolakan dengan sesi Admin Utama langsung di produksi. Membuat sesi uji sementara lewat database DITOLAK oleh sistem izin (dan memang tidak pantas tanpa kata sandi), jadi tidak dilakukan; token yang sempat dibuat dihapus dan terbukti tidak pernah masuk database (0 baris). Sebagai gantinya: skrip konsol `Uji_P3_Konsol.txt` (dijalankan USER di browser dengan sesi sendiri; hanya penolakan, tidak menulis data) dan bukti kode live identik dengan commit yang lulus 75 uji perilaku.
+**Belum terbukti sampai user menjalankan skrip konsol / uji manual:**
+- Penolakan server langsung di produksi untuk input baru dan pra-validasi (skrip konsol).
+- Jalur `editDataPenerima` dan `adminUbahData` hanya terbukti lewat uji perilaku dengan database tiruan + kode live identik (tidak dipanggil langsung di produksi karena akan berisiko menulis).
+- Form edit detail (Lihat Data) di browser; Chrome lama; HP asli.
+**Jalan balik:** server: `git checkout 1ea026f -- supabase/functions && npx supabase functions deploy api --project-ref wwqxbscumaakvziwzwjx --no-verify-jwt` (lalu `git checkout main -- supabase/functions` untuk kembali); frontend: `git revert 3eda5d4 0825b4e` dan push.
