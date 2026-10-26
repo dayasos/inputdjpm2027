@@ -1206,10 +1206,7 @@
       </div>
       <div class="mt-5 border-t border-slate-100 pt-4">
         <div class="flex items-center justify-between flex-wrap gap-2">
-          <span class="text-[9px] text-slate-400 tracking-widest uppercase font-semibold">
-            Developed by &nbsp;·&nbsp; <span style="color:#ca8a04;">Tim Kelembagaan Bidang Dayasos</span>
-          </span>
-          <div id="info-halaman" class="text-xs text-slate-500 font-medium"></div>
+          <div id="info-halaman" class="ml-auto text-xs text-slate-500 font-medium"></div>
         </div>
         <div id="pagination-wrap" class="flex items-center gap-1 flex-wrap justify-center mt-2"></div>
       </div>
@@ -1537,9 +1534,7 @@
       <!-- Footer & Paginasi -->
       <div class="mt-5 border-t border-slate-100 pt-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <span class="text-[9px] text-slate-400 tracking-widest uppercase font-semibold">Developed by
-            &nbsp;&middot;&nbsp; <span style="color:#ca8a04;">Tim Kelembagaan Bidang Dayasos</span></span>
-          <div id="ku-info-halaman" class="text-xs text-slate-500 font-medium"></div>
+          <div id="ku-info-halaman" class="ml-auto text-xs text-slate-500 font-medium"></div>
         </div>
         <div id="ku-pagination" class="flex items-center gap-1 flex-wrap justify-center mt-3"></div>
       </div>
@@ -1549,6 +1544,14 @@
     <!-- Halaman "Retur" (tahap uji, khusus UTAMA). Dirender oleh public/js/app-retur.js -->
     <section id="panel-retur" class="hidden"></section>
   </main>
+
+  <!-- Kredit pengembang: satu footer untuk semua halaman (sebelumnya diulang di footer tiap tabel) -->
+  <footer class="bg-white border-t border-slate-200">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-3 text-center leading-tight">
+      <span class="block text-[9px] text-slate-400 tracking-widest uppercase font-semibold">Developed by</span>
+      <span class="block text-[11px] font-semibold mt-0.5" style="color:#ca8a04;">Dedi Armansyah, S.AP <span class="font-medium text-slate-400">(Tim Kelembagaan Bidang Dayasos)</span></span>
+    </div>
+  </footer>
 
   <div id="modal-detail-penerima"
     class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2 sm:p-4 md:p-6 overflow-hidden">
@@ -1967,6 +1970,11 @@
           MASUK
         </button>
       </form>
+
+      <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 text-center leading-tight">
+        <span class="block text-[9px] text-slate-400 tracking-widest uppercase font-semibold">Developed by</span>
+        <span class="block text-[11px] font-semibold mt-0.5" style="color:#ca8a04;">Dedi Armansyah, S.AP <span class="font-medium text-slate-400">(Tim Kelembagaan Bidang Dayasos)</span></span>
+      </div>
 
     </div>
   </div>
@@ -3478,9 +3486,9 @@
   <script src="/js/app-transaksi.js?v=20271034" defer></script>
   <script src="/js/app-wajib-lapor.js?v=20271029" defer></script>
   <script src="/js/app-admin.js?v=20271019" defer></script>
-  <script src="/js/app-kelola-data.js?v=20271007" defer></script>
+  <script src="/js/app-kelola-data.js?v=20271038" defer></script>
   <script src="/js/app-kelola-user.js?v=20271017" defer></script>
-  <script src="/js/app-kelola-ibadah.js?v=20271017" defer></script>
+  <script src="/js/app-kelola-ibadah.js?v=20271039" defer></script>
   <script src="/js/app-retur.js?v=20271012" defer></script>
   <script src="/js/app-retur-status.js?v=20271012" defer></script>
   <!-- app-pesan-periode.js memuat skrip khusus peran secara malas dgn versi (?v=) yang sama: UTAMA = jadwal & pesan, laporan PDF, penanda MUI, verifikasi massal per layanan; MUI = penanda MUI; peran lain tidak memuat apa pun -->

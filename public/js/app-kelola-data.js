@@ -240,8 +240,7 @@
 
       '<div class="mt-5 border-t border-slate-100 pt-4">' +
       '<div class="flex items-center justify-between flex-wrap gap-2">' +
-      '<span class="text-[9px] text-slate-400 tracking-widest uppercase font-semibold">Developed by &nbsp;&middot;&nbsp; <span style="color:#ca8a04;">Tim Kelembagaan Bidang Dayasos</span></span>' +
-      '<div id="kd-info-halaman" class="text-xs text-slate-500 font-medium"></div>' +
+      '<div id="kd-info-halaman" class="ml-auto text-xs text-slate-500 font-medium"></div>' +
       '</div>' +
       '<div id="kd-pagination" class="flex items-center gap-1 flex-wrap justify-center mt-2"></div>' +
       '</div>';
