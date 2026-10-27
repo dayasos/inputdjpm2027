@@ -8,6 +8,7 @@ import { hapusObjekStorage, pathStorageDariUrl } from "../_shared/storage.ts";
 import { getMasterLayanan } from "./master.ts";
 import { labelKolom, MAP_IDX_KE_KOLOM_BERKAS, tglDDMMYYYYkeISO } from "./penerima.ts";
 import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
+import { periksaTempatTugasDariDaftar } from "../_shared/wilayahTugas.ts";
 
 // ---------------------------------------------------------------------------
 // KELOLA DATA & BERKAS -- CRUD penuh khusus Admin Utama (role "UTAMA") atas seluruh data
@@ -399,6 +400,12 @@ export async function adminUbahData(
         if (d.length > 0) return { sukses: false, pesan: "GAGAL: Nomor rekening " + baru.nomor_rekening + " sudah digunakan." };
       }
       const layananEff = eff("layanan").toUpperCase();
+      if ("tempat_tugas" in baru || "alamat_tugas" in baru || "layanan" in baru) {
+        // Layanan wajib-daftar: pasangan tempat + alamat hasil akhir harus persis rumah ibadah terdaftar. Ini juga menutup
+        // jalan pintas "ubah layanan" (mis. Bilal Jenazah -> Nazir Masjid dengan tempat ketikan bebas). Memakai trx (pool kecil).
+        const cekDaftar = await periksaTempatTugasDariDaftar(layananEff, eff("tempat_tugas"), eff("alamat_tugas"), trx);
+        if (!cekDaftar.ok) return { sukses: false, pesan: cekDaftar.pesan };
+      }
       if (
         ("tempat_tugas" in baru || "alamat_tugas" in baru || "layanan" in baru) &&
         LAYANAN_BATASI_TEMPAT_TUGAS.includes(layananEff)

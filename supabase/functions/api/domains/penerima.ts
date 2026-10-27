@@ -13,7 +13,7 @@ import {
 } from "../_shared/akses.ts";
 import { periksaIzinInput } from "./setelan.ts";
 import { cekKuotaTersedia } from "./validasi.ts";
-import { cariRumahIbadah, kelurahanAdaDiKecamatan, tentukanWilayahTugas } from "../_shared/wilayahTugas.ts";
+import { cariRumahIbadah, kelurahanAdaDiKecamatan, periksaTempatTugasDariDaftar, tentukanWilayahTugas } from "../_shared/wilayahTugas.ts";
 import { layananWajibKoordinat, normalisasiKoordinat } from "../_shared/koordinat.ts";
 import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
 
@@ -1033,6 +1033,13 @@ export async function editDataPenerima(
             layananSheet + " atas nama " + cekTempat[0].nama + ".",
         };
       }
+    }
+
+    // ── Layanan wajib-daftar: pasangan tempat tugas + alamat yang BARU harus persis rumah ibadah terdaftar (hanya dicek bila
+    // tempat ATAU alamat tugas berubah, supaya edit kolom lain pada data lama yang belum cocok tidak tiba-tiba gagal). Semua peran. ──
+    if (tempatBerubah) {
+      const cekDaftar = await periksaTempatTugasDariDaftar(layananSheet, tempatTugasBaruEdit, alamatTugasBaruEdit);
+      if (!cekDaftar.ok) return { sukses: false, pesan: cekDaftar.pesan };
     }
 
     // ── Wilayah tugas saat edit (kecamatan tidak bisa diedit; hanya dicek bila tempat tugas /
