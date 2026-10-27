@@ -254,7 +254,7 @@ const DOMAIN_FRESHNESS = {
 
 const MUTATION_INVALIDATIONS = {
   simpanDataKeSheet: ['penerima', 'dashboard', 'kuota'],
-  editDataPenerima: ['penerima', 'penerima_detail', 'dashboard', 'riwayat'],
+  editDataPenerima: ['penerima', 'penerima_detail', 'dashboard', 'data_detail', 'riwayat'],
   verifikasiSatuData: ['penerima', 'penerima_detail', 'dashboard', 'data_detail'],
   laporkanPerbaikanBerkas: ['penerima', 'penerima_detail'],
   tandaiSudahDiperbaiki: ['penerima', 'penerima_detail', 'dashboard', 'data_detail'],

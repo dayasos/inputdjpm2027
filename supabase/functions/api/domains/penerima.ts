@@ -493,6 +493,15 @@ export const MAP_IDX_KE_KOLOM_TEKS: Record<number, string> = {
   31: "link_koordinat_lokasi", // hanya layanan Guru; divalidasi/dinormalkan di editDataPenerima
 };
 
+// Kolom `penerima` yang JUGA disalin ke tabel `data_detail` (Data Detail, cover PDF, sumber proses Pembayaran). Edit data harus menyamakan
+// salinan itu untuk kolom-kolom ini -- sama seperti Kelola Data (kelolaData.ts). Berkas (link_*), koordinat, dan kolom administrasi
+// lain TIDAK ada di data_detail sehingga sengaja tidak termasuk. `rumah_ibadah_id` (tautan ke rumah ibadah) hanya ikut bila kode lain
+// mengisinya ke setValues; selama belum ada, entri ini tidak berpengaruh.
+const KOLOM_SALINAN_DATA_DETAIL = new Set([
+  "nama", "nik", "jenis_kelamin", "tempat_lahir", "tanggal_lahir", "alamat", "tempat_tugas", "alamat_tugas", "kelurahan",
+  "nama_rekening", "nomor_rekening", "kantor_cabang", "no_kontak", "status_bpjs_tk", "umur", "rumah_ibadah_id",
+]);
+
 export const MAP_IDX_KE_KOLOM_BERKAS: Record<number, string> = {
   18: "link_ktp",
   19: "link_buku_rekening",
@@ -1198,11 +1207,26 @@ export async function editDataPenerima(
     const setParts = setCols.map((col, i) => `${col} = $${i + 1}`).join(", ");
     const whereIdx = setCols.length + 1;
 
-    // UPDATE data penerima secara langsung di Postgres
-    await sql.unsafe(
-      `update penerima set ${setParts} where id = $${whereIdx} and tahun = $${whereIdx + 1}`,
-      [...setVals, id, TAHUN_AKTIF],
-    );
+    // UPDATE data penerima secara langsung di Postgres, DAN salinannya di data_detail untuk kolom yang disalin (KOLOM_SALINAN_DATA_DETAIL).
+    // Dulu hanya `penerima` yang diubah sehingga Data Detail/cover/sumber Pembayaran tertinggal (mis. rekening atau nama yang sudah dikoreksi
+    // petugas). Satu transaksi: salah satu gagal = tidak ada yang berubah. Baris data_detail belum ada (belum "Memenuhi Syarat") -> UPDATE
+    // 0 baris, aman. Di dalam sql.begin hanya boleh memakai `trx` (pool 2 koneksi; lihat _shared/db.ts).
+    const kolomDetail = setCols.filter((c) => KOLOM_SALINAN_DATA_DETAIL.has(c));
+    // deno-lint-ignore no-explicit-any
+    await sql.begin(async (trx: any) => {
+      await trx.unsafe(
+        `update penerima set ${setParts} where id = $${whereIdx} and tahun = $${whereIdx + 1}`,
+        [...setVals, id, TAHUN_AKTIF],
+      );
+      if (kolomDetail.length > 0) {
+        // Nama kolom datang dari daftar tetap KOLOM_SALINAN_DATA_DETAIL -- bukan dari input pengguna.
+        const setDetail = kolomDetail.map((c, i) => `${c} = $${i + 1}`).join(", ");
+        await trx.unsafe(
+          `update data_detail set ${setDetail}, diperbarui_at = now() where penerima_id = $${kolomDetail.length + 1} and tahun = $${kolomDetail.length + 2}`,
+          [...kolomDetail.map((c) => setValues[c]), id, TAHUN_AKTIF],
+        );
+      }
+    });
 
     // ── Catat riwayat edit (port catatRiwayatEdit_ Kode.gs baris 3129-3146) ──
     if (riwayat.length > 0) {
