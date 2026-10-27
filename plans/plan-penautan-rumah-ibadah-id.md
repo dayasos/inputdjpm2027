@@ -195,3 +195,13 @@ Setelah F2 ditambah: (b) penerima tertaut yang teksnya berbeda dari rumah ibadah
 - Wilayah-berubah, bentrok unik, hapus-saat-dipakai ditangani sesuai D2/D3.
 - Form petugas, Data Detail, dan cover tidak berubah tampilan/perilaku.
 - Semua uji lulus, mutan tertangkap, `check-css` OK, uji asap produksi lulus, user menyatakan uji nyata sesuai.
+
+---
+
+## 12. Catatan realisasi F0 (2026-10-27)
+
+- **Dikerjakan:** commit `cb88b3b` (di-push ke `main`), deploy fungsi `api` **v84 → v85** (`npx supabase functions deploy api ...`).
+- **Pemeriksaan sebelum deploy:** 40 dari 40 berkas fungsi yang live (v84) identik dengan HEAD → HEAD adalah titik pemulihan yang sah; salinan v84 disimpan di scratchpad (`rollback-api-v84/api-v84-live.json`). Semua uji lulus (15 + 75 + 14), `check-css` OK. Peringatan `check-lines` (index.html, app-transaksi.js > 3.500 baris) sudah ada sebelumnya.
+- **Pemeriksaan sesudah deploy:** 40 dari 40 berkas live (v85) identik dengan `cb88b3b`. Uji asap tanpa-tulis: jalur langsung ke fungsi lulus (login palsu ditolak rapi, aksi tulis dengan token palsu ditolak, aksi tak dikenal ditolak). Pengujian lewat proxy sempat gagal pada beberapa lari karena **galat koneksi database (53300) yang sudah ada sebelum deploy** (lihat di bawah), bukan karena kode baru.
+- **Belum teruji di produksi:** perilaku penjaga baru itu sendiri (butuh token Admin Utama yang sah; token uji tidak boleh dibuat dari sini). Cara uji manual oleh user: lihat pesan penutup F0 di percakapan (Kelola Data: ubah tempat tugas penerima layanan wajib-daftar ke teks bebas → harus ditolak dengan pesan "tidak ada di daftar rumah ibadah"; ubah ke nama+alamat persis daftar → berhasil).
+- **Temuan besar di luar cakupan (sudah ada SEBELUM F0):** database `max_connections` = 60 dan sering penuh. Log menunjukkan galat `remaining connection slots are reserved for roles with the SUPERUSER attribute` ratusan sampai >1.000 kali per jam pada jam kerja (26 Okt 04-09 UTC; 27 Okt 02-04 UTC) dengan **±8-13% permintaan fungsi berstatus 5xx**. Fungsi `api` memakai `SUPABASE_DB_URL` dengan pool 2 koneksi per instance (`_shared/db.ts`). Perlu rencana tersendiri (bukan bagian rencana ini).
