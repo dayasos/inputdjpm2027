@@ -66,9 +66,9 @@ Bertahap; tiap fase diuji lokal; **produksi disentuh hanya atas izin eksplisit**
 
 | # | Keputusan | Rekomendasi | Status |
 |---|---|---|---|
-| D1 | Penyebaran saat edit rumah ibadah | **Otomatis berdasarkan ID**, dengan dialog konfirmasi yang menyebut jumlah penerima | menunggu jawaban |
-| D2 | Ubah kecamatan/kelurahan rumah ibadah yang punya penerima tertaut | **Ditolak** dengan pesan jelas; penyebaran wilayah = fase lanjutan terpisah | menunggu jawaban |
-| D3 | Hapus rumah ibadah yang masih dipakai | **Ditolak** ("masih dipakai N penerima") | menunggu jawaban |
+| D1 | Penyebaran saat edit rumah ibadah | **Otomatis berdasarkan ID**, dengan dialog konfirmasi yang menyebut jumlah penerima | **DISETUJUI user 2026-10-27** |
+| D2 | Ubah kecamatan/kelurahan rumah ibadah yang punya penerima tertaut | **Ditolak** dengan pesan jelas; penyebaran wilayah = fase lanjutan terpisah | **DISETUJUI user 2026-10-27** |
+| D3 | Hapus rumah ibadah yang masih dipakai | **Ditolak** ("masih dipakai N penerima") | **DISETUJUI user 2026-10-27** |
 | D4 | Teks salinan di penerima | **Dipertahankan** | disarankan |
 | D5 | Cara menautkan data baru | **Server menautkan sendiri** lewat nama+alamat persis (tepat 1 kecocokan); klien tidak diubah | disarankan |
 | D6 | Kecocokan ganda | ID dikosongkan + dilaporkan (saat ini 0 kasus, tapi tidak ada batasan DB yang melarang) | disarankan |
@@ -205,3 +205,78 @@ Setelah F2 ditambah: (b) penerima tertaut yang teksnya berbeda dari rumah ibadah
 - **Pemeriksaan sesudah deploy:** 40 dari 40 berkas live (v85) identik dengan `cb88b3b`. Uji asap tanpa-tulis: jalur langsung ke fungsi lulus (login palsu ditolak rapi, aksi tulis dengan token palsu ditolak, aksi tak dikenal ditolak). Pengujian lewat proxy sempat gagal pada beberapa lari karena **galat koneksi database (53300) yang sudah ada sebelum deploy** (lihat di bawah), bukan karena kode baru.
 - **Belum teruji di produksi:** perilaku penjaga baru itu sendiri (butuh token Admin Utama yang sah; token uji tidak boleh dibuat dari sini). Cara uji manual oleh user: lihat pesan penutup F0 di percakapan (Kelola Data: ubah tempat tugas penerima layanan wajib-daftar ke teks bebas → harus ditolak dengan pesan "tidak ada di daftar rumah ibadah"; ubah ke nama+alamat persis daftar → berhasil).
 - **Temuan besar di luar cakupan (sudah ada SEBELUM F0):** database `max_connections` = 60 dan sering penuh. Log menunjukkan galat `remaining connection slots are reserved for roles with the SUPERUSER attribute` ratusan sampai >1.000 kali per jam pada jam kerja (26 Okt 04-09 UTC; 27 Okt 02-04 UTC) dengan **±8-13% permintaan fungsi berstatus 5xx**. Fungsi `api` memakai `SUPABASE_DB_URL` dengan pool 2 koneksi per instance (`_shared/db.ts`). Perlu rencana tersendiri (bukan bagian rencana ini).
+
+## 13. Catatan realisasi F1–F3 bagian LOKAL (2026-10-27) — belum diterapkan ke produksi
+
+- **D1–D3 DISETUJUI user** (2026-10-27).
+- **Ditulis lokal (belum di-commit, belum di-deploy, belum diterapkan):**
+  - `supabase/migrations/20261027100000_rumah_ibadah_id_penerima.sql` — kolom `rumah_ibadah_id` nullable pada induk `penerima` & `data_detail` (menurun ke partisi 2026/2027), indeks parsial, tabel `log_perubahan_rumah_ibadah` (RLS aktif). `lock_timeout 5s`.
+  - `scripts/backfill-rumah-ibadah-id.sql` — pratinjau (A), eksekusi (B1 penerima, B2 data_detail), verifikasi (C1–C4). Pratinjau terukur: dari 3.512 penerima, **1.339 akan ditautkan, 0 ambigu**.
+  - Kode server: `pilihRumahIbadahId` + `cariRumahIbadah` kini mengembalikan `id` (`_shared/wilayahTugas.ts`); kabel di simpan baru & edit data (`penerima.ts`), Kelola Data (`kelolaData.ts`, penerima + data_detail), pembuat data_detail (`dataDetail.ts`).
+  - Uji: `npm run uji:tautan-ri` (15 uji, 8 mutan tertangkap); uji lain tetap lulus (wajib-daftar 15, validasi 75, cover 14, db-pool 3).
+- **URUTAN WAJIB saat dirilis (agar aplikasi tidak rusak):** (1) terapkan migrasi → (2) deploy fungsi `api` (kode F3 menulis kolom baru; tanpa migrasi, simpan baru dan sinkron data_detail GAGAL "column does not exist") → (3) jalankan backfill B1–B2 → (4) ulangi B1–B2 sekali lagi (menangkap penerima yang masuk di antara langkah 3 dan 2) → (5) verifikasi C1–C4 (semua harus 0).
+- **Syarat sebelum menyentuh produksi:** koneksi database stabil di jam sibuk (lonjakan ±800 permintaan/2 menit masih memicu ±8% 5xx walau `idle_timeout` sudah 2 dtk; lihat memori `project_koneksi_db_penuh_5xx`).
+- **Belum dikerjakan:** F4 (edit/hapus rumah ibadah berbasis ID + dialog), F5 (tampilan admin), F6 (rilis & uji nyata).
+
+## 14. Catatan realisasi F4–F5 bagian LOKAL (2026-10-27) — belum diterapkan ke produksi
+
+- **F4 (server, `domains/master.ts` + `index.ts`):**
+  - `ubahRumahIbadah` kini satu transaksi (`sql.begin` + `for update`): menolak nama+alamat kembar dengan rumah ibadah lain; menolak ubah kecamatan/kelurahan bila ada penerima tertaut (D2); memeriksa `jumlahDikonfirmasi` (bila dikirim) terhadap jumlah sebenarnya; pra-periksa bentrok indeks unik (5 layanan) sebelum menulis; mencatat `riwayat_edit` SEBELUM mengubah; memperbarui `penerima` dan `data_detail` **lewat `rumah_ibadah_id`** (bukan lewat nama); menulis `log_perubahan_rumah_ibadah`; terakhir mengubah `rumah_ibadah`.
+  - `hapusRumahIbadah`: satu pernyataan `delete … where not exists (penerima tertaut)` (tanpa celah cek-lalu-hapus); bila masih dipakai ditolak dengan jumlah (D3).
+  - `tambahRumahIbadah`: menolak nama+alamat kembar (perubahan perilaku kecil, perlu agar kunci nama+alamat tetap unik).
+  - Aksi baru `hitungPemakaianRumahIbadah` (jumlah total + per layanan) terdaftar di `ALLOWED`.
+  - **Penyederhanaan dari rencana awal:** fungsi `pulihkanPerubahanRumahIbadah` TIDAK dibuat. Karena penyebaran kini tepat sasaran lewat ID, **memulihkan = mengedit rumah ibadah kembali ke nilai lama lewat menu yang sama** (ikut menyebar lagi, tercatat di riwayat). Log menyimpan nama/alamat lama dan daftar id sebagai jejak audit.
+- **F5 (tampilan, `app-kelola-ibadah.js`, `?v=20271044`):** sebelum menyimpan perubahan nama/alamat/wilayah, halaman memanggil `hitungPemakaianRumahIbadah`; bila ada penerima terdampak → dialog "Perbarui Data Penerima Terkait" (jumlah + rincian per layanan); bila wilayah berubah & dipakai → ditolak di layar; bila gagal menghitung → TIDAK menyimpan; perbedaan hanya huruf/spasi dianggap tidak berubah. `api-bridge.js`: cache penerima/dashboard/data_detail/riwayat ikut disegarkan setelah `ubahRumahIbadah`.
+- **Uji:** `npm run uji:rumah-ibadah-id` (17 uji; 9 dari 10 mutan tertangkap — 1 mutan setara secara logika); uji layar Chrome `scripts/uji/layar/ibadah-konfirmasi-tautan.mjs` (12 pemeriksaan; 6 dari 6 mutan tertangkap; butuh `npx vite --port 3123 --strictPort`).
+- **Uji SQL di Postgres sungguhan (dibatalkan otomatis, tanpa menyentuh data):** 13 pernyataan F4 valid (termasuk penentuan tipe parameter, `INSERT … SELECT` dengan cast); hanya penerima ber-ID yang berubah (penerima senama tak tertaut, rumah ibadah lain, dan arsip 2026 tidak berubah); riwayat, log, dan hapus berperilaku benar. Sintaks migrasi diuji pada tabel berpartisi tiruan: kolom turun ke kedua partisi, indeks parsial terbentuk, idempoten, RLS log aktif, `anon` tanpa hak.
+- **Catatan teknis:** nilai `\s` pada regex hilang dua kali saat berkas ditulis lewat jalur tertentu (tertangkap uji layar); semua regex pada berkas yang diubah sudah diperiksa ulang benar.
+- **Masih menunggu:** F6 (rilis + uji nyata) — dengan URUTAN WAJIB di §13 dan syarat koneksi database stabil. Kode F4 juga membaca kolom/tabel baru → **jangan di-deploy sebelum migrasi diterapkan**.
+
+## 15. Tinjauan mendalam sebelum rilis (2026-10-27) — temuan, perbaikan, batasan, runbook
+
+### 15.1 Cara meninjau
+Baca ulang seluruh diff; petakan SEMUA penulis `tempat_tugas`/`alamat_tugas` (tepat 4: simpan baru, edit data, Kelola Data, pembuat data_detail — `sinkronSheet2026` hanya 2026, `verifikasi`/`statusPenerima`/`kelolaData:595` tidak menyentuhnya; tidak ada trigger sinkron); uji SQL di Postgres sungguhan (tabel sementara, dibatalkan otomatis); uji perusakan (mutan) di server dan tampilan; uji layar Chrome; pemeriksaan data produksi baca-saja.
+
+### 15.2 Kelemahan yang DITEMUKAN dan SUDAH DIPERBAIKI
+1. **D1 bisa dilewati.** `jumlahDikonfirmasi` dulu opsional: klien lama atau permintaan langsung dapat memperbarui banyak penerima tanpa dialog. → Server kini MENOLAK (`perluKonfirmasi`) bila perubahan akan memperbarui ≥ 1 penerima dan jumlah tidak dikirim; jumlah berbeda → `jumlahBerubah`.
+2. **UI melewati dialog bila data pembanding hilang** (`!!asli && …`). → Kini dianggap BERUBAH sehingga pemeriksaan + dialog tetap jalan.
+3. **Ketergantungan pada fitur pustaka yang tak bisa diuji lokal**: fragmen SQL bersarang di `cariKembarRumahIbadah` dan `layanan in ${trx(array)}`. → Diganti kueri biasa (dua varian) dan satu kueri per layanan berbatas (maks. 5).
+4. **Parameter tanpa tipe pada `INSERT … SELECT`** (riwayat). → Cast eksplisit `::text`; terbukti valid di Postgres sungguhan.
+5. **Pesan galat mentah bila foreign key menolak hapus.** → Pesan ramah.
+6. **Pengecualian ID sendiri pada pemeriksaan kembar tidak terkunci uji.** → Uji bentuk kueri ditambahkan (2 mutan lolos → tertangkap).
+7. **Regex `\s` rusak** pada `normTeks` di tampilan (ditulis `/s+/`) — tertangkap uji layar; seluruh regex lain diperiksa.
+
+### 15.3 Penambahan pengaman
+- `scripts/backfill-rumah-ibadah-id.sql` Bagian **D (rekonsiliasi)**: menyembuhkan drift (teks penerima/data_detail tertaut ≠ rumah ibadahnya). Diuji di Postgres sungguhan: hanya baris menyimpang yang berubah; baris yang sudah sama (setelah normalisasi), tak tertaut, dan arsip 2026 tidak tersentuh.
+- `supabase/migrations/20261027100100_fk_rumah_ibadah_id.sql`: foreign key `ON DELETE RESTRICT` (penerima & data_detail → rumah_ibadah). **BELUM diuji di database** (uji pada tabel tiruan sempat tidak dijalankan); idempoten; terapkan setelah pengisian awal + verifikasi C3 = 0, di luar jam ramai. Opsional tapi dianjurkan: menutup mutlak tautan yatim akibat balapan.
+
+### 15.4 Batasan / risiko yang DITERIMA (diketahui, bukan lupa)
+1. **Balapan langka**: penerima disimpan tepat (milidetik) saat rumah ibadahnya diganti nama → teks penerima bisa tertinggal lama padahal ID benar. Tidak dikunci di jalur simpan (jalur ramai) karena menambah kompleksitas; dideteksi oleh C2 dan disembuhkan Bagian D.
+2. **`data_detail` tidak ikut diperbarui oleh "Lihat Data → Edit"** (sudah begitu sebelum fitur ini; hanya Kelola Data yang menyinkronkannya). Akibatnya tautan/teks `data_detail` bisa tertinggal terhadap `penerima` setelah edit biasa. Tidak diubah karena di luar cakupan; layak ditinjau tersendiri.
+3. **Cache daftar rumah ibadah di klien (≤ 15 menit)**: petugas masih bisa memilih nama lama sesudah diganti nama → server menolak untuk layanan wajib-daftar dengan pesan yang menjelaskan; cukup muat ulang.
+4. **Edit tempat tugas lewat "Lihat Data" untuk layanan wajib-daftar** masih berupa kolom teks bebas: petugas harus mengetik persis seperti daftar (kini dijaga server). Saran lanjutan: kunci kolom itu + tombol pilih seperti di input baru.
+5. **Sebelum F6 dirilis**, mengganti nama rumah ibadah yang punya penerima TIDAK menyebar (perilaku lama) dan penerima lama menjadi tak cocok daftar; hindari sampai rilis.
+6. **Kondisi koneksi database**: galat 5xx turun dari ±17% ke ±0,2–2,5% setelah `idle_timeout` 2 dtk, tetapi puncak jam kerja belum teramati penuh. Rilis (F6) menunggu bukti kestabilan.
+
+### 15.5 Runbook rilis F6 (URUTAN WAJIB, tiap langkah ada syarat lanjut dan cara mundur)
+| # | Langkah | Syarat sebelum | Verifikasi | Mundur |
+|---|---|---|---|---|
+| 0 | Cek 5xx jam sibuk & koneksi (`53300`) | 5xx < ±2% pada puncak | log | — (tunda rilis) |
+| 1 | Terapkan `20261027100000_rumah_ibadah_id_penerima.sql` | luar jam ramai; `lock_timeout` 5 dtk | kolom ada di `penerima` & `data_detail` (+ partisi); aplikasi normal | drop kolom/tabel/indeks |
+| 2 | Commit + push; deploy fungsi `api` | migrasi langkah 1 SUDAH ada | `list_edge_functions` versi baru; 40/40 berkas = HEAD; uji asap tanpa-tulis | redeploy dari commit sebelumnya (`cb88b3b` + `f8072ae`) |
+| 3 | Pengisian awal B1 lalu B2 (satu per satu) | pratinjau A ≈ perkiraan, ambigu 0 | C1 (layanan wajib 100% tertaut), C2/C3/C4 = 0 | `update … set rumah_ibadah_id = null` |
+| 4 | Ulangi B1–B2 sekali | — | C1–C4 | idem |
+| 5 | (Dianjurkan) terapkan `20261027100100_fk_rumah_ibadah_id.sql` | C3 = 0; luar jam ramai | `pg_constraint` | drop constraint |
+| 6 | Uji nyata user pada SATU rumah ibadah uji: ubah nama → dialog → cek penerima, Data Detail, cover PDF → ubah balik; coba hapus yang dipakai (harus ditolak); coba ubah kelurahan (harus ditolak) | langkah 1–5 selesai | hasil sesuai | ubah balik lewat menu yang sama |
+| 7 | Pantau log fungsi 1–2 hari; ulangi C1–C4 | — | semua 0 | Bagian D bila C2 > 0 |
+
+### 15.6 Status uji akhir
+`uji:rumah-ibadah-id` 23, `uji:tautan-ri` 15, `uji:wajib-daftar-ri` 15, `uji:db-pool` 3, `uji:validasi-penerima` 75, `uji:cover` 14 — semua lulus; uji layar 12/12; mutan: server F4 8/10 (+1 setara) lalu 6/6 untuk pengaman baru, tampilan 6/6, penautan 8/8, penjaga F0 7/7; `check-css` OK.
+
+## 16. Perbaikan sinkron Data Detail (2026-10-27) — terpisah dari rilis rumah ibadah
+
+- **Temuan:** "Lihat Data → Edit" tidak pernah memperbarui `data_detail` (hanya Kelola Data). Perbandingan semua kolom salinan: 8 dari 2.859 penerima 2027 berbeda (nama, nama/nomor rekening, tanggal lahir/umur [0199→1989, umur 1827→37], status BPJS).
+- **Sinkron data (SELESAI, terverifikasi):** 8 baris `data_detail` disamakan dengan `penerima` dalam satu blok atomik dengan dua pengaman (himpunan baris berbeda harus persis 8 ID yang disetujui; baris diubah harus tepat 8). Setelah itu 0 baris berbeda; `status`/`tgl_status`/`dibuat_at` utuh. Pemulihan: `scratchpad/PEMULIHAN-sinkron-data-detail.sql` (nilai lama saja).
+- **Perbaikan kode (di-push `5167faf`, fungsi BELUM di-deploy):** `editDataPenerima` kini memperbarui `penerima` dan salinan `data_detail` dalam satu transaksi (daftar kolom `KOLOM_SALINAN_DATA_DETAIL`; berkas/koordinat tidak menyentuhnya); cache klien domain `data_detail` ikut disegarkan. Uji `npm run uji:sinkron-detail` (10 uji; 8 mutan tertangkap). Frontend (`api-bridge.js`/`index.html`) ikut live lewat push.
+- **Deploy ditolak pengaman otomatis ("Production Deploy")** → menunggu izin pengguna. **DEPLOY HARUS DARI CHECKOUT BERSIH `5167faf`, BUKAN dari folder kerja utama** (folder utama memuat kode F3/F4 yang butuh migrasi dan akan merusak simpan data bila di-deploy lebih dulu). Checkout bersih tersedia sebagai git worktree di `scratchpad/wt-sinkron` (cabang `fix/sinkron-data-detail`, `node_modules` ditautkan): `cd` ke sana lalu `npx --no-install supabase functions deploy api --project-ref wwqxbscumaakvziwzwjx --no-verify-jwt`; sesudahnya banding 40/40 berkas live dengan commit tersebut dan jalankan ulang perbandingan data_detail vs penerima (target 0).
+- **Sampai fungsi di-deploy**, edit baru lewat Lihat Data masih bisa menimbulkan selisih baru; cek ulang dengan kueri perbandingan semua kolom lalu sinkron seperti di atas bila ada.
