@@ -11,6 +11,8 @@
     "check-css": "node scripts/cek-css-terbaru.js",
     "uji:cover": "node --test scripts/uji/cover-kelurahan.test.mjs",
     "uji:sinkron-detail": "node --test scripts/uji/server-edit-sinkron-data-detail.test.mjs",
+    "uji:rumah-ibadah-id": "node --test scripts/uji/server-rumah-ibadah-id.test.mjs",
+    "uji:tautan-ri": "node --test scripts/uji/server-tautan-rumah-ibadah.test.mjs",
     "uji:db-pool": "node --test scripts/uji/db-pool.test.mjs",
     "uji:wajib-daftar-ri": "node --test scripts/uji/server-wajib-daftar-rumah-ibadah.test.mjs",
     "uji:validasi-penerima": "node --test scripts/uji/validasi-penerima.test.mjs scripts/uji/wilayah-tugas-utama.test.mjs scripts/uji/validasi-tanggal-lahir-layar.test.mjs scripts/uji/server-penerima.test.mjs scripts/uji/server-simpan-penerima.test.mjs scripts/uji/kabel-validasi-penerima.test.mjs",

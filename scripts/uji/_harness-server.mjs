@@ -32,6 +32,7 @@ const STUB_DB = `
   export function sql(strings, ...nilai) { return jalankan(strings.join("?"), nilai); }
   sql.unsafe = (teks, nilai) => jalankan("UNSAFE " + teks, nilai || []);
   sql.begin = (fn) => fn(sql);
+  sql.json = (x) => x;
 `;
 
 /** Mengembalikan modul hasil bundel dari berkas sumber (relatif terhadap akar repo). */
