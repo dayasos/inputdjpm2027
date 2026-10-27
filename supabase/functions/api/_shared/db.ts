@@ -1,15 +1,26 @@
 import postgres from "npm:postgres@3.4.4";
+import { tentukanKoneksi } from "./dbKonfigurasi.ts";
 
-const connectionString = Deno.env.get("SUPABASE_DB_URL");
+// Pilihan koneksi: DB_POOLER_URL (pooler transaksi, port 6543) bila diset, sah, dan terpilih oleh DB_POOLER_PERSEN; selain itu SUPABASE_DB_URL (langsung,
+// nilai bawaan platform) seperti sebelumnya. Aturan lengkap + alasan: _shared/dbKonfigurasi.ts. Kode di bawah aman untuk pooler mode transaksi:
+// prepare:false, kunci advisory hanya versi transaksi (pg_advisory_xact_lock), tidak ada SET sesi/LISTEN/tabel sementara/kursor.
+const koneksi = tentukanKoneksi(
+  Deno.env.get("SUPABASE_DB_URL"),
+  Deno.env.get("DB_POOLER_URL"),
+  Deno.env.get("DB_POOLER_PERSEN"),
+  Math.random(),
+);
 
-if (!connectionString) {
+if (!koneksi) {
   throw new Error(
     "Env var SUPABASE_DB_URL belum diset. Set lewat: supabase secrets set SUPABASE_DB_URL=... " +
     "(connection string Postgres project Supabase, lihat Dashboard > Project Settings > Database).",
   );
 }
+// Hanya peringatan yang dicatat (satu baris per isolate; isolate hampir per permintaan, jadi jangan mencatat hal rutin). Tidak memuat URL/sandi.
+if (koneksi.peringatan) console.warn("db: " + koneksi.peringatan);
 
-export const sql = postgres(connectionString, {
+export const sql = postgres(koneksi.url, {
   prepare: false,
   // max 2 (bukan 1): query paralel (mis. Promise.all di dashboard) benar-benar jalan bersamaan.
   // Sengaja kecil karena tiap isolate Deno punya pool sendiri & pooler Supabase punya batas klien.
