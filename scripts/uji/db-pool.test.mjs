@@ -11,13 +11,13 @@ import { fileURLToPath } from "node:url";
 const akar = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const teks = fs.readFileSync(path.join(akar, "supabase/functions/api/_shared/db.ts"), "utf8");
 const ambil = (nama) => {
-  const m = new RegExp("^\\s*" + nama + ":\\s*(\\d+)\\s*,", "m").exec(teks.replace(/\/\/.*$/gm, (c) => c.startsWith("//") ? "" : c));
+  const m = new RegExp("^\\s*" + nama + ":\\s*(\\d+(?:\\.\\d+)?)\\s*,", "m").exec(teks.replace(/\/\/.*$/gm, (c) => c.startsWith("//") ? "" : c));
   assert.ok(m, `opsi ${nama} tidak ditemukan di db.ts`);
   return Number(m[1]);
 };
 
-test("pool: idle_timeout pendek (<= 3 dtk) agar koneksi cepat dilepas", () => {
-  assert.ok(ambil("idle_timeout") >= 1 && ambil("idle_timeout") <= 3, "idle_timeout = " + ambil("idle_timeout"));
+test("pool: idle_timeout sangat pendek (0,1-1 dtk) agar koneksi cepat dilepas", () => {
+  assert.ok(ambil("idle_timeout") >= 0.1 && ambil("idle_timeout") <= 1, "idle_timeout = " + ambil("idle_timeout"));
 });
 
 test("pool: max per isolate tetap kecil (<= 2) dan prepare dimatikan", () => {

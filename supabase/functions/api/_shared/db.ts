@@ -30,8 +30,11 @@ export const sql = postgres(koneksi.url, {
   // (±9,5 ribu execution_id unik per ~13,9 ribu permintaan/jam) yang membuka koneksi LANGSUNG ke Postgres. Dengan idle 10 dtk tiap
   // koneksi tertahan ±11 dtk -> ±30-60 koneksi + ±11 dasar melampaui max_connections=60 -> ±10% permintaan 5xx (PostgresError 53300).
   // Jangan dinaikkan lagi tanpa mengukur ulang 5xx/53300 (lihat scripts/uji/db-pool.test.mjs).
+  // 27 Okt 2026 (sore): diturunkan lagi ke 0,25 dtk. Pooler transaksi TIDAK bisa dipakai sebagai jalan keluar: koneksi yang dipakai ulang
+  // dalam jeda < idle_timeout MENGGANTUNG saat ada kueri paralel (dashboard macet). Koneksi langsung dengan idle sangat pendek menahan
+  // koneksi jauh lebih singkat tanpa risiko itu (diuji: pakai-ulang + paralel lancar). Detik boleh pecahan (postgres.js).
   max: 2,
   connect_timeout: 5,
-  idle_timeout: 2,
+  idle_timeout: 0.25,
   max_lifetime: 300,
 });

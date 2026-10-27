@@ -4,6 +4,11 @@
 // Postgres, sedangkan database hanya mengizinkan 60 koneksi -> saat laju isolate baru > ±2,5/detik muncul PostgresError 53300 dan ±9% permintaan 5xx.
 // Pooler transaksi Supabase (port 6543) memultipleks banyak koneksi klien ke sedikit koneksi server, sehingga batas 60 tidak lagi jadi leher botol.
 //
+// !! PERINGATAN (27 Okt 2026): JANGAN mengaktifkan DB_POOLER_URL/DB_POOLER_PERSEN di produksi. Pooler transaksi membuat koneksi postgres.js
+// yang dipakai ulang (jeda < idle_timeout) MENGGANTUNG saat ada kueri paralel -> Dashboard Progres Verifikasi macet. Terbukti lokal
+// (putaran kedua Promise.all selalu timeout; koneksi langsung lancar); rilis pooler 100% sempat live lalu dimundurkan ke 0%.
+// Kode ini dibiarkan (tanpa secret perilakunya = koneksi langsung). Sebelum dipakai lagi: uji pakai-ulang + paralel harus lulus.
+//
 // NAMA VARIABEL: `DB_POOLER_URL` (BUKAN SUPABASE_*): awalan SUPABASE_ dicadangkan platform -- CLI menolak mengaturnya dan nilainya ditimpa tiap deploy
 // (terbukti: semua secret SUPABASE_* berubah tanggalnya tepat saat deploy). `SUPABASE_DB_URL` adalah nilai bawaan platform (koneksi langsung).
 //
