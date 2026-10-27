@@ -32,5 +32,5 @@ export async function muatWilayahTugas(akar = akarRepo) {
   globalThis.Deno = { env: { get: () => undefined } };
   const modul = await import(pathToFileURL(keluar).href);
   fs.rmSync(tmp, { recursive: true, force: true }); // bundel sudah dimuat ke memori; bersihkan folder sementara
-  return { tentukanWilayahTugas: modul.tentukanWilayahTugas, state: globalThis.__ujiState };
+  return { tentukanWilayahTugas: modul.tentukanWilayahTugas, pilihRumahIbadahId: modul.pilihRumahIbadahId, modul, state: globalThis.__ujiState };
 }

@@ -83,7 +83,8 @@ test("edit tempat tugas + alamat tugas + kelurahan: ikut ke data_detail (layanan
   const h = await edit({ 8: "MUSHOLLA BARU", 9: "JL BARU", 11: "SEMPAKATA" });
   assert.equal(h.sukses, true, JSON.stringify(h));
   const d = tulis("data_detail")[0];
-  const k = kolomDari(d.teks).filter((x) => !["penerima_id", "tahun"].includes(x)).sort();
+  // `rumah_ibadah_id` ikut bila kode penautan rumah ibadah aktif (plans/plan-penautan-rumah-ibadah-id.md); selain itu tidak boleh ada kolom lain.
+  const k = kolomDari(d.teks).filter((x) => !["penerima_id", "tahun", "rumah_ibadah_id"].includes(x)).sort();
   assert.deepEqual(k, ["alamat_tugas", "kelurahan", "tempat_tugas"]);
   assert.ok(d.nilai.includes("MUSHOLLA BARU") && d.nilai.includes("JL BARU") && d.nilai.includes("SEMPAKATA"));
 });

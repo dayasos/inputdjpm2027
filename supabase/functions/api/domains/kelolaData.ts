@@ -8,7 +8,7 @@ import { hapusObjekStorage, pathStorageDariUrl } from "../_shared/storage.ts";
 import { getMasterLayanan } from "./master.ts";
 import { labelKolom, MAP_IDX_KE_KOLOM_BERKAS, tglDDMMYYYYkeISO } from "./penerima.ts";
 import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
-import { periksaTempatTugasDariDaftar } from "../_shared/wilayahTugas.ts";
+import { cariRumahIbadah, periksaTempatTugasDariDaftar, pilihRumahIbadahId } from "../_shared/wilayahTugas.ts";
 
 // ---------------------------------------------------------------------------
 // KELOLA DATA & BERKAS -- CRUD penuh khusus Admin Utama (role "UTAMA") atas seluruh data
@@ -447,10 +447,17 @@ export async function adminUbahData(
           sesudah: k === "tanggal_lahir" ? formatTanggalDDMMYYYY(baru[k]) : baru[k],
         });
       }
+      // Tautan rumah ibadah (plans/plan-penautan-rumah-ibadah-id.md) ikut diperbarui hanya bila tempat/alamat/layanan berubah;
+      // null bila hasil akhirnya bukan rumah ibadah terdaftar. Memakai trx (pool kecil, lihat catatan di atas berkas).
+      if ("tempat_tugas" in baru || "alamat_tugas" in baru || "layanan" in baru) {
+        setValues["rumah_ibadah_id"] = pilihRumahIbadahId(
+          await cariRumahIbadah(eff("tempat_tugas"), eff("alamat_tugas"), trx), eff("kecamatan"), eff("kelurahan"),
+        );
+      }
       const cols = Object.keys(setValues);
       const vals = cols.map((c) => setValues[c]);
       const setSql = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
-      // Nama kolom datang dari daftar tetap KOLOM_EDIT/umur -- bukan dari input pengguna.
+      // Nama kolom datang dari daftar tetap KOLOM_EDIT/umur/rumah_ibadah_id -- bukan dari input pengguna.
       await trx.unsafe(
         `update penerima set ${setSql}, diperbarui_at = now() where id = $${cols.length + 1} and tahun = $${cols.length + 2}`,
         [...vals, idNum, th],

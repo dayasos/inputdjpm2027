@@ -13,7 +13,13 @@ import {
 } from "../_shared/akses.ts";
 import { periksaIzinInput } from "./setelan.ts";
 import { cekKuotaTersedia } from "./validasi.ts";
-import { cariRumahIbadah, kelurahanAdaDiKecamatan, periksaTempatTugasDariDaftar, tentukanWilayahTugas } from "../_shared/wilayahTugas.ts";
+import {
+  cariRumahIbadah,
+  kelurahanAdaDiKecamatan,
+  periksaTempatTugasDariDaftar,
+  pilihRumahIbadahId,
+  tentukanWilayahTugas,
+} from "../_shared/wilayahTugas.ts";
 import { layananWajibKoordinat, normalisasiKoordinat } from "../_shared/koordinat.ts";
 import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
 
@@ -740,6 +746,9 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
     if (!wilayahTugas.ok) return { sukses: false, pesan: wilayahTugas.pesan };
     kecamatan = wilayahTugas.kecamatan;
     kelurahan = wilayahTugas.kelurahan;
+    // Tautan ke rumah ibadah (plans/plan-penautan-rumah-ibadah-id.md): ID bila tempat tugas + alamat persis satu rumah ibadah
+    // terdaftar, selain itu null (RUMAH/LAINNYA/layanan tempat bebas). Server yang menentukan -- klien tidak perlu mengirim ID.
+    const rumahIbadahId = pilihRumahIbadahId(await cariRumahIbadah(tempatTugas, alamatTugas), kecamatan, kelurahan);
 
     // ── Domisili: kosong (formulir lama / tidak diisi) -> ikut wilayah tugas. Kewajiban mengisi
     // ditegakkan formulir (required); server hanya memvalidasi pasangan yang benar-benar dikirim.
@@ -834,7 +843,7 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
               link_domisili_kelurahan, link_formulir_pendataan, link_berkas_pendukung,
               link_foto_plank_rumah_ibadah, link_foto_lokasi_ibadah, link_foto_kegiatan_belajar,
               link_rekomendasi_bkm, link_rekomendasi_rumah_ibadah, link_domisili_rumah_ibadah,
-              id_folder_berkas, link_koordinat_lokasi,
+              id_folder_berkas, link_koordinat_lokasi, rumah_ibadah_id,
               status_verifikasi, catatan_perbedaan_nama,
               dibuat_oleh_akun_id, sync_status,
               kecamatan_domisili, kelurahan_domisili,
@@ -850,7 +859,7 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
               ${linkDomisili}, ${linkFormulirPendataan}, ${linkBerkasPendukung},
               ${linkFotoPlank}, ${linkFotoIbadah}, ${linkFotoKegiatan},
               ${linkRekomendasiBkm}, ${linkRekomendasiRi}, ${linkDomisiliRumahIbadah},
-              ${idFolderBerkas}, ${koordinatLink},
+              ${idFolderBerkas}, ${koordinatLink}, ${rumahIbadahId},
               'Proses Verifikasi', ${catatanPerbedaanNama},
               ${sesi.akunId}, 'SUKSES',
               ${kecamatanDomisili}, ${kelurahanDomisili},
@@ -1177,6 +1186,17 @@ export async function editDataPenerima(
         sebelum: linkLama ? "[link lama]" : "-",
         sesudah: "[link baru]",
       });
+    }
+
+    // Tautan rumah ibadah ikut diperbarui hanya bila tempat/alamat tugas berubah (plans/plan-penautan-rumah-ibadah-id.md);
+    // null bila tempat yang baru bukan rumah ibadah terdaftar. Edit kolom lain tidak menyentuh tautan.
+    if (setValues["tempat_tugas"] !== undefined || setValues["alamat_tugas"] !== undefined) {
+      const tempatAkhir = setValues["tempat_tugas"] !== undefined ? setValues["tempat_tugas"] : rowLama.tempat_tugas;
+      const alamatAkhir = setValues["alamat_tugas"] !== undefined ? setValues["alamat_tugas"] : rowLama.alamat_tugas;
+      const kelurahanAkhir = setValues["kelurahan"] !== undefined ? setValues["kelurahan"] : rowLama.kelurahan;
+      setValues["rumah_ibadah_id"] = pilihRumahIbadahId(
+        await cariRumahIbadah(tempatAkhir, alamatAkhir), rowLama.kecamatan, kelurahanAkhir,
+      );
     }
 
     // Plan wajib lapor perbaikan (2026-10-22): user (bukan Admin Utama) mengganti berkas pada data Berkas Tidak Lengkap ->

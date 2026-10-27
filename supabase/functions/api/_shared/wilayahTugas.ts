@@ -54,7 +54,25 @@ export const LAYANAN_WAJIB_RUMAH_IBADAH = [
   "PENATUA GEREJA",
 ];
 
-type LokasiRumahIbadah = { kecamatan: string; kelurahan: string };
+// `id` = rumah_ibadah.id (bigint -> Number); null bila tidak tersedia. Dipakai menautkan penerima ke rumah ibadah
+// (penerima.rumah_ibadah_id, plans/plan-penautan-rumah-ibadah-id.md).
+type LokasiRumahIbadah = { id: number | null; kecamatan: string; kelurahan: string };
+
+/**
+ * Pilih ID rumah ibadah untuk sebuah penerima dari hasil `cariRumahIbadah` (nama + alamat persis).
+ * - tepat 1 kecocokan  -> ID itu
+ * - >1 kecocokan       -> dipersempit dengan kecamatan + kelurahan penerima; hanya bila tersisa tepat 1 -> ID itu
+ * - 0 kecocokan / tetap ambigu -> null (penerima dibiarkan tidak tertaut; perilaku sama seperti sebelum fitur ini)
+ */
+export function pilihRumahIbadahId(lokasi: LokasiRumahIbadah[], kecamatan: unknown, kelurahan: unknown): number | null {
+  const sah = lokasi.filter((l) => l.id != null && Number.isFinite(Number(l.id)));
+  if (sah.length === 1) return Number(sah[0].id);
+  if (sah.length === 0) return null;
+  const kec = rapikanTeks(kecamatan);
+  const kel = rapikanTeks(kelurahan);
+  const sempit = sah.filter((l) => l.kecamatan === kec && l.kelurahan === kel);
+  return sempit.length === 1 ? Number(sempit[0].id) : null;
+}
 
 // Semua rumah ibadah dengan nama + alamat yang sama persis (setelah rapikanTeks, normalisasi
 // yang sama dipakai saat menyimpan tempat_tugas/alamat_tugas). Bisa >1 baris: nama+alamat
@@ -66,14 +84,18 @@ export async function cariRumahIbadah(tempatTugas: string, alamatTugas: string, 
   const alamat = rapikanTeks(alamatTugas);
   if (!nama) return [];
   const rows = await q`
-    select kecamatan, kelurahan, alamat
+    select id, kecamatan, kelurahan, alamat
     from rumah_ibadah
     where upper(btrim(regexp_replace(nama, '\\s+', ' ', 'g'))) = ${nama}
   `;
   const hasil: LokasiRumahIbadah[] = [];
   for (const r of rows) {
     if (rapikanTeks(r.alamat) !== alamat) continue;
-    hasil.push({ kecamatan: rapikanTeks(r.kecamatan), kelurahan: rapikanTeks(r.kelurahan) });
+    hasil.push({
+      id: r.id == null ? null : Number(r.id),
+      kecamatan: rapikanTeks(r.kecamatan),
+      kelurahan: rapikanTeks(r.kelurahan),
+    });
   }
   return hasil;
 }
