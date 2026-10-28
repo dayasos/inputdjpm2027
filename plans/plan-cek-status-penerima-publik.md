@@ -104,7 +104,7 @@ Prinsip rancangan:
 Berlaku untuk **NIK tidak ada** maupun **tanggal lahir tidak cocok**:
 > NIK dan/atau tanggal lahir yang dimasukkan Tidak Terdata atau Belum ada di database Penerima Dana Jasa Pelayanan Kepada Warga Pelayan Masyarakat Kota Medan Tahun Anggaran 2027.
 >
-> Pastikan NIK dan tanggal lahir sesuai KTP. Bila sudah benar, hubungi petugas kelurahan/kecamatan Anda.
+> Pastikan NIK dan tanggal lahir sesuai KTP. Bila sudah benar, hubungi petugas Kemenag/Kecamatan/Kelurahan Anda.
 
 Pesan lain (berbeda dari di atas):
 | Kondisi | Pesan |
@@ -121,7 +121,7 @@ Kartu menampilkan: Nama · Layanan · Kecamatan · Kelurahan · **Status** (lenc
 |---|---|---|
 | Memenuhi Syarat | Hijau | "Data Anda telah diverifikasi dan memenuhi syarat." |
 | Proses Verifikasi | Kuning | "Data Anda sedang diperiksa petugas. Silakan cek kembali beberapa hari lagi." |
-| Berkas Tidak Lengkap | Merah | "Berkas Anda belum lengkap. Hubungi petugas kecamatan/kelurahan Anda untuk melengkapinya." |
+| Berkas Tidak Lengkap | Merah | "Berkas Anda belum lengkap. Hubungi petugas Kemenag/Kecamatan/Kelurahan Anda untuk melengkapinya." |
 | (nilai lain / tak dikenal) | Abu-abu | "Status: <teks apa adanya>." |
 
 Catatan kaki (disetujui pimpinan, K6): "Status ini bukan jaminan pencairan. Informasi ini hanya untuk pemilik NIK; jangan bagikan hasil ini kepada orang lain."
@@ -439,7 +439,7 @@ Ditinjau dengan code-review (high); setiap temuan diperiksa ulang ke kode/data s
 Setiap temuan diperiksa ulang ke kode/data/perilaku nyata sebelum diterima. (Satu putaran review awal salah sasaran: argumen `11c8940` dibaca sebagai SATU commit, bukan rentang; temuannya tentang `db.ts`/pooler milik pekerjaan lama dan tidak menyangkut fitur ini -- dipisah, tidak dikerjakan di sini.)
 **Terbukti dan diperbaiki:**
 1. **Batas badan 1024 byte < token Turnstile asli** (badan tanpa token 74 byte -> token maks 950 karakter; batas resmi 2048). Warga sah dengan token panjang akan mendapat "FORMAT" yang menyesatkan. Perbaikan: batas badan = 2048 + 256. Uji: token 950/1200/2048 diterima, 2049 ditolak sebagai TURNSTILE. (UAT lolos karena token uji < 950; tidak ada jaminan untuk semua.)
-2. **Status "Tidak Memenuhi Syarat" tidak ditangani** (status sah yang diset otomatis oleh `cekBatasWaktuVerifikasi` bila batas waktu perbaikan lewat; kini 0 baris di produksi). Halaman memberi lencana abu-abu tanpa arahan. Perbaikan: lencana merah + "Data Anda dinyatakan belum memenuhi syarat. Hubungi petugas kecamatan/kelurahan Anda untuk informasi lebih lanjut." **Teks ini perlu disetujui pimpinan (K6).**
+2. **Status "Tidak Memenuhi Syarat" tidak ditangani** (status sah yang diset otomatis oleh `cekBatasWaktuVerifikasi` bila batas waktu perbaikan lewat; kini 0 baris di produksi). Halaman memberi lencana abu-abu tanpa arahan. Perbaikan: lencana merah + "Data Anda dinyatakan belum memenuhi syarat. Hubungi petugas Kemenag/Kecamatan/Kelurahan Anda untuk informasi lebih lanjut." **Teks ini perlu disetujui pimpinan (K6).**
 3. **Mengetik manual dengan pemisah rusak** ("1/2/1990" per karakter -> "12-19-90", tombol tak pernah aktif). Perbaikan: bagian yang ditutup pemisah dilengkapi nol; tombol hapus tetap natural; kursor tidak melompat ke akhir saat mengedit di tengah. Uji: 12 uji logika (termasuk 20.000 masukan acak) dan uji Chrome mengetik sungguhan.
 4. **Kunci uji Turnstile tersalin ke produksi akan meloloskan semua token** (hostname dilewati menurut pola secret). Perbaikan: hostname dilewati HANYA untuk localhost atau penanda eksplisit `CEK_STATUS_DEV=1` (hanya di `.dev.vars`); selain itu gagal tertutup. Temuan sampingan: `wrangler dev` memakai nama domain rute, bukan localhost, sehingga penanda eksplisit diperlukan untuk uji lokal.
 5. **Pepper diperiksa sebelum saklar**: saklar MATI + pepper salah menghasilkan galat 500, bukan NONAKTIF. Perbaikan: saklar dulu ("matikan" selalu NONAKTIF), lalu pepper (tetap gagal tertutup bila saklar hidup).
