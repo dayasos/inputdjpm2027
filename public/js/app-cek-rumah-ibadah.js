@@ -15,11 +15,10 @@
 
   var ID_MODAL = 'modal-cek-rumah-ibadah';
   var LIMIT = 20;
-  var TUNDA_KETIK = 350;       // ms: tunggu pengguna selesai mengetik sebelum bertanya ke server
   var TUNDA_SINYAL = 1500;     // ms: gabungkan sinyal realtime beruntun menjadi satu muat ulang
 
   var JENIS_FILTER = [
-    ['', 'Semua jenis'],
+    ['', 'Pilih jenis...'],
     ['MASJID', 'Masjid'], ['MUSHOLLA', 'Musholla'], ['MASJID_MUSHOLLA', 'Masjid & Musholla'],
     ['GEREJA', 'Gereja Protestan'], ['GEREJA_KATOLIK', 'Gereja Katolik'], ['GEREJA_ALL', 'Semua Gereja'],
     ['VIHARA', 'Vihara'], ['KLENTENG', 'Klenteng'], ['KUIL', 'Kuil'], ['VIHARA_KLENTENG_KUIL', 'Vihara / Klenteng / Kuil']
@@ -33,11 +32,12 @@
   var terbuka = false;
   var seq = 0;                 // nomor permintaan; jawaban dengan nomor lama diabaikan
   var seqKel = 0;
-  var tahap = 'memuat';        // 'memuat' | 'siap' | 'galat'
+  var tahap = 'awal';          // 'awal' (belum Tampilkan Data) | 'memuat' | 'siap' | 'galat'
+  var memuatKel = false;       // daftar kelurahan sedang diambil
   var pesanGalat = '';
   var data = null;             // jawaban server terakhir
   var q = { cari: '', jenis: '', kec: '', kel: '', status: '', page: 1 };
-  var timerKetik = null, timerSinyal = null;
+  var timerSinyal = null;
   var ulangSetelahMuat = false;
 
   function $(id) { return document.getElementById(id); }
@@ -78,23 +78,26 @@
       '  <div class="shrink-0 flex justify-between items-start gap-3 px-4 sm:px-7 py-4 border-b border-slate-100">' +
       '    <div class="min-w-0">' +
       '      <h3 id="cri-judul" class="text-sm sm:text-base font-bold text-slate-800 tracking-wide uppercase">Cek Rumah Ibadah</h3>' +
-      '      <p class="text-xs text-slate-500 mt-0.5">Cari rumah ibadah atau nama pengurus. Pengurus = penerima semua layanan yang tertaut ke rumah ibadah itu.</p>' +
+      '      <p class="text-xs text-slate-500 mt-0.5">Pilih jenis, kecamatan, dan kelurahan, lalu klik Tampilkan Data. Pengurus = penerima semua layanan yang tertaut ke rumah ibadah itu.</p>' +
       '    </div>' +
       '    <button type="button" id="cri-x" aria-label="Tutup" class="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg text-xl font-semibold leading-none transition">&times;</button>' +
       '  </div>' +
       '  <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-7 py-4">' +
       '    <div id="cri-ringkasan" class="grid grid-cols-3 gap-2 mb-3"></div>' +
-      '    <div class="grid grid-cols-2 lg:grid-cols-5 gap-2.5 mb-3">' +
-      '      <div class="col-span-2 lg:col-span-2">' +
-      '        <label for="cri-cari" class="block text-xs font-medium text-slate-600 mb-1">Cari rumah ibadah / alamat / nama pengurus</label>' +
+      '    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-2.5">' +
+      '      <div><label for="cri-jenis" class="block text-xs font-medium text-slate-600 mb-1">1. Jenis</label>' +
+      '        <select id="cri-jenis" class="' + KELAS_INPUT + '">' + opsiJenis() + '</select></div>' +
+      '      <div><label for="cri-kec" class="block text-xs font-medium text-slate-600 mb-1">2. Kecamatan</label>' +
+      '        <select id="cri-kec" disabled class="' + KELAS_INPUT + ' disabled:bg-slate-100 disabled:cursor-not-allowed">' + opsiKecamatan() + '</select></div>' +
+      '      <div><label for="cri-kel" class="block text-xs font-medium text-slate-600 mb-1">3. Kelurahan</label>' +
+      '        <select id="cri-kel" disabled class="' + KELAS_INPUT + ' disabled:bg-slate-100 disabled:cursor-not-allowed"><option value="">Pilih kecamatan</option></select></div>' +
+      '    </div>' +
+      '    <div class="flex flex-col sm:flex-row sm:items-end gap-2.5 mb-3">' +
+      '      <div class="flex-1 min-w-0">' +
+      '        <label for="cri-cari" class="block text-xs font-medium text-slate-600 mb-1">Cari nama rumah ibadah / alamat / nama pengurus <span class="text-slate-400 font-normal">(opsional)</span></label>' +
       '        <input type="text" id="cri-cari" autocomplete="off" placeholder="mis. al ikhlas, atau nama pengurus..." class="' + KELAS_INPUT + '" />' +
       '      </div>' +
-      '      <div><label for="cri-jenis" class="block text-xs font-medium text-slate-600 mb-1">Jenis</label>' +
-      '        <select id="cri-jenis" class="' + KELAS_INPUT + '">' + opsiJenis() + '</select></div>' +
-      '      <div><label for="cri-kec" class="block text-xs font-medium text-slate-600 mb-1">Kecamatan</label>' +
-      '        <select id="cri-kec" class="' + KELAS_INPUT + '">' + opsiKecamatan() + '</select></div>' +
-      '      <div><label for="cri-kel" class="block text-xs font-medium text-slate-600 mb-1">Kelurahan</label>' +
-      '        <select id="cri-kel" disabled class="' + KELAS_INPUT + ' disabled:bg-slate-100 disabled:cursor-not-allowed"><option value="">Pilih kecamatan</option></select></div>' +
+      '      <button type="button" id="cri-tampil" disabled class="inline-flex items-center justify-center px-5 py-2 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed">Tampilkan Data</button>' +
       '    </div>' +
       '    <div class="flex items-center justify-between gap-2 mb-2">' +
       '      <p id="cri-info" class="text-xs text-slate-500 font-medium" aria-live="polite"></p>' +
@@ -126,44 +129,65 @@
     });
     $('cri-x').addEventListener('click', tutup);
     $('cri-tutup').addEventListener('click', tutup);
-    $('cri-reset').addEventListener('click', function () {
-      q = { cari: '', jenis: '', kec: '', kel: '', status: '', page: 1 };
-      sinkronKontrol();
+    $('cri-reset').addEventListener('click', function () { setelAwal(); });
+    $('cri-tampil').addEventListener('click', tampilkan);
+    $('cri-cari').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); tampilkan(); } });
+    $('cri-jenis').addEventListener('change', function () {
+      // Jenis dipilih dulu: kecamatan baru bisa dipilih setelahnya; pilihan di bawahnya dikosongkan.
+      $('cri-kec').disabled = !this.value;
+      $('cri-kec').value = '';
       isiKelurahan('');
-      muat();
+      perbaruiTombol();
     });
-    $('cri-cari').addEventListener('input', function () {
-      clearTimeout(timerKetik);
-      var nilai = this.value;
-      timerKetik = setTimeout(function () { q.cari = nilai; q.page = 1; muat(); }, TUNDA_KETIK);
-    });
-    $('cri-jenis').addEventListener('change', function () { q.jenis = this.value; q.page = 1; muat(); });
-    $('cri-kec').addEventListener('change', function () {
-      q.kec = this.value; q.kel = ''; q.page = 1;
-      isiKelurahan(q.kec);
-      muat();
-    });
-    $('cri-kel').addEventListener('change', function () { q.kel = this.value; q.page = 1; muat(); });
+    $('cri-kec').addEventListener('change', function () { isiKelurahan(this.value); });
   }
 
-  /** Samakan isi kontrol dengan state q (dipakai saat reset / dibuka ulang). */
-  function sinkronKontrol() {
-    $('cri-cari').value = q.cari;
-    $('cri-jenis').value = q.jenis;
-    $('cri-kec').value = q.kec;
+  /** Tombol Tampilkan Data aktif bila jenis sudah dipilih dan daftar kelurahan tidak sedang dimuat. */
+  function perbaruiTombol() {
+    var tombol = $('cri-tampil');
+    if (tombol) tombol.disabled = !$('cri-jenis').value || memuatKel;
+  }
+
+  /** Ambil pilihan saat ini sebagai filter yang berlaku, lalu muat dari halaman pertama. */
+  function tampilkan() {
+    if (!$('cri-jenis').value) { $('cri-jenis').focus(); return; } // mis. Enter di kotak cari sebelum jenis dipilih
+    if (memuatKel) return;
+    q = { cari: $('cri-cari').value, jenis: $('cri-jenis').value, kec: $('cri-kec').value, kel: $('cri-kel').value, status: '', page: 1 };
+    muat();
+  }
+
+  /** Kembali ke keadaan awal: semua pilihan kosong dan belum ada data yang ditampilkan. */
+  function setelAwal() {
+    seq++; // abaikan jawaban yang masih di jalan
+    ulangSetelahMuat = false;
+    clearTimeout(timerSinyal);
+    data = null;
+    tahap = 'awal';
+    q = { cari: '', jenis: '', kec: '', kel: '', status: '', page: 1 };
+    $('cri-cari').value = '';
+    $('cri-jenis').value = '';
+    $('cri-kec').value = '';
+    $('cri-kec').disabled = true;
+    isiKelurahan('');
+    perbaruiTombol();
+    render();
   }
 
   /** Kelurahan hanya bermakna per kecamatan: isi dari tabel wilayah (getKelurahanByKecamatan). */
-  function isiKelurahan(kec, pilih) {
+  function isiKelurahan(kec) {
     var sel = $('cri-kel');
     var nomor = ++seqKel;
     if (!kec) {
       sel.innerHTML = '<option value="">Pilih kecamatan</option>';
       sel.disabled = true;
+      memuatKel = false;
+      perbaruiTombol();
       return;
     }
     sel.innerHTML = '<option value="">Memuat kelurahan...</option>';
     sel.disabled = true;
+    memuatKel = true;
+    perbaruiTombol();
     google.script.run
       .withSuccessHandler(function (daftar) {
         if (nomor !== seqKel) return;
@@ -171,12 +195,15 @@
         sel.innerHTML = '<option value="">Semua kelurahan</option>' +
           list.map(function (k) { return '<option value="' + esc2(k) + '">' + esc2(k) + '</option>'; }).join('');
         sel.disabled = false;
-        if (pilih && list.indexOf(pilih) !== -1) sel.value = pilih;
+        memuatKel = false;
+        perbaruiTombol();
       })
       .withFailureHandler(function () {
         if (nomor !== seqKel) return;
         sel.innerHTML = '<option value="">Gagal memuat kelurahan</option>';
         sel.disabled = true;
+        memuatKel = false; // tetap boleh menampilkan data se-kecamatan
+        perbaruiTombol();
       })
       .getKelurahanByKecamatan(dataPengguna.token, kec);
   }
@@ -239,7 +266,21 @@
     }
   }
 
+  function ringkasFilter() {
+    var nama = '';
+    JENIS_FILTER.forEach(function (j) { if (j[0] && j[0] === q.jenis) nama = j[1]; });
+    var bagian = [nama, q.kec, q.kel, q.cari ? '"' + q.cari.trim() + '"' : ''].filter(Boolean);
+    return bagian.join(' · ');
+  }
+
   function gambar() {
+    if (tahap === 'awal') {
+      $('cri-ringkasan').innerHTML = '';
+      $('cri-daftar').innerHTML = '<p class="px-4 py-10 text-center text-sm text-slate-500">Pilih jenis rumah ibadah, kecamatan, dan kelurahan, lalu klik <b>Tampilkan Data</b>.</p>';
+      $('cri-info').textContent = '';
+      $('cri-halaman').innerHTML = '';
+      return;
+    }
     var ring = (data && data.ringkasan) || null;
     $('cri-ringkasan').innerHTML =
       kartuRingkasan('', 'Semua rumah ibadah', ring ? ring.total : null, 'text-slate-800') +
@@ -261,7 +302,8 @@
       return;
     }
     var rows = (data && data.daftar) || [];
-    info.textContent = data ? (angka(data.total) + ' rumah ibadah ditemukan' + (tahap === 'memuat' ? ' - memperbarui...' : '')) : '';
+    // Sebut filter yang SEDANG ditampilkan: dropdown bisa diubah tanpa klik Tampilkan Data, jadi daftar bisa berbeda dari pilihan.
+    info.textContent = data ? (angka(data.total) + ' rumah ibadah ditemukan' + (ringkasFilter() ? ' (' + ringkasFilter() + ')' : '') + (tahap === 'memuat' ? ' - memperbarui...' : '')) : '';
     daftar.setAttribute('aria-busy', tahap === 'memuat' ? 'true' : 'false');
     daftar.innerHTML = rows.length
       ? rows.map(htmlBaris).join('')
@@ -286,11 +328,6 @@
 
   function muat() {
     if (!terbuka || !adalahUtama()) return;
-    // Ambil isi kotak cari saat ini: pengguna bisa langsung mengubah filter sebelum jeda ketik habis,
-    // dan permintaan itu tidak boleh membawa kata kunci lama.
-    clearTimeout(timerKetik);
-    var kotakCari = $('cri-cari');
-    if (kotakCari) q.cari = kotakCari.value;
     var nomor = ++seq;
     ulangSetelahMuat = false;
     tahap = 'memuat';
@@ -340,7 +377,6 @@
     terbuka = false;
     seq++;          // abaikan jawaban yang masih di jalan
     ulangSetelahMuat = false;
-    clearTimeout(timerKetik);
     clearTimeout(timerSinyal);
     data = null;    // nama pengurus tidak disimpan di memori setelah ditutup; dibuka lagi = dimuat segar
     if (modal) modal.classList.add('hidden');
@@ -349,7 +385,7 @@
   // Data berubah (input/edit/verifikasi, atau rumah ibadah diubah) selagi modal terbuka: muat ulang pelan-pelan,
   // filter dan halaman dipertahankan. Perubahan dari tab ini juga membuang cache (domain 'penerima').
   window.addEventListener('djpm:swr-invalidated', function (ev) {
-    if (!terbuka) return;
+    if (!terbuka || tahap === 'awal') return;
     var domains = (ev.detail && ev.detail.domains) || [];
     if (!(domains.indexOf('*') !== -1 || domains.indexOf('penerima') !== -1 || domains.indexOf('rumah_ibadah') !== -1)) return;
     clearTimeout(timerSinyal);
@@ -370,8 +406,6 @@
     buatModal();
     terbuka = true;
     modal.classList.remove('hidden');
-    sinkronKontrol();
-    if (q.kec) isiKelurahan(q.kec, q.kel); else isiKelurahan('');
-    muat();
+    setelAwal();
   };
 })();
