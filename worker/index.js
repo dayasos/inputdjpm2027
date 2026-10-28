@@ -4,7 +4,7 @@
 // - scheduled : cekBatasWaktuVerifikasi tiap 18:00 UTC (01:00 WIB)
 // Semua selain /api/* dilayani sebagai aset statis (lihat "assets" di wrangler.jsonc).
 
-import { tanganiCekStatus } from './cek-status.js';
+import { tanganiCekStatus, aksiKhususCekStatus } from './cek-status.js';
 
 const DEFAULT_TARGET_URL = 'https://wwqxbscumaakvziwzwjx.supabase.co/functions/v1/api';
 
@@ -117,6 +117,11 @@ async function tanganiGas(request, env) {
     return jsonResponse({ error: 'Format JSON payload tidak valid', details: e.message }, 400);
   }
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) payload = {};
+
+  // Aksi publik cek status hanya boleh lewat /api/cek-status (Turnstile); di sini _secret akan disisipkan ke semua aksi.
+  if (aksiKhususCekStatus(payload.action)) {
+    return jsonResponse({ error: 'Aksi tidak diizinkan', sukses: false, pesan: 'Aksi tidak diizinkan' }, 403);
+  }
 
   if (!env.GAS_SECRET_TOKEN) {
     return jsonResponse(

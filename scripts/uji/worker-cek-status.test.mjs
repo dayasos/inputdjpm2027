@@ -201,3 +201,36 @@ test('tidak ada console.* yang memuat NIK, tanggal, token, atau nama', async () 
   const semua = tangkap.join('\n');
   for (const rahasia of [NIK, TGL, 'TOKEN-RAHASIA', 'BUDI']) assert.ok(!semua.includes(rahasia), rahasia);
 });
+
+// --- /api/gas tidak boleh menjadi jalan pintas ke cekStatusPublik (melewati Turnstile) ---
+import worker from '../../worker/index.js';
+import { aksiKhususCekStatus } from '../../worker/cek-status.js';
+
+async function lewatGas(action) {
+  const dipanggil = [];
+  const asli = globalThis.fetch;
+  globalThis.fetch = async (u, o) => { dipanggil.push({ u: String(u), o }); return new Response(JSON.stringify({ result: { ok: true } })); };
+  try {
+    const r = new Request('https://djpmkotamedan.web.id/api/gas', { method: 'POST', body: JSON.stringify({ action, args: [NIK, TGL] }) });
+    const res = await worker.fetch(r, { ...ENV, ASSETS: {} });
+    return { status: res.status, json: await res.json(), dipanggil };
+  } finally { globalThis.fetch = asli; }
+}
+
+test('/api/gas menolak cekStatusPublik (termasuk huruf besar/kecil & spasi) dan TIDAK memanggil backend', async () => {
+  for (const a of ['cekStatusPublik', 'CEKSTATUSPUBLIK', ' cekStatusPublik ', 'cekstatuspublik']) {
+    const h = await lewatGas(a);
+    assert.equal(h.status, 403, a);
+    assert.equal(h.dipanggil.length, 0, a);
+  }
+});
+
+test('/api/gas aksi lain tetap diteruskan ke backend seperti biasa', async () => {
+  const h = await lewatGas('pulihkanSesi');
+  assert.equal(h.status, 200);
+  assert.equal(h.dipanggil.length, 1);
+});
+
+test('aksiKhususCekStatus: bukan string / aksi lain -> false', () => {
+  for (const x of [undefined, null, 5, {}, '', 'login', 'cekNikRealtime']) assert.equal(aksiKhususCekStatus(x), false);
+});

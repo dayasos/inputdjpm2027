@@ -173,4 +173,13 @@ export async function tanganiCekStatus(request, env, deps) {
   return jawaban;
 }
 
+/**
+ * Aksi yang HANYA boleh lewat /api/cek-status (Turnstile + batas laju). /api/gas menyisipkan _secret ke semua aksi,
+ * jadi tanpa penolakan ini aksi tersebut bisa dipanggil langsung dari internet dan melewati Turnstile.
+ */
+const AKSI_KHUSUS = new Set(['cekstatuspublik']);
+export function aksiKhususCekStatus(action) {
+  return typeof action === 'string' && AKSI_KHUSUS.has(action.trim().toLowerCase());
+}
+
 export const KONSTANTA_UJI = { MAKS_BADAN_BYTE, WAKTU_MIN_MS, TIMEOUT_BACKEND_MS };
