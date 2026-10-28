@@ -100,9 +100,9 @@
   (function () {
     'use strict';
 
-    // Kunci situs Turnstile bersifat publik. Nilai di bawah adalah KUNCI UJI Cloudflare (selalu lolos) -- wajib diganti dengan
-    // kunci situs asli sebelum F2 (plan bagian 11). Kunci uji TIDAK boleh ada di produksi.
-    var TURNSTILE_SITEKEY = '1x00000000000000000000AA';
+    // Kunci situs Turnstile bersifat publik (widget "Cek Status DJPM 2027", hostname djpmkotamedan.web.id). Tidak berfungsi
+    // di localhost; untuk uji lokal sementara ganti ke kunci uji Cloudflare 1x00000000000000000000AA (jangan di-commit).
+    var TURNSTILE_SITEKEY = '0x4AAAAAAFo9SIzbUqC3UkJv';
     var HASIL_TAMPIL_MS = 2 * 60 * 1000;
 
     var PESAN = {
