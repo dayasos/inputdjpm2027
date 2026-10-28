@@ -217,3 +217,13 @@ Terbukti dengan sumber (bukan dugaan): pustaka `postgres@3.4.4` — `arraySerial
 Verifikasi: uji layar Chrome kini **44 pemeriksaan LULUS** (+6: server lama, jawaban rusak, filter cepat setelah mengetik, fokus ×2, sinyal saat memuat, data dibersihkan). Uji mutasi: 4 perbaikan di atas dimatikan satu per satu, masing-masing tertangkap uji. Regresi: uji node 8 suite lulus (pencarian 10, cek-rumah-ibadah 14, rumah-ibadah-id 24, tautan-ri 16, gerbang-aksi 6, sinkron-detail 10, cover 14, db-koneksi 32), uji layar cover / ibadah-konfirmasi-tautan / kelola-data-validasi lulus, `check-css` OK, semua `public/js/*.js` lolos cek sintaks.
 
 Belum bisa diverifikasi di sini: jalannya fungsi `api` terhadap database sungguhan lewat Edge Function (hanya kueri SQL-nya yang sudah dicoba langsung), dan `deno check` (Deno tidak terpasang).
+
+---
+
+## 14. F4 — status tayang (2026-10-28)
+
+- **Commit lokal `3bad969`** (belum di-push; `main` lokal = `origin/main` sebelum commit ini, tidak ada kode lain yang tertunda). Folder kerja bersih.
+- **Titik pemulihan:** fungsi `api` live = **v98** (di-deploy 11:35 WIB, sesudah commit fungsi terakhir `e1c298f`), kode setara commit `30e55f5`. Pulih: `git checkout 30e55f5 -- supabase/functions` lalu deploy ulang (atau checkout bersih commit itu).
+- **Deploy fungsi `api` BELUM dilakukan:** perintah `npx --no-install supabase functions deploy api --project-ref wwqxbscumaakvziwzwjx --no-verify-jwt` ditolak pengaman otomatis Claude Code ("Production Deploy"); menunggu izin/tindakan user.
+- **Urutan:** (1) deploy fungsi `api` → v99; (2) uji asap sebelum push; (3) `git push origin main` (memicu Workers Builds untuk frontend); (4) uji klik user.
+- **Uji asap setelah deploy (tanpa menulis data):** `cariRumahIbadahPengurus` dengan token palsu → harus "Sesi tidak valid" (BUKAN "Aksi tidak diizinkan"); aksi lama (`getMasterLayanan`, `pulihkanSesi` token palsu) tetap normal; kueri baca di database (jumlah rumah ibadah ber-/tanpa pengurus = 859 / 2.015 pada 2026-10-28).
