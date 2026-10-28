@@ -1345,6 +1345,8 @@ function inisialisasiMenuLihatData() {
   if (!pastikanLogin()) return;
   const btnVerifMassal = document.getElementById('btn-verifikasi-massal');
   if (btnVerifMassal) btnVerifMassal.classList.toggle('hidden', dataPengguna.role !== "UTAMA");
+  const btnCekRi = document.getElementById('btn-cek-rumah-ibadah');
+  if (btnCekRi) btnCekRi.classList.toggle('hidden', dataPengguna.role !== "UTAMA");
   ['btn-salin-wa-kecamatan', 'btn-salin-wa-kemenag'].forEach(function (idBtn) {
     const btnSalinWA = document.getElementById(idBtn);
     if (btnSalinWA) btnSalinWA.classList.toggle('hidden', dataPengguna.role !== "UTAMA");
@@ -1404,6 +1406,8 @@ window.tampilkanDataDetail = function () {
   if (!pastikanLogin()) return;
   _ddHalaman = 1;
   _ddSudahTampil = false;
+  _ddSemua = [];
+  _resetFilterDataDetail();
   _lepasObserverDataDetail();
   document.getElementById('body-tabel-data-detail').innerHTML = htmlSkeletonBaris(20, 5);
   document.getElementById('info-total-data-detail').innerText = '';
@@ -1767,28 +1771,121 @@ window.pindahHalamanDataDetail = function (nomor) {
   _perbaruiNavDataDetail();
 };
 
-function renderTabelDataDetail(rows) {
+// _ddSemua = seluruh baris kiriman server (terurut); _ddRows = hasil pencarian/filter yang dipaginasi.
+let _ddSemua = [];
+
+function _nilaiDd(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+
+// Isi ulang opsi Kecamatan/Kelurahan/Layanan dari data; pilihan yang sedang aktif dipertahankan
+// bila masih ada (muat ulang realtime tidak membuang filter). Kelurahan mengikuti Kecamatan terpilih.
+function _isiOpsiFilterDataDetail() {
+  const elKec = document.getElementById('dd-filter-kec');
+  const elKel = document.getElementById('dd-filter-kel');
+  const elLay = document.getElementById('dd-filter-lay');
+  if (!elKec || !elKel || !elLay) return;
+  const pilKec = elKec.value, pilKel = elKel.value, pilLay = elLay.value;
+  const setKec = new Set(), setLay = new Set(), setKel = new Set();
+  _ddSemua.forEach(function (r) {
+    if (r.kecamatan) setKec.add(r.kecamatan);
+    if (r.layanan) setLay.add(r.layanan);
+  });
+  const kecAktif = setKec.has(pilKec) ? pilKec : '';
+  _ddSemua.forEach(function (r) { if (r.kelurahan && (!kecAktif || r.kecamatan === kecAktif)) setKel.add(r.kelurahan); });
+  const isi = function (el, semuaLabel, set, pilihan) {
+    el.innerHTML = '';
+    const o0 = document.createElement('option');
+    o0.value = ''; o0.textContent = semuaLabel;
+    el.appendChild(o0);
+    Array.from(set).sort(function (a, b) { return String(a).localeCompare(String(b), 'id'); }).forEach(function (v) {
+      const o = document.createElement('option');
+      o.value = o.textContent = v;
+      el.appendChild(o);
+    });
+    el.value = set.has(pilihan) ? pilihan : '';
+  };
+  isi(elKec, '-- Semua Kecamatan --', setKec, pilKec);
+  isi(elKel, '-- Semua Kelurahan --', setKel, pilKel);
+  isi(elLay, '-- Semua Layanan --', setLay, pilLay);
+}
+
+function _teksCariDataDetail(r) {
+  return r._cari || (r._cari = normalisasiCari([
+    r.nama, r.nik, r.tempatLahir, r.alamat, r.layanan, r.tempatTugas, r.alamatTugas,
+    r.kecamatan, r.kelurahan, r.namaRekening, r.nomorRekening, r.kantorCabang, r.noKontak
+  ].join(' ')));
+}
+
+function _saringDataDetail() {
+  const kata = _nilaiDd('dd-cari');
+  const kec = _nilaiDd('dd-filter-kec'), kel = _nilaiDd('dd-filter-kel'), lay = _nilaiDd('dd-filter-lay');
+  return _ddSemua.filter(function (r) {
+    if (kec && r.kecamatan !== kec) return false;
+    if (kel && r.kelurahan !== kel) return false;
+    if (lay && r.layanan !== lay) return false;
+    return cocokKataKunci(_teksCariDataDetail(r), kata);
+  });
+}
+
+let _ddTimerCari = null;
+// Dipanggil dari kotak cari (tunda) dan dropdown filter. gantiKec = true: daftar Kelurahan dibangun ulang.
+window.saringDataDetail = function (tunda, gantiKec) {
+  clearTimeout(_ddTimerCari);
+  // Data belum selesai dimuat (kerangka loading / pesan galat masih tampil): jangan menimpanya dengan "Belum ada data".
+  if (!_ddSudahTampil) return;
+  const jalankan = function () {
+    if (gantiKec) {
+      const elKel = document.getElementById('dd-filter-kel');
+      if (elKel) elKel.value = '';
+      _isiOpsiFilterDataDetail();
+    }
+    _ddHalaman = 1;
+    _ddRows = _saringDataDetail();
+    _tampilHasilDataDetail(false);
+  };
+  if (tunda) _ddTimerCari = setTimeout(jalankan, 150); else jalankan();
+};
+
+function _resetFilterDataDetail() {
+  ['dd-cari', 'dd-filter-kec', 'dd-filter-kel', 'dd-filter-lay'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // Buang opsi sisa pembukaan sebelumnya (mis. akun lain di perangkat yang sama); terisi lagi saat data tiba.
+  _isiOpsiFilterDataDetail();
+}
+
+function _tampilHasilDataDetail(pertahankan) {
   const tbody = document.getElementById('body-tabel-data-detail');
-  rows = Array.isArray(rows) ? rows : [];
-  document.getElementById('info-total-data-detail').innerText = 'Total Data: ' + rows.length + ' Baris';
+  const infoTotal = document.getElementById('info-total-data-detail');
+  const infoHal = document.getElementById('info-halaman-data-detail');
   _lepasObserverDataDetail();
-  if (rows.length === 0) {
-    _ddRows = [];
-    _ddSudahTampil = true;
-    tbody.innerHTML = '<tr><td colspan="20" class="px-4 py-6 text-center text-slate-400 italic">Belum ada data Memenuhi Syarat.</td></tr>';
+  if (infoTotal) {
+    infoTotal.innerText = _ddRows.length === _ddSemua.length
+      ? 'Total Data: ' + _ddSemua.length + ' Baris'
+      : 'Ditemukan ' + _ddRows.length + ' dari ' + _ddSemua.length + ' Baris';
+  }
+  if (_ddRows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="20" class="px-4 py-6 text-center text-slate-400 italic">' +
+      (_ddSemua.length ? 'Tidak ada data yang sesuai pencarian atau filter.' : 'Belum ada data Memenuhi Syarat.') + '</td></tr>';
     _perbaruiNavDataDetail();
-    const infoHal = document.getElementById('info-halaman-data-detail');
     if (infoHal) infoHal.textContent = '';
     return;
   }
-  _ddRows = _urutkanDataDetail(rows);
   // Muat ulang otomatis (realtime) mempertahankan halaman yang sedang dibuka bila masih valid.
   const total = Math.ceil(_ddRows.length / DD_PER_HALAMAN) || 1;
   if (_ddHalaman > total) _ddHalaman = total;
   if (_ddHalaman < 1) _ddHalaman = 1;
-  _gambarHalamanDataDetail(_ddSudahTampil);
-  _ddSudahTampil = true;
+  _gambarHalamanDataDetail(pertahankan);
   _perbaruiNavDataDetail();
+}
+
+function renderTabelDataDetail(rows) {
+  rows = Array.isArray(rows) ? rows : [];
+  _ddSemua = rows.length ? _urutkanDataDetail(rows) : [];
+  _isiOpsiFilterDataDetail();
+  _ddRows = _saringDataDetail();
+  _tampilHasilDataDetail(_ddSudahTampil && _ddRows.length > 0);
+  _ddSudahTampil = true;
 }
 
 function setupPencarianRealtime() {
@@ -1876,12 +1973,30 @@ function resetSemuaFilter() {
 }
 window.resetSemuaFilter = resetSemuaFilter;
 
+// Pencarian teks bersama (Lihat Data & Data Detail): huruf kecil, spasi ganda dilipat, dan kata kunci
+// dipecah per kata -- semua kata harus ada (urutan bebas), jadi "masjid al ikhlas" tetap menemukan
+// "MASJID AL-IKHLAS" bila ditulis "ikhlas masjid".
+function normalisasiCari(teks) {
+  return String(teks == null ? '' : teks).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+function cocokKataKunci(teksCari, kataKunci) {
+  const kata = normalisasiCari(kataKunci);
+  if (!kata) return true;
+  const bagian = kata.split(' ');
+  for (let i = 0; i < bagian.length; i++) if (teksCari.indexOf(bagian[i]) === -1) return false;
+  return true;
+}
+// Kolom Lihat Data yang dicari: nama(1), NIK(2), alamat(6), tempat tugas(8), alamat tugas(9), No.HP(15).
+function teksCariBarisLihat(r) {
+  return normalisasiCari([r[1], r[2], r[6], r[8], r[9], r[15]].join(' '));
+}
+
 function urutkanDanIndexDataLihat(rows) {
   if (!Array.isArray(rows)) return [];
   rows.forEach(function (r) {
     const idAngka = Number(r[0]);
     if (Number.isFinite(idAngka)) r[0] = idAngka; // seragamkan tipe id (server mengirim bigint sebagai string)
-    r._cari = (String(r[1] || '') + ' ' + String(r[2] || '') + ' ' + String(r[15] || '') + ' ' + String(r[8] || '')).toLowerCase();
+    r._cari = teksCariBarisLihat(r);
   });
   return rows.sort(function (a, b) {
     const lay = (a[7] || '').localeCompare(b[7] || '');
@@ -1926,8 +2041,8 @@ function saringDanTampilkanTabel() {
       : valVerif === "MUI: Sah" ? (isLayananMui && statusMuiRow === "SESUAI")
       : (valVerif === "MUI: Belum Cek" || valVerif === "MUI: Belum Diperiksa") ? (isLayananMui && statusMuiRow === "BELUM_DIPERIKSA")
       : statusRowIni === valVerif);
-    const teksCari = row._cari || (String(row[1] || '') + ' ' + String(row[2] || '') + ' ' + String(row[15] || '') + ' ' + String(row[8] || '')).toLowerCase();
-    const lolosCari = !kataKunci || teksCari.includes(kataKunci);
+    const teksCari = row._cari || (row._cari = teksCariBarisLihat(row));
+    const lolosCari = cocokKataKunci(teksCari, kataKunci);
     const lolosPenginput = typeof lolosFilterPenginputMui !== 'function' || lolosFilterPenginputMui(row); // app-penanda-mui.js (UTAMA & MUI)
     if (lolosKec && lolosKel && lolosLay && lolosCari && lolosVerif && lolosPenginput) dataLolosSaring.push(row);
   }
@@ -3159,8 +3274,7 @@ function ambilDataLolosFilter() {
       : valVerif === "MUI: Sah" ? (isLayananMui && statusMuiRow === "SESUAI")
       : (valVerif === "MUI: Belum Cek" || valVerif === "MUI: Belum Diperiksa") ? (isLayananMui && statusMuiRow === "BELUM_DIPERIKSA")
       : statusRowIni === valVerif);
-    const teksGabungan = (row[1] + " " + row[2] + " " + row[15] + " " + row[8]).toLowerCase();
-    const lolosCari = !kataKunci || teksGabungan.includes(kataKunci);
+    const lolosCari = cocokKataKunci(row._cari || (row._cari = teksCariBarisLihat(row)), kataKunci);
     if (lolosKec && lolosKel && lolosLay && lolosCari && lolosVerif) {
       dataLolos.push([nomor++, row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[12], row[13], row[14], row[15], row[16], row[17], row[18]]);
     }
@@ -3183,8 +3297,7 @@ function ambilDataMemenuhiSyarat() {
     const lolosKec = !valKec || row[10] === valKec;
     const lolosKel = !valKel || row[11] === valKel;
     const lolosLay = !valLay || row[7] === valLay;
-    const teksGabungan = (row[1] + " " + row[2] + " " + row[15] + " " + row[8]).toLowerCase();
-    const lolosCari = !kataKunci || teksGabungan.includes(kataKunci);
+    const lolosCari = cocokKataKunci(row._cari || (row._cari = teksCariBarisLihat(row)), kataKunci);
     if (lolosKec && lolosKel && lolosLay && lolosCari) {
       // Persis 18 kolom, sejajar 1:1 dengan HEADER_EKSPOR di backend (domains/ekspor.ts) --
       // row[18] (status verifikasi) SENGAJA tidak ikut, itu bukan bagian dari header ekspor.
@@ -3269,6 +3382,17 @@ document.getElementById('btn-verifikasi-massal').addEventListener('click', funct
     return;
   }
   window.bukaVerifikasiMassal();
+});
+
+// Cek Rumah Ibadah (khusus UTAMA): logika di app-cek-rumah-ibadah.js, dimuat malas oleh app-pesan-periode.js.
+const btnCekRumahIbadah = document.getElementById('btn-cek-rumah-ibadah');
+if (btnCekRumahIbadah) btnCekRumahIbadah.addEventListener('click', function () {
+  if (!pastikanLogin()) return;
+  if (typeof window.bukaCekRumahIbadah !== 'function') {
+    tampilkanToast('Fitur belum siap dimuat. Muat ulang halaman lalu coba lagi.', 'gagal', { durasi: 6000 });
+    return;
+  }
+  window.bukaCekRumahIbadah();
 });
 
 window.bukaModalKonfirmasiLogout = function () {

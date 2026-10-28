@@ -441,6 +441,157 @@ export async function ambilDaftarRumahIbadahAdmin(
   }
 }
 
+// ---------------------------------------------------------------------------
+// "Cek Rumah Ibadah" (khusus Admin Utama; plans/plan-cari-rumah-ibadah-pengurus.md): menjawab "rumah
+// ibadah A sudah ada pengurusnya? atas nama siapa?". Sisi rumah ibadah (2.874 baris) digabung penerima
+// tahun aktif yang tertaut lewat rumah_ibadah_id, jadi rumah ibadah yang BELUM punya pengurus pun tampil.
+// Pengurus = penerima dengan layanan apa pun yang tertaut. Hanya membaca; NIK/HP/rekening tidak diambil.
+// Kueri disusun dengan sql.unsafe + parameter posisi ($n) -- teks SQL hanya potongan statis, semua nilai
+// dari pengguna lewat parameter.
+// ---------------------------------------------------------------------------
+export interface FilterCariRumahIbadahPengurus {
+  cari?: string;
+  jenis?: string;
+  kecamatan?: string;
+  kelurahan?: string;
+  status?: "" | "ADA" | "BELUM";
+  page?: number;
+  limit?: number;
+}
+
+function daftarJenisFilter(jenis: string): string[] {
+  if (jenis === "MASJID_MUSHOLLA") return ["MASJID", "MUSHOLLA", "MUSHOLA"];
+  if (jenis === "GEREJA_ALL") return ["GEREJA", "GEREJA_KATOLIK"];
+  if (jenis === "VIHARA_KLENTENG_KUIL") return ["VIHARA", "KLENTENG", "KUIL", "VIHARA_KLENTENG_KUIL"];
+  return [jenis];
+}
+
+// Kata kunci -> pola ILIKE per kata (semua kata harus cocok, urutan bebas); % _ \ di input di-escape.
+function polaCariPerKata(cari: string): string[] {
+  return rapikanTeks(cari).split(" ").filter(Boolean).slice(0, 6)
+    .map((k) => "%" + k.replace(/[\\%_]/g, "\\$&") + "%");
+}
+
+// Daftar teks -> literal array Postgres ('{"a","b"}') yang dikirim sebagai SATU parameter lalu di-cast ::text[] di SQL.
+// Sengaja bukan JS array: untuk sql.unsafe, penanganan tipe array oleh driver tidak dijamin (tak ada contoh di kode lain);
+// string biasa selalu aman. Di dalam tanda kutip, \ dan " harus di-escape dengan \.
+function literalArrayTeks(daftar: string[]): string {
+  return "{" + daftar.map((x) => '"' + x.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"').join(",") + "}";
+}
+
+export async function cariRumahIbadahPengurus(token: string, params?: FilterCariRumahIbadahPengurus) {
+  let sesi;
+  try {
+    sesi = await wajibSesi(token);
+  } catch (e) {
+    return { sukses: false, pesan: e instanceof Error ? e.message : String(e) };
+  }
+  if (sesi.role !== "UTAMA") {
+    return { sukses: false, pesan: "Akses ditolak: Hanya Admin Utama yang dapat memakai Cek Rumah Ibadah." };
+  }
+
+  const cari = String(params?.cari || "").trim().slice(0, 100);
+  const jenis = String(params?.jenis || "").trim().toUpperCase();
+  const kecamatan = String(params?.kecamatan || "").trim().toUpperCase();
+  const kelurahan = String(params?.kelurahan || "").trim().toUpperCase();
+  const status = String(params?.status || "").trim().toUpperCase();
+  const page = Math.min(100000, Math.max(1, Math.floor(Number(params?.page || 1)) || 1));
+  const limit = Math.min(100, Math.max(5, Math.floor(Number(params?.limit || 25)) || 25));
+  const offset = (page - 1) * limit;
+
+  if (jenis && !JENIS_FILTER_ADMIN.includes(jenis)) return { sukses: false, pesan: "Filter jenis rumah ibadah tidak valid." };
+  if (status && status !== "ADA" && status !== "BELUM") return { sukses: false, pesan: "Filter status pengurus tidak valid." };
+
+  try {
+    const tahun = Number(TAHUN_AKTIF);
+    const ADA = `exists (select 1 from penerima pe where pe.tahun = ${tahun} and pe.rumah_ibadah_id = r.id)`;
+    const nilai: unknown[] = [];
+    const p = (x: unknown): string => { nilai.push(x); return "$" + nilai.length; };
+
+    const syarat: string[] = [];
+    if (jenis) syarat.push(`r.jenis = any(${p(literalArrayTeks(daftarJenisFilter(jenis)))}::text[])`);
+    if (kecamatan) syarat.push(`upper(r.kecamatan) = ${p(kecamatan)}`);
+    if (kelurahan) syarat.push(`upper(r.kelurahan) = ${p(kelurahan)}`);
+    const pola = polaCariPerKata(cari);
+    if (pola.length) {
+      const ph = p(literalArrayTeks(pola));
+      // Cocok ke data rumah ibadah ATAU ke nama/layanan salah satu pengurusnya (cari dari sisi orang).
+      syarat.push(
+        `(concat_ws(' ', r.nama, r.alamat, r.kelurahan, r.kecamatan) ilike all(${ph}::text[]) ` +
+        `or exists (select 1 from penerima pc where pc.tahun = ${tahun} and pc.rumah_ibadah_id = r.id ` +
+        `and concat_ws(' ', pc.nama, pc.layanan) ilike all(${ph}::text[])))`,
+      );
+    }
+    const where = syarat.length ? syarat.join(" and ") : "true";
+
+    // Ringkasan mengikuti filter di atas TANPA filter status, supaya angka Sudah/Belum selalu tampil berdampingan.
+    const [ring] = await sql.unsafe(
+      `select count(*)::int as total, count(*) filter (where ${ADA})::int as ada from rumah_ibadah r where ${where}`,
+      nilai as never[],
+    );
+    const total = Number(ring?.total || 0);
+    const ada = Number(ring?.ada || 0);
+    const ringkasan = { total, ada, belum: total - ada };
+    const totalFilter = status === "ADA" ? ada : status === "BELUM" ? total - ada : total;
+
+    const whereHal = status === "ADA" ? `${where} and ${ADA}` : status === "BELUM" ? `${where} and not ${ADA}` : where;
+    const nilaiHal = nilai.slice();
+    nilaiHal.push(limit, offset);
+    const rows = await sql.unsafe(
+      `select r.id, r.jenis, r.kecamatan, r.kelurahan, r.nama, r.alamat from rumah_ibadah r where ${whereHal} ` +
+      `order by r.kecamatan, r.kelurahan, r.nama, r.id limit $${nilaiHal.length - 1} offset $${nilaiHal.length}`,
+      nilaiHal as never[],
+    );
+
+    const ids = rows.map((r: { id: unknown }) => Number(r.id));
+    const pengurusPerId = new Map<number, { id: number; nama: string; layanan: string; statusVerifikasi: string }[]>();
+    if (ids.length) {
+      const peng = await sql`
+        select id, rumah_ibadah_id, nama, layanan, status_verifikasi
+        from penerima
+        where tahun = ${TAHUN_AKTIF} and rumah_ibadah_id = any(${ids}::bigint[])
+        order by layanan, nama, id
+      `;
+      for (const x of peng as { id: unknown; rumah_ibadah_id: unknown; nama: unknown; layanan: unknown; status_verifikasi: unknown }[]) {
+        const kunci = Number(x.rumah_ibadah_id);
+        const daftar = pengurusPerId.get(kunci) || [];
+        daftar.push({
+          id: Number(x.id),
+          nama: String(x.nama || ""),
+          layanan: String(x.layanan || ""),
+          statusVerifikasi: String(x.status_verifikasi || "Proses Verifikasi"),
+        });
+        pengurusPerId.set(kunci, daftar);
+      }
+    }
+
+    return {
+      sukses: true,
+      tahun,
+      total: totalFilter,
+      halaman: page,
+      totalHalaman: Math.ceil(totalFilter / limit) || 1,
+      limit,
+      ringkasan,
+      daftar: rows.map((r: { id: unknown; jenis: unknown; kecamatan: unknown; kelurahan: unknown; nama: unknown; alamat: unknown }) => {
+        const pengurus = pengurusPerId.get(Number(r.id)) || [];
+        return {
+          id: Number(r.id),
+          jenis: String(r.jenis || ""),
+          kecamatan: String(r.kecamatan || ""),
+          kelurahan: String(r.kelurahan || ""),
+          nama: String(r.nama || ""),
+          alamat: String(r.alamat || ""),
+          jumlahPengurus: pengurus.length,
+          pengurus,
+        };
+      }),
+    };
+  } catch (err) {
+    return { sukses: false, pesan: "Gagal mengambil data Cek Rumah Ibadah: " + (err instanceof Error ? err.message : String(err)) };
+  }
+}
+
 // Rumah ibadah lain (id berbeda) dengan nama + alamat yang sama persis setelah dinormalisasi (rapikanTeks). `q` = pool atau trx.
 // deno-lint-ignore no-explicit-any
 async function cariKembarRumahIbadah(q: any, kecualiId: number | null, nama: string, alamat: string) {

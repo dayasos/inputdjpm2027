@@ -238,7 +238,7 @@
        -- jangan hapus defer dari salah satu tanpa menambahkannya ke semua, lihat urutan sama
        di penutup body. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-  <script src="/js/api-bridge.js?v=20271045" defer></script>
+  <script src="/js/api-bridge.js?v=20271046" defer></script>
 </head>
 
 <body class="bg-slate-100 min-h-screen flex flex-col overflow-x-hidden">
@@ -1073,6 +1073,16 @@
             </svg>
             <span>Data Detail</span>
           </button>
+          <!-- Cek Rumah Ibadah: khusus UTAMA (tampil lewat inisialisasiMenuLihatData; logika di app-cek-rumah-ibadah.js, dimuat malas) -->
+          <button id="btn-cek-rumah-ibadah"
+            class="hidden bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition shadow-sm flex items-center gap-1.5 shrink-0"
+            title="Cari rumah ibadah dan lihat apakah sudah ada pengurusnya (siapa, layanan apa)">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            <span>Cek Rumah Ibadah</span>
+          </button>
 
           <button id="btn-sync-sheet-2026" onclick="sinkronDataSheet2026Manual()"
             class="hidden bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition shadow-sm flex items-center gap-1.5 shrink-0"
@@ -1150,9 +1160,9 @@
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
           <div class="col-span-2 lg:col-span-1">
-            <label class="block text-xs font-medium text-slate-600 mb-1">Cari Nama / NIK / No.HP</label>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Cari Nama / NIK / HP / Tempat Tugas</label>
             <input type="text" id="input-cari-global" oninput="saringDanTampilkanTabel()"
-              placeholder="Ketik kata kunci..."
+              placeholder="Nama, NIK, rumah ibadah, alamat..."
               class="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 text-slate-700 shadow-2xs transition" />
           </div>
           <div>
@@ -1659,6 +1669,34 @@
           class="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg text-xl font-semibold leading-none transition">&times;</button>
       </div>
       <div id="wadah-data-detail" class="relative flex-1 min-h-0 flex flex-col p-4 sm:p-6 text-sm text-slate-700">
+        <div class="shrink-0 mb-3 grid grid-cols-2 lg:grid-cols-5 gap-2.5">
+          <div class="col-span-2 lg:col-span-2">
+            <label for="dd-cari" class="block text-xs font-medium text-slate-600 mb-1">Cari (nama, NIK, rumah ibadah, alamat, rekening, dll.)</label>
+            <input type="text" id="dd-cari" oninput="window.saringDataDetail(true)" placeholder="Ketik kata kunci..." autocomplete="off"
+              class="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 text-slate-700 shadow-2xs transition" />
+          </div>
+          <div>
+            <label for="dd-filter-kec" class="block text-xs font-medium text-slate-600 mb-1">Filter Kecamatan</label>
+            <select id="dd-filter-kec" onchange="window.saringDataDetail(false, true)"
+              class="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 text-slate-700 shadow-2xs transition">
+              <option value="">-- Semua Kecamatan --</option>
+            </select>
+          </div>
+          <div>
+            <label for="dd-filter-kel" class="block text-xs font-medium text-slate-600 mb-1">Filter Kelurahan</label>
+            <select id="dd-filter-kel" onchange="window.saringDataDetail(false)"
+              class="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 text-slate-700 shadow-2xs transition">
+              <option value="">-- Semua Kelurahan --</option>
+            </select>
+          </div>
+          <div>
+            <label for="dd-filter-lay" class="block text-xs font-medium text-slate-600 mb-1">Filter Layanan</label>
+            <select id="dd-filter-lay" onchange="window.saringDataDetail(false)"
+              class="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 text-slate-700 shadow-2xs transition">
+              <option value="">-- Semua Layanan --</option>
+            </select>
+          </div>
+        </div>
         <div id="scroll-data-detail" tabindex="0" aria-label="Tabel Data Detail, geser kiri-kanan dengan drag, Shift + roda mouse, atau tombol panah"
           class="flex-1 min-h-0 overflow-auto overscroll-contain rounded-xl border border-slate-200/80 shadow-2xs cursor-grab focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300">
           <table id="tabel-data-detail" class="w-full text-left border-collapse bg-white whitespace-nowrap table-auto">
@@ -3513,7 +3551,7 @@
   <script src="/js/app-core.js?v=20271032" defer></script>
   <script src="/js/koordinat-lokasi.js?v=20271035" defer></script>
   <script src="/js/validasi-tanggal-lahir.js?v=20271040" defer></script>
-  <script src="/js/app-transaksi.js?v=20271041" defer></script>
+  <script src="/js/app-transaksi.js?v=20271043" defer></script>
   <script src="/js/app-wajib-lapor.js?v=20271029" defer></script>
   <script src="/js/app-admin.js?v=20271019" defer></script>
   <script src="/js/app-kelola-data.js?v=20271042" defer></script>
@@ -3521,8 +3559,8 @@
   <script src="/js/app-kelola-ibadah.js?v=20271044" defer></script>
   <script src="/js/app-retur.js?v=20271012" defer></script>
   <script src="/js/app-retur-status.js?v=20271012" defer></script>
-  <!-- app-pesan-periode.js memuat skrip khusus peran secara malas dgn versi (?v=) yang sama: UTAMA = jadwal & pesan, laporan PDF, penanda MUI, verifikasi massal per layanan; MUI = penanda MUI; peran lain tidak memuat apa pun -->
-  <script src="/js/app-pesan-periode.js?v=20271043" defer></script>
+  <!-- app-pesan-periode.js memuat skrip khusus peran secara malas dgn versi (?v=) yang sama: UTAMA = jadwal & pesan, laporan PDF, penanda MUI, verifikasi massal per layanan, Cek Rumah Ibadah; MUI = penanda MUI; peran lain tidak memuat apa pun -->
+  <script src="/js/app-pesan-periode.js?v=20271045" defer></script>
   <script src="/js/modal-a11y.js?v=20271008" defer></script>
 
 </body>

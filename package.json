@@ -17,6 +17,8 @@
     "uji:sinkron-detail": "node --test scripts/uji/server-edit-sinkron-data-detail.test.mjs",
     "uji:db-koneksi": "node --test scripts/uji/db-koneksi.test.mjs",
     "uji:rumah-ibadah-id": "node --test scripts/uji/server-rumah-ibadah-id.test.mjs",
+    "uji:cek-rumah-ibadah": "node --test scripts/uji/server-cek-rumah-ibadah.test.mjs",
+    "uji:pencarian": "node --test scripts/uji/data-detail-pencarian.test.mjs",
     "uji:tautan-ri": "node --test scripts/uji/server-tautan-rumah-ibadah.test.mjs",
     "uji:db-pool": "node --test scripts/uji/db-pool.test.mjs",
     "uji:wajib-daftar-ri": "node --test scripts/uji/server-wajib-daftar-rumah-ibadah.test.mjs",

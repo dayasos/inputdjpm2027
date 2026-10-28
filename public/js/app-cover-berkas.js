@@ -386,9 +386,14 @@
     if (!t) { try { if (global._tahunAktifGetter) t = global._tahunAktifGetter(); } catch (_e2) { t = null; } }
     return t || '';
   }
-  /** Baris Data Detail yang sedang tampil (sudah dibatasi hak akses oleh server). null bila belum dimuat. */
+  /** Seluruh baris Data Detail yang dimuat (sudah dibatasi hak akses oleh server). null bila belum dimuat.
+   *  SENGAJA _ddSemua, bukan _ddRows: _ddRows = hasil kotak cari/filter di modal Data Detail, jadi cover
+   *  tidak boleh diam-diam hanya memuat baris yang sedang tersaring (dialog punya pilihan Kecamatan/Kelurahan/Layanan sendiri). */
   function barisLayar() {
-    try { return (typeof _ddRows !== 'undefined' && Array.isArray(_ddRows)) ? _ddRows : null; } catch (_e) { return null; }
+    try {
+      if (typeof _ddSemua !== 'undefined' && Array.isArray(_ddSemua)) return _ddSemua;
+      return (typeof _ddRows !== 'undefined' && Array.isArray(_ddRows)) ? _ddRows : null;
+    } catch (_e) { return null; }
   }
   function simpanPdf(doc, nama) {
     doc.save(nama);

@@ -6,6 +6,7 @@ import { ditolakTanpaSecret } from "./_shared/gerbangAksi.ts";
 import { ambilSesi } from "./_shared/sesi.ts";
 import {
   ambilDaftarRumahIbadahAdmin,
+  cariRumahIbadahPengurus,
   getDataRumahIbadah,
   getKelurahanByKecamatan,
   getKemenagData,
@@ -122,6 +123,7 @@ const ALLOWED: Record<string, Handler> = {
   getKelurahanByKecamatan,
   getDataRumahIbadah,
   ambilDaftarRumahIbadahAdmin,
+  cariRumahIbadahPengurus,
   tambahRumahIbadah,
   ubahRumahIbadah,
   hapusRumahIbadah,
