@@ -429,6 +429,12 @@ Ditinjau dengan code-review (high); setiap temuan diperiksa ulang ke kode/data s
 - **A14: tidak ada batas per IP di kode**; satu-satunya lapisan adalah aturan Rate Limiting Cloudflare yang BELUM dibuat. Tiap permintaan memakai siteverify + ±3-4 kueri dan satu slot koneksi (riwayat: koneksi DB penuh -> 5xx). Syarat go-live: aturan itu aktif dan diverifikasi.
 - Pemakaian koneksi: 3-4 kueri berurutan per pengecekan pada koneksi yang sama dengan aplikasi petugas; belum diukur di bawah beban.
 
+### Keputusan dan penerapan, 2026-10-28
+- **K7 diputuskan user: tetap NIK + tanggal lahir** (tanpa faktor tambahan). Risiko A12 (92,3% tanggal lahir dapat diturunkan dari NIK) diterima secara sadar; tetap perlu disampaikan ke pimpinan pada persetujuan go-live (K3).
+- **Perbaikan tinjauan kode DIDEPLOY:** fungsi `api` v97, Worker (7e8a14dc, lalu 06c4fed7 hasil Workers Builds), `main` di-push (`91426fb`). Uji asap produksi hijau: Edge langsung tanpa kredensial / token sesi palsu / _secret palsu = Akses Ditolak; `/api/gas` cekStatusPublik = 403; tanggal 1800 = FORMAT; chunked 200 KB = FORMAT; token palsu = TURNSTILE; `pulihkanSesi` = "Sesi tidak valid" (12/12 + 4/4 + 3/3; sesekali satu jawaban kosong yang tak dapat diulang); login palsu ditolak rapi.
+- **Saklar tetap MATI.** Belum terbukti di produksi: pepper dan alur sukses (butuh saklar dihidupkan sementara saat UAT).
+- Sisa: aturan Rate Limiting Cloudflare (syarat go-live), UAT, persetujuan pimpinan.
+
 ## 19. Lampiran teknis
 **Berkas yang diperkirakan berubah/ditambah**
 | Berkas | Perubahan |
