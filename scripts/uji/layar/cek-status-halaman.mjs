@@ -49,7 +49,8 @@ try {
   await tungguSampai(`document.readyState==='complete'`);
 
   cek("judul halaman", (await js(`document.title`)).startsWith("Cek Status Penerima"));
-  cek("noindex terpasang", (await js(`document.querySelector('meta[name=robots]').content`)).includes("noindex"));
+  cek("robots: index, follow (go-live)", (await js(`document.querySelector('meta[name=robots]').content`)) === "index, follow");
+  cek("canonical ke alamat halaman", (await js(`document.querySelector('link[rel=canonical]').href`)) === "https://djpmkotamedan.web.id/cek-status");
   cek("tidak ada gulir mendatar", await js(`document.documentElement.scrollWidth <= document.documentElement.clientWidth`));
   cek("tombol nonaktif di awal", await js(`document.getElementById('kirim').disabled`));
   cek("huruf kolom >= 16px (cegah zoom iOS)", (await js(`parseFloat(getComputedStyle(document.getElementById('nik')).fontSize)`)) >= 16);

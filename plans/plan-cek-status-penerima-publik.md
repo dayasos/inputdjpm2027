@@ -452,6 +452,14 @@ Setiap temuan diperiksa ulang ke kode/data/perilaku nyata sebelum diterima. (Sat
 - **Kolom `terkunci_sampai` tak terpakai** (selalu NULL): cadangan; menghapus kolom memerlukan migrasi, ditunda.
 - **A13 (penguncian dapat disalahgunakan)** tetap diterima; **A12 (tanggal lahir lemah)** tetap diputuskan user (K7).
 
+### F3 -- go-live disiapkan, 2026-10-28 (pimpinan SETUJU; belum di-push saat catatan ini ditulis)
+- Persetujuan pimpinan (K3) diperoleh user secara langsung (tidak lewat Claude); K7 tetap NIK + tanggal lahir.
+- **Dikerjakan di worktree bersih dari origin/main** karena folder kerja utama berisi pekerjaan sesi lain yang belum di-commit (index.html, tailwind.css, api-bridge.js, app-*.js, master.ts, index.ts, dst.); build/deploy dari folder itu akan ikut membawa pekerjaan setengah jadi ke produksi.
+- Perubahan: halaman `index, follow` + canonical + Open Graph + JSON-LD `WebPage` (tanpa data pribadi); `sitemap.xml` memuat `/cek-status`; `robots.txt` menambah `Disallow: /api/`; **tautan "Warga / penerima: cek status data Anda di sini" di modal login aplikasi** (yang dilihat pengunjung tanpa sesi); skrip uji `npm run uji:cek-status-seo` (8 uji, 4 mutan tertangkap).
+- Uji: seluruh rangkaian hijau di worktree; Chrome 390 px: halaman 38/38, modal login 6/6 (tautan terlihat, klik membuka /cek-status).
+- **Urutan wajib:** saklar DINYALAKAN dulu (SQL Editor, oleh user), baru push (Workers Builds men-deploy dari main). Bila terbalik, warga yang menekan tautan melihat "Layanan cek status sedang tidak tersedia".
+- Sisa setelah live (oleh user): Search Console -> "Minta pengindeksan" untuk `/cek-status` + kirim ulang sitemap; pengumuman WA; pegangan petugas; pantau 24 jam (A14: beban koneksi DB).
+
 ## 19. Lampiran teknis
 **Berkas yang diperkirakan berubah/ditambah**
 | Berkas | Perubahan |
