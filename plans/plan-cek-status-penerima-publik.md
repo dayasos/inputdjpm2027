@@ -435,6 +435,23 @@ Ditinjau dengan code-review (high); setiap temuan diperiksa ulang ke kode/data s
 - **Saklar tetap MATI.** Belum terbukti di produksi: pepper dan alur sukses (butuh saklar dihidupkan sementara saat UAT).
 - Sisa: aturan Rate Limiting Cloudflare (syarat go-live), UAT, persetujuan pimpinan.
 
+### Tinjauan kode ke-2 (xhigh, seluruh fitur), 2026-10-28 -- perbaikan LOKAL, BELUM dideploy
+Setiap temuan diperiksa ulang ke kode/data/perilaku nyata sebelum diterima. (Satu putaran review awal salah sasaran: argumen `11c8940` dibaca sebagai SATU commit, bukan rentang; temuannya tentang `db.ts`/pooler milik pekerjaan lama dan tidak menyangkut fitur ini -- dipisah, tidak dikerjakan di sini.)
+**Terbukti dan diperbaiki:**
+1. **Batas badan 1024 byte < token Turnstile asli** (badan tanpa token 74 byte -> token maks 950 karakter; batas resmi 2048). Warga sah dengan token panjang akan mendapat "FORMAT" yang menyesatkan. Perbaikan: batas badan = 2048 + 256. Uji: token 950/1200/2048 diterima, 2049 ditolak sebagai TURNSTILE. (UAT lolos karena token uji < 950; tidak ada jaminan untuk semua.)
+2. **Status "Tidak Memenuhi Syarat" tidak ditangani** (status sah yang diset otomatis oleh `cekBatasWaktuVerifikasi` bila batas waktu perbaikan lewat; kini 0 baris di produksi). Halaman memberi lencana abu-abu tanpa arahan. Perbaikan: lencana merah + "Data Anda dinyatakan belum memenuhi syarat. Hubungi petugas kecamatan/kelurahan Anda untuk informasi lebih lanjut." **Teks ini perlu disetujui pimpinan (K6).**
+3. **Mengetik manual dengan pemisah rusak** ("1/2/1990" per karakter -> "12-19-90", tombol tak pernah aktif). Perbaikan: bagian yang ditutup pemisah dilengkapi nol; tombol hapus tetap natural; kursor tidak melompat ke akhir saat mengedit di tengah. Uji: 12 uji logika (termasuk 20.000 masukan acak) dan uji Chrome mengetik sungguhan.
+4. **Kunci uji Turnstile tersalin ke produksi akan meloloskan semua token** (hostname dilewati menurut pola secret). Perbaikan: hostname dilewati HANYA untuk localhost atau penanda eksplisit `CEK_STATUS_DEV=1` (hanya di `.dev.vars`); selain itu gagal tertutup. Temuan sampingan: `wrangler dev` memakai nama domain rute, bukan localhost, sehingga penanda eksplisit diperlukan untuk uji lokal.
+5. **Pepper diperiksa sebelum saklar**: saklar MATI + pepper salah menghasilkan galat 500, bukan NONAKTIF. Perbaikan: saklar dulu ("matikan" selalu NONAKTIF), lalu pepper (tetap gagal tertutup bila saklar hidup).
+6. **Proxy dev vite** (`npm run dev`, terbuka di LAN) menyuntikkan `_secret` ke semua aksi tanpa penolakan seperti Worker. Perbaikan: penolakan yang sama; uji kabel + uji KESESUAIAN yang memastikan daftar aksi khusus di Worker dan di Edge Function tidak menyimpang.
+7. Komentar yang keliru ("Worker membatasi laju") diperbaiki: batas per IP ada di aturan Rate Limiting Cloudflare (dashboard).
+**Sengaja BELUM dikerjakan (keputusan/biaya-manfaat; dicatat agar tidak hilang):**
+- **Kredensial terpisah** (mis. `CEK_STATUS_SECRET`) untuk `cekStatusPublik` agar tidak bergantung pada daftar tolak/izin ganda: struktur lebih kuat, tetapi menambah secret di dua tempat menjelang go-live; risiko salah konfigurasi lebih besar daripada manfaat saat ini (daftar ganda kini diuji kesesuaiannya). Layak setelah go-live stabil.
+- **Duplikasi aturan tanggal** (validasiPenerima.ts, cekStatusInti.ts, Worker, skrip peramban): dijaga lewat uji; refaktor menyentuh kode lama yang teruji, ditunda.
+- **3-4 kueri berurutan per pengecekan** (saklar dapat di-cache beberapa detik; DELETE reset dapat dilepas dari jalur respons): optimasi, belum diukur di bawah beban; dibatasi Turnstile + Rate Limiting.
+- **Kolom `terkunci_sampai` tak terpakai** (selalu NULL): cadangan; menghapus kolom memerlukan migrasi, ditunda.
+- **A13 (penguncian dapat disalahgunakan)** tetap diterima; **A12 (tanggal lahir lemah)** tetap diputuskan user (K7).
+
 ## 19. Lampiran teknis
 **Berkas yang diperkirakan berubah/ditambah**
 | Berkas | Perubahan |
