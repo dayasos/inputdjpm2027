@@ -11,6 +11,7 @@
     "check-css": "node scripts/cek-css-terbaru.js",
     "uji:cek-status": "node --test scripts/uji/cek-status-inti.test.mjs",
     "uji:worker-cek-status": "node --test scripts/uji/worker-cek-status.test.mjs",
+    "uji:gerbang-aksi": "node --test scripts/uji/gerbang-aksi.test.mjs",
     "uji:cover": "node --test scripts/uji/cover-kelurahan.test.mjs",
     "uji:sinkron-detail": "node --test scripts/uji/server-edit-sinkron-data-detail.test.mjs",
     "uji:db-koneksi": "node --test scripts/uji/db-koneksi.test.mjs",

@@ -1,11 +1,6 @@
 import { sql } from "../_shared/db.ts";
 import { TAHUN_AKTIF } from "../_shared/config.ts";
-import {
-  BATAS_GAGAL,
-  DURASI_KUNCI_DETIK,
-  JENDELA_DETIK,
-  prosesCekStatus,
-} from "../_shared/cekStatusInti.ts";
+import { BATAS_GAGAL, JENDELA_DETIK, prosesCekStatus } from "../_shared/cekStatusInti.ts";
 import type { BarisPenerima, DepsCek, HasilCek } from "../_shared/cekStatusInti.ts";
 
 // Cek Status Penerima untuk warga (NIK + tanggal lahir). Plan: plans/plan-cek-status-penerima-publik.md.
@@ -27,35 +22,24 @@ const depsDb: Omit<DepsCek, "pepper"> = {
     return rows.length > 0 && rows[0].aktif === true;
   },
 
-  async terkunci(kunci: string) {
+  // ATOMIK: satu pernyataan menaikkan hitungan dan mengembalikan nilainya (baris dikunci Postgres, jadi permintaan
+  // paralel diantrekan). Jendela tetap: hitungan dimulai dari percobaan pertama; jendela lewat -> mulai lagi dari 1.
+  // Percobaan ke-(BATAS_GAGAL+1) dst. dalam jendela yang sama ditolak. Kolom terkunci_sampai tidak dipakai lagi (NULL).
+  // least(...) membatasi angka agar tidak tumbuh tanpa batas saat diserang. Kunci = hash NIK, bukan NIK mentah.
+  async ambilJatah(kunci: string) {
     const rows = await sql`
-      select 1 from public.cek_status_percobaan
-      where kunci = ${kunci} and terkunci_sampai > now()
-      limit 1
-    `;
-    return rows.length > 0;
-  },
-
-  // Jendela tetap (bukan bergeser): hitungan dimulai dari gagal pertama; mencapai BATAS_GAGAL -> terkunci
-  // DURASI_KUNCI_DETIK. Kolom DB sengaja tidak menyimpan NIK; kunci = hash NIK (lihat cekStatusInti.ts).
-  async catatGagal(kunci: string) {
-    await sql`
       insert into public.cek_status_percobaan as c (kunci, jumlah_gagal, jendela_mulai, terkunci_sampai)
       values (${kunci}, 1, now(), null)
       on conflict (kunci) do update set
         jumlah_gagal = case
-          when c.jendela_mulai > now() - make_interval(secs => ${JENDELA_DETIK}) then c.jumlah_gagal + 1
+          when c.jendela_mulai > now() - make_interval(secs => ${JENDELA_DETIK}) then least(c.jumlah_gagal + 1, 1000)
           else 1 end,
         jendela_mulai = case
           when c.jendela_mulai > now() - make_interval(secs => ${JENDELA_DETIK}) then c.jendela_mulai
-          else now() end,
-        terkunci_sampai = case
-          when c.jendela_mulai > now() - make_interval(secs => ${JENDELA_DETIK})
-               and c.jumlah_gagal + 1 >= ${BATAS_GAGAL}
-            then coalesce(c.terkunci_sampai, now() + make_interval(secs => ${DURASI_KUNCI_DETIK}))
-          when c.jendela_mulai > now() - make_interval(secs => ${JENDELA_DETIK}) then c.terkunci_sampai
-          else null end
+          else now() end
+      returning jumlah_gagal
     `;
+    return rows.length > 0 && Number(rows[0].jumlah_gagal) <= BATAS_GAGAL;
   },
 
   async resetPercobaan(kunci: string) {

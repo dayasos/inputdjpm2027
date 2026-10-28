@@ -2,6 +2,7 @@
 import { loginPengguna, logoutPengguna, pulihkanSesi } from "./domains/auth.ts";
 // Cek status penerima untuk warga: hanya lewat jalur _secret (Worker /api/cek-status), BUKAN aksi publik di gerbang.
 import { cekStatusPublik } from "./domains/cekStatusPublik.ts";
+import { ditolakTanpaSecret } from "./_shared/gerbangAksi.ts";
 import { ambilSesi } from "./_shared/sesi.ts";
 import {
   ambilDaftarRumahIbadahAdmin,
@@ -323,6 +324,15 @@ Deno.serve(async (req: Request) => {
   const isAksiPublikTanpaGerbang = action === "loginPengguna";
 
   if (!isValidSecret && !isValidSessionHeader && !isAksiPublikTanpaGerbang) {
+    return json({
+      error: "Akses Ditolak: Kredensial API tidak sah",
+      sukses: false,
+      pesan: "Akses Ditolak",
+    });
+  }
+
+  // Aksi khusus jalur _secret (cekStatusPublik): token sesi dan jalur publik tidak cukup.
+  if (ditolakTanpaSecret(action, isValidSecret)) {
     return json({
       error: "Akses Ditolak: Kredensial API tidak sah",
       sukses: false,

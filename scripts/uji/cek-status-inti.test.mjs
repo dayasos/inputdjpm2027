@@ -29,24 +29,25 @@ const BARIS = {
 /** Dependensi karangan di memori. Mencatat semua pemanggilan agar bisa diperiksa. */
 function buatDeps(opsi = {}) {
   const panggilan = [];
-  const percobaan = new Map(); // kunci -> {gagal, terkunci}
+  const percobaan = new Map(); // kunci -> {gagal}
   const deps = {
     pepper: opsi.pepper ?? PEPPER,
     tahun: 2027,
     hariIni: () => HARI_INI,
     async fiturAktif() { panggilan.push("fiturAktif"); if (opsi.saklarError) throw new Error("db mati"); return opsi.aktif ?? true; },
-    async terkunci(k) { panggilan.push("terkunci"); return percobaan.get(k)?.terkunci === true; },
-    async catatGagal(k) {
-      panggilan.push("catatGagal");
-      const c = percobaan.get(k) ?? { gagal: 0, terkunci: false };
+    // Atomik seperti SQL aslinya: naikkan lalu baca dalam satu langkah (tanpa await di antaranya).
+    async ambilJatah(k) {
+      panggilan.push("ambilJatah");
+      const c = percobaan.get(k) ?? { gagal: 0 };
       c.gagal += 1;
-      if (c.gagal >= BATAS_GAGAL) c.terkunci = true;
       percobaan.set(k, c);
+      return c.gagal <= BATAS_GAGAL;
     },
     async resetPercobaan(k) { panggilan.push("resetPercobaan"); percobaan.delete(k); },
     async cariPenerima(nik, tgl, tahun) {
       panggilan.push("cariPenerima");
       deps.terakhirDicari = { nik, tgl, tahun };
+      if (opsi.lambatCari) await new Promise((r) => setTimeout(r, opsi.lambatCari));
       return nik === BARIS.nik && tgl === BARIS.tanggal_lahir ? BARIS : null;
     },
   };
@@ -112,6 +113,29 @@ test("4 gagal lalu berhasil -> hitungan di-reset (tidak terkunci)", async () => 
   assert.equal((await prosesCekStatus(deps, NIK_ADA, TGL_BENAR)).sukses, true);
 });
 
+test("SERANGAN PARALEL: 40 permintaan serentak untuk satu NIK -> hanya 5 yang sampai ke pencarian", async () => {
+  const { deps, panggilan } = buatDeps({ lambatCari: 20 }); // pencarian lambat: semua permintaan "berpapasan"
+  const hasil = await Promise.all(
+    Array.from({ length: 40 }, (_, i) => prosesCekStatus(deps, NIK_ADA, `1980-05-${String(1 + (i % 28)).padStart(2, "0")}`)),
+  );
+  assert.equal(panggilan.filter((x) => x === "cariPenerima").length, BATAS_GAGAL, "pencarian tidak boleh melebihi batas");
+  assert.equal(hasil.filter((h) => h.kode === "TERKUNCI").length, 40 - BATAS_GAGAL);
+  assert.equal(hasil.filter((h) => h.kode === "TIDAK_TERDATA").length, BATAS_GAGAL);
+});
+
+test("jatah diambil SEBELUM pencarian (urutan operasi)", async () => {
+  const { deps, panggilan } = buatDeps();
+  await prosesCekStatus(deps, NIK_ADA, "1980-05-05");
+  assert.deepEqual(panggilan, ["fiturAktif", "ambilJatah", "cariPenerima"]);
+});
+
+test("format salah tidak memakai jatah percobaan", async () => {
+  const { deps, panggilan, percobaan } = buatDeps();
+  for (let i = 0; i < 20; i++) await prosesCekStatus(deps, "123", TGL_BENAR);
+  assert.equal(percobaan.size, 0);
+  assert.ok(!panggilan.includes("ambilJatah"));
+});
+
 test("penguncian satu NIK tidak memengaruhi NIK lain", async () => {
   const { deps } = buatDeps();
   for (let i = 0; i < BATAS_GAGAL; i++) await prosesCekStatus(deps, NIK_TAK_ADA, "1980-05-05");
@@ -129,8 +153,8 @@ test("kunci percobaan = hash: tidak memuat NIK mentah, stabil, dan berbeda menur
   // Kunci yang dikirim ke penyimpanan juga tidak boleh memuat NIK mentah.
   const dilihat = [];
   const { deps } = buatDeps();
-  const asli = deps.catatGagal;
-  deps.catatGagal = async (k) => { dilihat.push(k); return asli(k); };
+  const asli = deps.ambilJatah;
+  deps.ambilJatah = async (k) => { dilihat.push(k); return asli(k); };
   await prosesCekStatus(deps, NIK_TAK_ADA, TGL_BENAR);
   assert.equal(dilihat.length, 1);
   assert.ok(!dilihat[0].includes(NIK_TAK_ADA));
@@ -201,10 +225,9 @@ test("pencarian memakai tahun anggaran yang disuntikkan (bukan tahun lain)", asy
   assert.equal(deps.terakhirDicari.tahun, 2027);
 });
 
-test("konstanta pembatas dikunci sesuai rencana (5 gagal / 15 menit / kunci 15 menit)", async () => {
+test("konstanta pembatas dikunci sesuai rencana (5 percobaan per jendela 15 menit)", async () => {
   const m = await import("../../supabase/functions/api/_shared/cekStatusInti.ts");
   assert.equal(m.BATAS_GAGAL, 5);
   assert.equal(m.JENDELA_DETIK, 900);
-  assert.equal(m.DURASI_KUNCI_DETIK, 900);
   assert.equal(m.TAHUN_LAHIR_MIN, 1900);
 });

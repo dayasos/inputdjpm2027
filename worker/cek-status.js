@@ -48,10 +48,42 @@ function tanggalKalenderValid(tgl) {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
 }
 
-/** Pemeriksaan ringan; Edge Function tetap memvalidasi ulang (termasuk tanggal masa depan dan batas 1900). */
-export function formatValid(nik, tanggalLahir) {
+const TAHUN_LAHIR_MIN = 1900; // sama dengan supabase/functions/api/_shared/cekStatusInti.ts
+
+function hariIniWIB() {
+  return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * Pemeriksaan di gerbang, SAMA dengan Edge Function (kalender sungguhan, >= 1900, tidak di masa depan) agar permintaan
+ * yang pasti ditolak tidak menghabiskan token Turnstile dan panggilan backend. Edge Function tetap memvalidasi ulang.
+ */
+export function formatValid(nik, tanggalLahir, hariIni = hariIniWIB()) {
   return typeof nik === 'string' && /^\d{16}$/.test(nik) &&
-    typeof tanggalLahir === 'string' && tanggalKalenderValid(tanggalLahir);
+    typeof tanggalLahir === 'string' && tanggalKalenderValid(tanggalLahir) &&
+    tanggalLahir >= `${TAHUN_LAHIR_MIN}-01-01` && tanggalLahir <= hariIni;
+}
+
+/** Membaca badan permintaan SAMBIL membatasi ukuran; berhenti dan membatalkan aliran begitu melewati batas. null = terlalu besar. */
+async function bacaBadanTerbatas(request, maksByte) {
+  if (!request.body) return '';
+  const pembaca = request.body.getReader();
+  const potongan = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await pembaca.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maksByte) {
+      try { await pembaca.cancel(); } catch (_e) { /* abaikan */ }
+      return null;
+    }
+    potongan.push(value);
+  }
+  const gabung = new Uint8Array(total);
+  let posisi = 0;
+  for (const p of potongan) { gabung.set(p, posisi); posisi += p.byteLength; }
+  return new TextDecoder().decode(gabung);
 }
 
 async function verifikasiTurnstile(env, token, ip, hostname, ambil) {
@@ -90,13 +122,13 @@ async function proses(request, env, deps) {
 
   const panjang = Number(request.headers.get('Content-Length') || 0);
   if (panjang > MAKS_BADAN_BYTE) return gagal('FORMAT');
-  let mentah = '';
+  let mentah;
   try {
-    mentah = await request.text();
+    mentah = await bacaBadanTerbatas(request, MAKS_BADAN_BYTE); // juga untuk unggahan chunked tanpa Content-Length
   } catch (_e) {
     return gagal('FORMAT');
   }
-  if (mentah.length > MAKS_BADAN_BYTE) return gagal('FORMAT');
+  if (mentah === null) return gagal('FORMAT');
 
   let badan;
   try {

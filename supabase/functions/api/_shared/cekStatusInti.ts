@@ -11,9 +11,8 @@
 //  3. Yang keluar hanya 5 kolom (nama, layanan, kecamatan, kelurahan, status), dipetakan eksplisit di sini.
 //  4. Saklar mati (atau tak terbaca) = ditolak, sebelum menyentuh data penerima.
 
-export const BATAS_GAGAL = 5;                  // gagal berturut-turut per NIK dalam satu jendela
-export const JENDELA_DETIK = 15 * 60;          // panjang jendela hitungan gagal
-export const DURASI_KUNCI_DETIK = 15 * 60;     // lama terkunci setelah mencapai BATAS_GAGAL
+export const BATAS_GAGAL = 5;                  // percobaan per NIK (hash) dalam satu jendela; ke-6 dst. ditolak
+export const JENDELA_DETIK = 15 * 60;          // panjang jendela tetap, dihitung sejak percobaan pertama
 export const TAHUN_LAHIR_MIN = 1900;
 
 export type KodeGagal = "NONAKTIF" | "FORMAT" | "TERKUNCI" | "TIDAK_TERDATA";
@@ -40,8 +39,13 @@ export interface DepsCek {
   hariIni: () => string;
   /** Saklar fitur; false bila mati. Galat baca = anggap mati (dilempar ke atas). */
   fiturAktif: () => Promise<boolean>;
-  terkunci: (kunci: string) => Promise<boolean>;
-  catatGagal: (kunci: string) => Promise<void>;
+  /**
+   * Mengambil SATU jatah percobaan secara ATOMIK (satu pernyataan SQL; hitungan naik dan nilainya dikembalikan dalam
+   * satu langkah). true = masih dalam batas BATAS_GAGAL per JENDELA_DETIK; false = jatah habis (terkunci).
+   * Wajib atomik: bila "cek terkunci" dan "catat gagal" dipisah, N permintaan paralel semuanya lolos cek sebelum ada
+   * yang tercatat, sehingga batas 5 bisa dilampaui sebanyak N.
+   */
+  ambilJatah: (kunci: string) => Promise<boolean>;
   resetPercobaan: (kunci: string) => Promise<void>;
   /** SATU kueri yang mencocokkan NIK dan tanggal lahir sekaligus. */
   cariPenerima: (nik: string, tglLahir: string, tahun: number) => Promise<BarisPenerima | null>;
@@ -107,20 +111,18 @@ export async function prosesCekStatus(deps: DepsCek, nik: unknown, tanggalLahir:
   const masukan = validasiMasukan(nik, tanggalLahir, deps.hariIni());
   if (!masukan) return { sukses: false, kode: "FORMAT" };
 
-  // 3-4. Kunci per hash NIK, berlaku untuk NIK ada maupun tidak.
+  // 3-4. Kunci per hash NIK (NIK ada maupun tidak). Jatah DIAMBIL DULU, secara atomik, SEBELUM mencari:
+  //      yang sampai ke pencarian paling banyak BATAS_GAGAL per jendela, sebanyak apa pun permintaan paralelnya.
   const kunci = await kunciPercobaan(deps.pepper, masukan.nik);
-  if (await deps.terkunci(kunci)) return { sukses: false, kode: "TERKUNCI" };
+  if (!(await deps.ambilJatah(kunci))) return { sukses: false, kode: "TERKUNCI" };
 
   // 5. Satu kueri, satu jalur: NIK dan tanggal lahir dicocokkan sekaligus.
   const baris = await deps.cariPenerima(masukan.nik, masukan.tgl, deps.tahun);
 
-  // 6. Gagal (NIK tak ada ATAU tanggal salah) -> hasil dan jalur kode yang sama.
-  if (!baris) {
-    await deps.catatGagal(kunci);
-    return { sukses: false, kode: "TIDAK_TERDATA" };
-  }
+  // 6. Gagal (NIK tak ada ATAU tanggal salah) -> hasil dan jalur kode yang sama. Jatah sudah terpakai di langkah 4.
+  if (!baris) return { sukses: false, kode: "TIDAK_TERDATA" };
 
-  // 7. Berhasil.
+  // 7. Berhasil: hitungan direset (pemilik yang benar tidak ikut terhitung).
   await deps.resetPercobaan(kunci);
   return { sukses: true, data: pilihKolomPublik(baris) };
 }

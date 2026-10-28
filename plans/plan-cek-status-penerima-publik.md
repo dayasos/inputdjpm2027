@@ -414,6 +414,21 @@ Perkiraan upaya (kerja efektif, bukan kalender): F0 ± 0,5 hari · F1 ± 1 hari 
 **Uji asap produksi:** health OK; `pulihkanSesi` token palsu = "Sesi tidak valid" (4/4; panggilan pertama sesudah tiap deploy kadang kosong = start dingin); `/api/cek-status` tanpa/dengan token palsu = TURNSTILE 403; GET = 405.
 **Belum:** aturan Rate Limiting Cloudflare; kebenaran `CEK_STATUS_PEPPER` (baru teruji saat saklar dihidupkan sementara); UAT 12.4; push cabang ke git.
 
+### Tinjauan kode setelah F2, 2026-10-28 (perbaikan LOKAL, BELUM dideploy)
+Ditinjau dengan code-review (high); setiap temuan diperiksa ulang ke kode/data sebelum diterima.
+**Terbukti dan sudah diperbaiki (lokal):**
+1. **Balapan pada pembatas percobaan** (cek terkunci dan catat gagal terpisah): N permintaan paralel untuk satu NIK semuanya lolos sebelum ada yang tercatat, sehingga batas 5 bisa dilampaui sebanyak N. Perbaikan: `ambilJatah(kunci)` = SATU pernyataan SQL atomik (naikkan hitungan + kembalikan nilainya) yang dipanggil SEBELUM pencarian; percobaan ke-6 dst. dalam jendela 15 menit ditolak (`TERKUNCI`). Jendela tetap (tidak bergeser saat ditolak), hitungan dibatasi 1000, sukses mereset. Uji: 40 permintaan serentak -> tepat 5 yang sampai ke pencarian (mutan tertangkap). Kolom `terkunci_sampai` kini tak dipakai (NULL); skema tidak berubah.
+2. **`cekStatusPublik` dapat dipanggil dengan X-Session-Token langsung ke Edge Function** (melewati Turnstile, Worker, dan pemerataan waktu); komentar "hanya lewat _secret" salah. Perbaikan: `_shared/gerbangAksi.ts` + pemeriksaan di `index.ts` sebelum `ALLOWED[action]`: aksi ini wajib `_secret` sah. (Jalur `/api/gas` sudah ditutup di Worker sebelumnya.)
+3. **Badan permintaan dibaca penuh sebelum batas 1 KB diterapkan** (unggahan chunked tanpa Content-Length). Perbaikan: pembacaan aliran dengan batas byte dan pembatalan di tengah jalan; uji membuktikan hanya beberapa potongan dibaca.
+4. **Validasi tanggal di Worker lebih longgar dari server** (1800-01-01 atau tanggal masa depan menghabiskan token Turnstile dan panggilan backend sebelum ditolak). Perbaikan: batas 1900 dan hari ini (WIB) juga di Worker.
+5. Aturan header duplikat `/cek-status` dan `/cek-status.html` -> satu aturan `/cek-status*`.
+6. Skrip uji SQL rusak setelah komentar migrasi diganti (penanda pemisah bagian pg_cron); kini memakai penanda kode, gagal keras bila tak ditemukan, dan menguji pernyataan atomik (22 lulus).
+**Terbukti sebagai RISIKO (bukan galat kode) -- butuh keputusan pimpinan/user:**
+- **A12: tanggal lahir lemah sebagai faktor kedua.** NIK memuat tanggal lahir pada digit 7-12 (hari + 40 untuk perempuan). Pada data nyata (3.865 baris) **3.566 (92,3%)** tanggal lahirnya identik dengan yang tertulis di NIK. Siapa pun yang memegang NIK (yang sering bocor/tersebar) lolos pada percobaan pertama dan melihat nama, layanan, wilayah, dan status. Penguncian tidak membantu. Faktor tambahan yang tidak dapat diturunkan dari NIK ada di data (mis. 4 digit terakhir nomor rekening atau nomor kontak), tetapi memerlukan keputusan dan menambah beban warga. Rekomendasi: keputusan pimpinan (K7) sebelum go-live.
+- **A13: penguncian dapat disalahgunakan** (siapa pun yang tahu NIK dapat mengunci pemiliknya 15 menit dengan 5 percobaan salah). Pemilik hanya melihat "Terlalu banyak percobaan"; tidak ada jalur admin. Diterima sebagai trade-off bila tidak ada keberatan; pesan sudah mengarahkan ke petugas.
+- **A14: tidak ada batas per IP di kode**; satu-satunya lapisan adalah aturan Rate Limiting Cloudflare yang BELUM dibuat. Tiap permintaan memakai siteverify + ±3-4 kueri dan satu slot koneksi (riwayat: koneksi DB penuh -> 5xx). Syarat go-live: aturan itu aktif dan diverifikasi.
+- Pemakaian koneksi: 3-4 kueri berurutan per pengecekan pada koneksi yang sama dengan aplikasi petugas; belum diukur di bawah beban.
+
 ## 19. Lampiran teknis
 **Berkas yang diperkirakan berubah/ditambah**
 | Berkas | Perubahan |

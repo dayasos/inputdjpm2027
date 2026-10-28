@@ -234,3 +234,52 @@ test('/api/gas aksi lain tetap diteruskan ke backend seperti biasa', async () =>
 test('aksiKhususCekStatus: bukan string / aksi lain -> false', () => {
   for (const x of [undefined, null, 5, {}, '', 'login', 'cekNikRealtime']) assert.equal(aksiKhususCekStatus(x), false);
 });
+
+// --- batas tanggal di gerbang & pembatasan badan chunked ---
+test('tanggal < 1900 atau di masa depan ditolak di gerbang: tanpa Turnstile, tanpa backend', async () => {
+  for (const t of ['1899-12-31', '1800-01-01', '2999-01-01']) {
+    const deps = buatDeps();
+    const h = await jalan(req(lengkap({ tanggalLahir: t })), deps);
+    assert.equal(h.status, 400, t);
+    assert.equal(h.json.kode, 'FORMAT');
+    assert.equal(deps.catatan.turnstile.length, 0, t);
+    assert.equal(deps.catatan.backend.length, 0, t);
+  }
+});
+
+test('batas tanggal yang sah tetap diterima: 1900-01-01 dan hari ini (WIB)', async () => {
+  const hariIni = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+  for (const t of ['1900-01-01', hariIni]) {
+    const h = await jalan(req(lengkap({ tanggalLahir: t })));
+    assert.equal(h.status, 200, t);
+  }
+});
+
+function reqAliran(jumlahPotongan, ukuran) {
+  const dibaca = { n: 0 };
+  const potongan = new TextEncoder().encode('x'.repeat(ukuran));
+  const aliran = new ReadableStream({
+    pull(c) { if (dibaca.n >= jumlahPotongan) return c.close(); dibaca.n++; c.enqueue(potongan); },
+  });
+  // Tanpa Content-Length (seperti unggahan chunked).
+  const r = new Request('https://djpmkotamedan.web.id/api/cek-status', { method: 'POST', body: aliran, duplex: 'half', headers: { 'Content-Type': 'application/json' } });
+  return { r, dibaca };
+}
+
+test('badan chunked besar tanpa Content-Length: dihentikan di tengah jalan, tidak dibaca semuanya', async () => {
+  const { r, dibaca } = reqAliran(500, 1024); // 500 KB total
+  const deps = buatDeps();
+  const h = await jalan(r, deps);
+  assert.equal(h.status, 400);
+  assert.equal(h.json.kode, 'FORMAT');
+  assert.ok(dibaca.n < 20, `hanya boleh membaca beberapa potongan, terbaca ${dibaca.n}`);
+  assert.equal(deps.catatan.turnstile.length, 0);
+});
+
+test('badan chunked kecil yang sah tetap diproses', async () => {
+  const isi = new TextEncoder().encode(JSON.stringify(lengkap()));
+  const aliran = new ReadableStream({ start(c) { c.enqueue(isi.slice(0, 10)); c.enqueue(isi.slice(10)); c.close(); } });
+  const r = new Request('https://djpmkotamedan.web.id/api/cek-status', { method: 'POST', body: aliran, duplex: 'half' });
+  const h = await jalan(r);
+  assert.equal(h.status, 200);
+});
