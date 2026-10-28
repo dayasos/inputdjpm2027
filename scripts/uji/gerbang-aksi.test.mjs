@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { AKSI_HANYA_JALUR_SECRET, ditolakTanpaSecret } from "../../supabase/functions/api/_shared/gerbangAksi.ts";
+import { aksiKhususCekStatus } from "../../worker/cek-status.js";
 
 test("cekStatusPublik ditolak tanpa _secret sah, diterima dengan _secret sah", () => {
   assert.equal(ditolakTanpaSecret("cekStatusPublik", false), true);
@@ -18,6 +19,20 @@ test("aksi lain tidak terpengaruh (login, aksi petugas, aksi tak dikenal)", () =
 
 test("daftar aksi khusus persis satu: cekStatusPublik", () => {
   assert.deepEqual([...AKSI_HANYA_JALUR_SECRET], ["cekStatusPublik"]);
+});
+
+test("KESESUAIAN: setiap aksi khusus di Edge Function juga ditolak oleh Worker /api/gas (dua daftar tidak boleh menyimpang)", () => {
+  for (const a of AKSI_HANYA_JALUR_SECRET) {
+    for (const v of [a, a.toUpperCase(), a.toLowerCase(), " " + a + " "]) assert.equal(aksiKhususCekStatus(v), true, JSON.stringify(v));
+  }
+});
+
+test("KABEL: proxy dev vite (yang juga menyuntikkan _secret) memakai penolakan yang sama dengan Worker", () => {
+  const src = fs.readFileSync(new URL("../../vite.config.mjs", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+  assert.match(src, /import \{ aksiKhususCekStatus \} from '\.\/worker\/cek-status\.js';/);
+  const iTolak = src.indexOf("aksiKhususCekStatus(payload.action)");
+  const iSecret = src.indexOf("payload._secret = secretToken;");
+  assert.ok(iTolak > 0 && iSecret > 0 && iTolak < iSecret, "penolakan harus sebelum _secret disuntikkan");
 });
 
 test("KABEL: index.ts memakai ditolakTanpaSecret SEBELUM mencari aksi di ALLOWED, dan aksinya terdaftar", () => {

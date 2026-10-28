@@ -126,7 +126,7 @@ test('Turnstile: token kosong/tak ada/terlalu panjang -> 403 tanpa panggil Cloud
     const deps = buatDeps();
     const b = lengkap(); if (t === undefined) delete b.turnstileToken; else b.turnstileToken = t;
     const h = await jalan(req(b), deps);
-    assert.equal(h.status, t && typeof t === 'string' && t.length > 1024 ? 400 : 403, String(t).slice(0, 5));
+    assert.equal(h.status, t && typeof t === 'string' && t.length > KONSTANTA_UJI.MAKS_BADAN_BYTE ? 400 : 403, String(t).slice(0, 5));
     assert.equal(deps.catatan.backend.length, 0);
   }
 });
@@ -144,10 +144,51 @@ test('Turnstile: hostname beda -> 403 (token dari situs lain)', async () => {
   assert.equal((await jalan(req(lengkap()), deps)).status, 403);
 });
 
-test('Turnstile: kunci uji Cloudflare tidak memeriksa hostname', async () => {
+const KUNCI_UJI = '1x0000000000000000000000000000000AA';
+
+test('Turnstile: kunci uji Cloudflare tidak memeriksa hostname HANYA untuk localhost (pengembangan)', async () => {
   const deps = buatDeps({ turnstile: { success: true, hostname: 'example.com' } });
-  const h = await jalan(req(lengkap()), deps, { ...ENV, TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA' });
+  const r = new Request('http://localhost:8787/api/cek-status', { method: 'POST', body: JSON.stringify(lengkap()) });
+  const h = await jalan(r, deps, { ...ENV, TURNSTILE_SECRET_KEY: KUNCI_UJI });
   assert.equal(h.status, 200);
+});
+
+test('Turnstile: penanda dev eksplisit CEK_STATUS_DEV=1 (wrangler dev memakai domain rute) mengizinkan kunci uji', async () => {
+  const deps = buatDeps({ turnstile: { success: true, hostname: 'example.com' } });
+  const h = await jalan(req(lengkap()), deps, { ...ENV, TURNSTILE_SECRET_KEY: KUNCI_UJI, CEK_STATUS_DEV: '1' });
+  assert.equal(h.status, 200);
+});
+
+test('Turnstile: penanda dev TANPA kunci uji tidak melonggarkan apa pun (token tetap diperiksa hostname-nya)', async () => {
+  const deps = buatDeps({ turnstile: { success: true, hostname: 'situs-lain.example' } });
+  const h = await jalan(req(lengkap()), deps, { ...ENV, CEK_STATUS_DEV: '1' });
+  assert.equal(h.status, 403);
+});
+
+test('Turnstile: kunci uji yang TERSALIN ke produksi gagal tertutup (hostname tetap diperiksa), bukan meloloskan semua token', async () => {
+  const deps = buatDeps({ turnstile: { success: true, hostname: 'example.com' } });
+  const h = await jalan(req(lengkap()), deps, { ...ENV, TURNSTILE_SECRET_KEY: KUNCI_UJI });
+  assert.equal(h.status, 403);
+  assert.deepEqual(h.json, { sukses: false, kode: 'TURNSTILE' });
+  assert.equal(deps.catatan.backend.length, 0);
+});
+
+test('token Turnstile sepanjang batas resmi (2048 karakter) DITERIMA dan diteruskan ke verifikasi (bukan ditolak sebagai FORMAT)', async () => {
+  for (const panjang of [950, 1200, 2048]) {
+    const deps = buatDeps();
+    const h = await jalan(req(lengkap({ turnstileToken: 'a'.repeat(panjang) })), deps);
+    assert.equal(h.status, 200, 'panjang ' + panjang);
+    assert.equal(deps.catatan.turnstile.length, 1);
+    assert.ok(deps.catatan.turnstile[0].body.includes('a'.repeat(panjang)));
+  }
+});
+
+test('token lebih panjang dari 2048 ditolak sebagai TURNSTILE tanpa memanggil Cloudflare', async () => {
+  const deps = buatDeps();
+  const h = await jalan(req(lengkap({ turnstileToken: 'a'.repeat(2049) })), deps);
+  assert.equal(h.status, 403);
+  assert.equal(h.json.kode, 'TURNSTILE');
+  assert.equal(deps.catatan.turnstile.length, 0);
 });
 
 test('Turnstile: Cloudflare tak terjangkau -> GALAT 500 (gagal tertutup)', async () => {

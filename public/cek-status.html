@@ -129,6 +129,7 @@
     var STATUS = {
       'Memenuhi Syarat': { kelas: 'hijau', ikon: '✔ ', teks: 'Data Anda telah diverifikasi dan memenuhi syarat.' },
       'Proses Verifikasi': { kelas: 'kuning', ikon: '⏳ ', teks: 'Data Anda sedang diperiksa petugas. Silakan cek kembali beberapa hari lagi.' },
+      'Tidak Memenuhi Syarat': { kelas: 'merah', ikon: '\u2716 ', teks: 'Data Anda dinyatakan belum memenuhi syarat. Hubungi petugas kecamatan/kelurahan Anda untuk informasi lebih lanjut.' },
       'Berkas Tidak Lengkap': { kelas: 'merah', ikon: '⚠ ', teks: 'Berkas Anda belum lengkap. Hubungi petugas kecamatan/kelurahan Anda untuk melengkapinya.' }
     };
     var KAKI = 'Status ini bukan jaminan pencairan. Informasi ini hanya untuk pemilik NIK; jangan bagikan hasil ini kepada orang lain.';
@@ -259,8 +260,19 @@
       perbarui();
     });
     function saatTglBerubah() {
-      var r = window.CekTanggal.rapikan(tgl.value);
-      if (tgl.value !== r) tgl.value = r;
+      var awal = tgl.value;
+      var r = window.CekTanggal.rapikan(awal);
+      if (awal !== r) {
+        // Jaga kursor: di ujung tetap di ujung; di tengah tetap sesudah angka yang sama (tidak melompat ke akhir).
+        var kursor = tgl.selectionStart;
+        var diUjung = typeof kursor !== 'number' || kursor >= awal.length;
+        var angkaSebelum = diUjung ? 0 : awal.slice(0, kursor).replace(/\D/g, '').length;
+        tgl.value = r;
+        if (document.activeElement === tgl) {
+          var pos = diUjung ? r.length : window.CekTanggal.posisiSetelahAngka(r, angkaSebelum);
+          try { tgl.setSelectionRange(pos, pos); } catch (e) { /* abaikan */ }
+        }
+      }
       tampilkanInfoTgl();
       perbarui();
     }

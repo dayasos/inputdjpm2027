@@ -6,8 +6,8 @@ import type { BarisPenerima, DepsCek, HasilCek } from "../_shared/cekStatusInti.
 // Cek Status Penerima untuk warga (NIK + tanggal lahir). Plan: plans/plan-cek-status-penerima-publik.md.
 //
 // Aksi ini TIDAK dibuka sebagai aksi publik di gerbang index.ts (hanya loginPengguna yang dibuka). Ia hanya bisa
-// dipanggil lewat jalur _secret -- yaitu Worker Cloudflare (/api/cek-status), yang sudah memverifikasi Turnstile dan
-// membatasi laju permintaan. Seluruh aturan keamanan ada di _shared/cekStatusInti.ts (diuji di Node).
+// dipanggil lewat jalur _secret -- yaitu Worker Cloudflare (/api/cek-status), yang sudah memverifikasi Turnstile.
+// Batas laju per IP ada di aturan Rate Limiting Cloudflare (dashboard), BUKAN di kode Worker. Seluruh aturan keamanan ada di _shared/cekStatusInti.ts (diuji di Node).
 
 function tanggalHariIniWIB(): string {
   return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);

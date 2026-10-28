@@ -66,6 +66,15 @@ try {
   cek("Backspace lagi -> 31-12 lalu 31-1", (await nilaiTgl()) === "31-1", await nilaiTgl());
   await hapus(5);
   cek("dihapus sampai kosong", (await nilaiTgl()) === "");
+  await ketik("1/2/1990");
+  cek("mengetik manual 1/2/1990 -> 01-02-1990", (await nilaiTgl()) === "01-02-1990", await nilaiTgl());
+  await js(`(() => { const t = document.getElementById('tgl'); t.value = ''; t.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await ketik("3112199"); // 7 angka -> 31-12-199 (kolom penuh 10 karakter menolak sisipan, jadi sisakan ruang)
+  await js(`document.getElementById('tgl').setSelectionRange(2, 2)`);
+  await ketik("5");
+  const kursorTengah = await js(`document.getElementById('tgl').selectionStart`);
+  cek("menyisipkan angka di tengah: nilai dirapikan & kursor TIDAK melompat ke akhir", (await nilaiTgl()) === "31-51-2199" && kursorTengah === 4, (await nilaiTgl()) + " / kursor " + kursorTengah);
+  await js(`(() => { const t = document.getElementById('tgl'); t.value = ''; t.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await ketik("31022000");
   cek("31-02-2000 -> pesan 'tidak ada di kalender'", (await infoTgl()).includes("tidak ada di kalender"), await infoTgl());
   await isi("1111111111111111", "2999-01-01");
@@ -116,6 +125,16 @@ try {
   const t2 = await js(`document.getElementById('isi-hasil').innerText`);
   cek("Berkas Tidak Lengkap + anjuran hubungi petugas", t2.includes("Berkas Tidak Lengkap") && t2.includes("Hubungi petugas"), t2);
   await foto("3-hasil-merah");
+  await js(`document.getElementById('hapus').click()`);
+
+  // Tidak Memenuhi Syarat (status sah yang diset otomatis setelah batas waktu perbaikan).
+  await isi("4444444444444444", "1970-03-04");
+  await tungguSampai(`!document.getElementById('kirim').disabled`, 30000);
+  await js(`document.getElementById('kirim').click()`);
+  await tungguSampai(`!document.getElementById('hasil').classList.contains('tersembunyi')`);
+  const t4 = await js(`document.getElementById('isi-hasil').innerText`);
+  cek("Tidak Memenuhi Syarat: lencana + anjuran hubungi petugas", t4.includes("Tidak Memenuhi Syarat") && t4.includes("belum memenuhi syarat") && t4.includes("Hubungi petugas"), t4);
+  await foto("3b-hasil-tidak-memenuhi");
   await js(`document.getElementById('hapus').click()`);
 
   // Tidak terdata: pesan seragam.

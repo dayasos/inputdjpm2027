@@ -171,6 +171,14 @@ test("saklar tak terbaca (galat database) -> proses gagal tertutup, tidak member
   await assert.rejects(() => prosesCekStatus(deps, NIK_ADA, TGL_BENAR), /db mati/);
 });
 
+test("saklar mati menang atas garam yang salah: tetap NONAKTIF (tombol matikan selalu bekerja)", async () => {
+  for (const pepper of ["", "pendek", undefined]) {
+    const { deps, panggilan } = buatDeps({ aktif: false, pepper });
+    assert.deepEqual(await prosesCekStatus(deps, NIK_ADA, TGL_BENAR), { sukses: false, kode: "NONAKTIF" });
+    assert.deepEqual(panggilan, ["fiturAktif"]);
+  }
+});
+
 test("garam kosong/pendek -> gagal tertutup (melempar galat)", async () => {
   for (const pepper of ["", "pendek"]) {
     const { deps } = buatDeps({ pepper });

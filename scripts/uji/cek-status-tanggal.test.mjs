@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
-const { rapikan, periksa } = createRequire(import.meta.url)("../../public/cek-status-tanggal.js");
+const { rapikan, periksa, posisiSetelahAngka } = createRequire(import.meta.url)("../../public/cek-status-tanggal.js");
 const HARI_INI = "2026-10-28";
 
 test("mengetik angka satu per satu: pemisah muncul otomatis, tanpa tersangkut saat dihapus", () => {
@@ -31,6 +31,40 @@ test("tempelan berbagai format dipahami", () => {
     ["1/2/1990", "01-02-1990"], ["1.2.1990", "01-02-1990"], ["01 02 1990", "01-02-1990"],
     ["1990-12-31", "31-12-1990"], ["1990/2/1", "01-02-1990"], [" 31/12/1990 ", "31-12-1990"],
   ]) assert.equal(rapikan(masuk), hasil, masuk);
+});
+
+const ketikSatuPerSatu = (urutan) => { let v = ""; for (const c of urutan) v = rapikan(v + c); return v; };
+
+test("mengetik MANUAL dengan pemisah, satu karakter demi satu: bagian yang ditutup pemisah dilengkapi nol", () => {
+  for (const [urutan, hasil] of [
+    ["1/2/1990", "01-02-1990"], ["1-2-1990", "01-02-1990"], ["1.2.1990", "01-02-1990"], ["31/12/1990", "31-12-1990"],
+    ["1/12/1990", "01-12-1990"], ["12/1/1990", "12-01-1990"], ["5-6-2001", "05-06-2001"], ["31-12-1990", "31-12-1990"], ["01011990", "01-01-1990"],
+  ]) {
+    assert.equal(ketikSatuPerSatu(urutan), hasil, urutan);
+    assert.equal(periksa(ketikSatuPerSatu(urutan), HARI_INI).status, "ok", urutan);
+  }
+  // Langkah antara tidak aneh: "1-" -> "01", "1-2" -> "01-2", "1-2-" -> "01-02".
+  assert.equal(rapikan("1-"), "01");
+  assert.equal(rapikan("1-2"), "01-2");
+  assert.equal(rapikan("1-2-"), "01-02");
+});
+
+test("tombol hapus dari tanggal penuh turun satu demi satu tanpa tersangkut", () => {
+  const urutan = ["01-02-1990", "01-02-199", "01-02-19", "01-02-1", "01-02", "01-0", "01", "0", ""];
+  let v = urutan[0];
+  for (let i = 1; i < urutan.length; i++) {
+    v = rapikan(v.slice(0, -1));
+    assert.equal(v, urutan[i], "setelah hapus ke-" + i);
+  }
+});
+
+test("posisiSetelahAngka: kursor tetap sesudah angka yang sama setelah dirapikan", () => {
+  assert.equal(posisiSetelahAngka("31-12-1990", 0), 0);
+  assert.equal(posisiSetelahAngka("31-12-1990", 1), 1);
+  assert.equal(posisiSetelahAngka("31-12-1990", 2), 2);
+  assert.equal(posisiSetelahAngka("31-12-1990", 3), 4);   // sesudah "31-1"
+  assert.equal(posisiSetelahAngka("31-12-1990", 8), 10);
+  assert.equal(posisiSetelahAngka("31-12", 99), 5);        // lebih dari yang ada -> ujung
 });
 
 test("rapikan idempoten (hasilnya tidak berubah bila dirapikan lagi) pada 20.000 masukan acak", () => {

@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite';
+import { aksiKhususCekStatus } from './worker/cek-status.js';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -41,6 +42,14 @@ export default defineConfig(({ mode }) => {
                     payload = JSON.parse(rawBody);
                   } catch (e) {
                     payload = {};
+                  }
+
+                  // Sama dengan Worker produksi: aksi publik cek status tidak boleh lewat proxy yang menyuntikkan _secret.
+                  if (aksiKhususCekStatus(payload.action)) {
+                    res.statusCode = 403;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: 'Aksi tidak diizinkan', sukses: false, pesan: 'Aksi tidak diizinkan' }));
+                    return;
                   }
 
                   payload._secret = secretToken;

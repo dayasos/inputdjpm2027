@@ -6,15 +6,21 @@
 //
 // ATURAN: tidak ada console.* yang memuat NIK, tanggal lahir, token, atau isi respons. Tanpa header CORS (hanya asal sendiri).
 
-const MAKS_BADAN_BYTE = 1024;
+// Token Turnstile bisa sampai 2048 karakter (batas resmi Cloudflare); badan tanpa token sudah ~75 byte. Batas badan HARUS
+// menampung keduanya: batas 1024 lama menolak token > ~950 karakter sebagai "FORMAT" (warga sah gagal tanpa sebab jelas).
 const MAKS_TOKEN = 2048;
+const MAKS_BADAN_BYTE = MAKS_TOKEN + 256;
 const WAKTU_MIN_MS = 400;          // semua jalur dibuat sama lambatnya agar "ada" vs "tidak ada" tak terbedakan lewat waktu
 const TIMEOUT_BACKEND_MS = 10000;
 const TIMEOUT_TURNSTILE_MS = 8000;
 const URL_SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
-// Kunci uji resmi Cloudflare (1x/2x/3x + nol): hostname yang dikembalikan bukan hostname kita, jadi tak diperiksa.
+// Kunci uji resmi Cloudflare (1x/2x/3x + nol): hostname yang dikembalikan bukan hostname kita. Pemeriksaan hostname
+// HANYA dilewati untuk pengembangan lokal: request ke localhost ATAU penanda eksplisit CEK_STATUS_DEV=1 (hanya di
+// .dev.vars; `wrangler dev` memakai nama domain rute, bukan localhost). Bila kunci uji tersalin ke secret produksi
+// TANPA penanda itu, hostname tetap diperiksa sehingga token ditolak (gagal tertutup), bukan Turnstile diam-diam mati.
 const POLA_KUNCI_UJI = /^[123]x0{10,}/;
+const HOST_LOKAL = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 const STATUS_BALASAN = {
   TIDAK_TERDATA: 200,
@@ -97,7 +103,8 @@ async function verifikasiTurnstile(env, token, ip, hostname, ambil) {
     const res = await ambil(URL_SITEVERIFY, { method: 'POST', body: form, signal: controller.signal });
     const hasil = await res.json();
     if (!hasil || hasil.success !== true) return false;
-    if (POLA_KUNCI_UJI.test(env.TURNSTILE_SECRET_KEY)) return true;
+    const modeDev = env.CEK_STATUS_DEV === '1' || HOST_LOKAL.has(hostname);
+    if (POLA_KUNCI_UJI.test(env.TURNSTILE_SECRET_KEY) && modeDev) return true;
     return typeof hasil.hostname === 'string' && hasil.hostname === hostname;
   } finally {
     clearTimeout(timer);

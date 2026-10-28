@@ -100,12 +100,14 @@ export function pilihKolomPublik(baris: BarisPenerima): DataPublik {
 }
 
 export async function prosesCekStatus(deps: DepsCek, nik: unknown, tanggalLahir: unknown): Promise<HasilCek> {
+  // 1. Saklar DIPERIKSA PALING DULU: "matikan" harus selalu menghasilkan NONAKTIF, apa pun kondisi konfigurasi lain
+  //    (mis. garam belum diset). Mati = tolak, sebelum menyentuh data penerima.
+  if (!(await deps.fiturAktif())) return { sukses: false, kode: "NONAKTIF" };
+
+  // Garam wajib ada saat fitur hidup; bila tidak, gagal tertutup (melempar galat), bukan memakai garam kosong.
   if (typeof deps.pepper !== "string" || deps.pepper.length < 16) {
     throw new Error("CEK_STATUS_PEPPER belum diset atau terlalu pendek (minimal 16 karakter).");
   }
-
-  // 1. Saklar. Mati = tolak, sebelum menyentuh data penerima.
-  if (!(await deps.fiturAktif())) return { sukses: false, kode: "NONAKTIF" };
 
   // 2. Format (tanpa menyentuh database; tidak dihitung sebagai percobaan gagal).
   const masukan = validasiMasukan(nik, tanggalLahir, deps.hariIni());

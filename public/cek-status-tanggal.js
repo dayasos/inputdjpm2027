@@ -4,6 +4,7 @@
 //
 //   CekTanggal.rapikan(teks)          -> "HH-BB-TTTT" progresif: hanya angka, tanda pisah ditambah otomatis, maks 8 angka.
 //                                        Tempelan "31/12/1990", "1.2.1990", "1990-12-31" dipahami dan dirapikan.
+//   CekTanggal.posisiSetelahAngka(teks, n) -> indeks kursor tepat sesudah angka ke-n (menjaga kursor saat nilai dirapikan).
 //   CekTanggal.periksa(teks, hariIni) -> {status:'kosong'|'belum'|'salah'|'ok', iso, teks, pesan}; hariIni = 'YYYY-MM-DD'.
 (function (akar) {
   'use strict';
@@ -19,12 +20,45 @@
     if (m) return dua(m[1]) + '-' + dua(m[2]) + '-' + m[3];
     m = /^(\d{4})\D+(\d{1,2})\D+(\d{1,2})$/.exec(s);        // 1990-02-01 (urutan ISO)
     if (m) return dua(m[3]) + '-' + dua(m[2]) + '-' + m[1];
+
+    // Pemisah yang DIKETIK manual ("1/2/1990" satu karakter demi satu): bagian yang sudah ditutup pemisah dilengkapi nol
+    // di depan ("1/" -> "01"). Hanya berlaku bila bentuknya masuk akal (maks 3 bagian; hari/bulan maks 2 angka, tahun maks 4);
+    // selain itu jatuh ke jalur "hanya angka" di bawah.
+    if (/\D/.test(s)) {
+      var akhirPemisah = /\D$/.test(s);
+      var bagian = s.split(/\D+/);
+      if (bagian[bagian.length - 1] === '') bagian.pop();
+      var masuk = bagian.length >= 1 && bagian.length <= 3;
+      for (var i = 0; masuk && i < bagian.length; i++) {
+        if (bagian[i].length === 0 || bagian[i].length > (i === 2 ? 4 : 2)) masuk = false;
+      }
+      if (masuk && (bagian.length > 1 || akhirPemisah)) {
+        for (var j = 0; j < bagian.length; j++) {
+          var ditutup = j < bagian.length - 1 || akhirPemisah;   // sudah diikuti pemisah
+          if (j < 2 && ditutup) bagian[j] = dua(bagian[j]);
+        }
+        // Pemisah di ujung tidak ditulis (muncul sendiri saat angka berikutnya diketik) agar tombol hapus tidak tersangkut.
+        return bagian.join('-');
+      }
+    }
+
     var d = s.replace(/\D/g, '').slice(0, 8);
     var hasil = d.slice(0, 2);
     // Pemisah baru muncul saat ada angka sesudahnya, sehingga tombol hapus tidak "tersangkut" di tanda pisah.
     if (d.length > 2) hasil += '-' + d.slice(2, 4);
     if (d.length > 4) hasil += '-' + d.slice(4);
     return hasil;
+  }
+
+  /** Posisi kursor sesudah teks dirapikan: tetap berada setelah angka ke-n yang sama (kursor tidak melompat ke akhir). */
+  function posisiSetelahAngka(teks, jumlahAngka) {
+    if (jumlahAngka <= 0) return 0;
+    var hitung = 0;
+    for (var i = 0; i < teks.length; i++) {
+      if (/\d/.test(teks.charAt(i))) hitung++;
+      if (hitung === jumlahAngka) return i + 1;
+    }
+    return teks.length;
   }
 
   function kalenderValid(y, mo, d) {
@@ -45,7 +79,7 @@
     return { status: 'ok', iso: iso, teks: d + ' ' + BULAN[mo - 1] + ' ' + y };
   }
 
-  var api = { rapikan: rapikan, periksa: periksa };
+  var api = { rapikan: rapikan, periksa: periksa, posisiSetelahAngka: posisiSetelahAngka };
   akar.CekTanggal = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
