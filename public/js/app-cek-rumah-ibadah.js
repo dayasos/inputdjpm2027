@@ -21,7 +21,7 @@
     ['', 'Pilih jenis...'],
     ['MASJID', 'Masjid'], ['MUSHOLLA', 'Musholla'], ['MASJID_MUSHOLLA', 'Masjid & Musholla'],
     ['GEREJA', 'Gereja Protestan'], ['GEREJA_KATOLIK', 'Gereja Katolik'], ['GEREJA_ALL', 'Semua Gereja'],
-    ['VIHARA', 'Vihara'], ['KLENTENG', 'Klenteng'], ['KUIL', 'Kuil'], ['VIHARA_KLENTENG_KUIL', 'Vihara / Klenteng / Kuil']
+    ['VIHARA', 'Vihara'], ['KLENTENG', 'Klenteng'], ['KUIL', 'Kuil']
   ];
   var NAMA_JENIS = {
     MASJID: 'Masjid', MUSHOLLA: 'Musholla', MUSHOLA: 'Musholla', GEREJA: 'Gereja', GEREJA_KATOLIK: 'Gereja Katolik',
@@ -78,7 +78,7 @@
       '  <div class="shrink-0 flex justify-between items-start gap-3 px-4 sm:px-7 py-4 border-b border-slate-100">' +
       '    <div class="min-w-0">' +
       '      <h3 id="cri-judul" class="text-sm sm:text-base font-bold text-slate-800 tracking-wide uppercase">Cek Rumah Ibadah</h3>' +
-      '      <p class="text-xs text-slate-500 mt-0.5">Pilih jenis, kecamatan, dan kelurahan, lalu klik Tampilkan Data. Pengurus = penerima semua layanan yang tertaut ke rumah ibadah itu.</p>' +
+      '      <p class="text-xs text-slate-500 mt-0.5">Pilih jenis, kecamatan, dan kelurahan, lalu klik Tampilkan Data. DJPM = penerima semua layanan yang tertaut ke rumah ibadah itu.</p>' +
       '    </div>' +
       '    <button type="button" id="cri-x" aria-label="Tutup" class="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg text-xl font-semibold leading-none transition">&times;</button>' +
       '  </div>' +
@@ -94,8 +94,8 @@
       '    </div>' +
       '    <div class="flex flex-col sm:flex-row sm:items-end gap-2.5 mb-3">' +
       '      <div class="flex-1 min-w-0">' +
-      '        <label for="cri-cari" class="block text-xs font-medium text-slate-600 mb-1">Cari nama rumah ibadah / alamat / nama pengurus <span class="text-slate-400 font-normal">(opsional)</span></label>' +
-      '        <input type="text" id="cri-cari" autocomplete="off" placeholder="mis. al ikhlas, atau nama pengurus..." class="' + KELAS_INPUT + '" />' +
+      '        <label for="cri-cari" class="block text-xs font-medium text-slate-600 mb-1">Cari nama rumah ibadah / alamat / nama DJPM <span class="text-slate-400 font-normal">(opsional)</span></label>' +
+      '        <input type="text" id="cri-cari" autocomplete="off" placeholder="mis. al ikhlas, atau nama DJPM..." class="' + KELAS_INPUT + '" />' +
       '      </div>' +
       '      <button type="button" id="cri-tampil" disabled class="inline-flex items-center justify-center px-5 py-2 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed">Tampilkan Data</button>' +
       '    </div>' +
@@ -241,8 +241,8 @@
       '<div class="text-xs text-slate-500 mt-0.5 break-words">' + esc2(r.alamat || '-') + '</div>' +
       '<div class="text-[11px] text-slate-400 mt-0.5">' + esc2(r.kelurahan) + ' &middot; ' + esc2(r.kecamatan) + '</div></div>' +
       '<div class="md:w-2/12 shrink-0">' +
-      (ada ? '<span class="inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border bg-emerald-100 text-emerald-700 border-emerald-200">Ada pengurus (' + angka(r.jumlahPengurus) + ')</span>'
-        : '<span class="inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border bg-rose-50 text-rose-700 border-rose-200">Belum ada pengurus</span>') + '</div>' +
+      (ada ? '<span class="inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border bg-emerald-100 text-emerald-700 border-emerald-200">Ada DJPM (' + angka(r.jumlahPengurus) + ')</span>'
+        : '<span class="inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border bg-rose-50 text-rose-700 border-rose-200">Belum ada DJPM</span>') + '</div>' +
       '<div class="md:flex-1 min-w-0">' + (ada ? '<ul class="space-y-1.5 text-sm">' + pengurus + '</ul>' : '<span class="hidden md:inline text-xs text-slate-400 italic">-</span>') + '</div>' +
       '</div>';
   }
@@ -284,8 +284,8 @@
     var ring = (data && data.ringkasan) || null;
     $('cri-ringkasan').innerHTML =
       kartuRingkasan('', 'Semua rumah ibadah', ring ? ring.total : null, 'text-slate-800') +
-      kartuRingkasan('ADA', 'Sudah ada pengurus', ring ? ring.ada : null, 'text-emerald-700') +
-      kartuRingkasan('BELUM', 'Belum ada pengurus', ring ? ring.belum : null, 'text-rose-700');
+      kartuRingkasan('ADA', 'Sudah ada DJPM', ring ? ring.ada : null, 'text-emerald-700') +
+      kartuRingkasan('BELUM', 'Belum ada DJPM', ring ? ring.belum : null, 'text-rose-700');
 
     var daftar = $('cri-daftar'), info = $('cri-info'), hal = $('cri-halaman');
     if (tahap === 'memuat' && !data) {

@@ -137,6 +137,9 @@ try {
   const awal = JSON.parse(await nilaiKontrol());
   cek("terbuka: Jenis kosong; Kecamatan, Kelurahan, dan Tampilkan Data nonaktif", awal.j === "" && awal.kDis === true && awal.lDis === true && awal.tDis === true, JSON.stringify(awal));
 
+  const opsiJenis = await js("JSON.stringify([...document.getElementById('cri-jenis').options].map(o=>o.value))");
+  cek("daftar Jenis: tanpa jenis gabungan Vihara/Klenteng/Kuil; Vihara, Klenteng, Kuil tetap ada masing-masing", !/VIHARA_KLENTENG_KUIL/.test(opsiJenis) && ["VIHARA","KLENTENG","KUIL","MASJID_MUSHOLLA","GEREJA_ALL"].every((v) => opsiJenis.includes('"' + v + '"')), opsiJenis);
+
   // ---- bertahap: Jenis -> Kecamatan -> Kelurahan ----
   await pilih("cri-jenis", "MASJID_MUSHOLLA"); await tidur(200);
   const s1 = JSON.parse(await nilaiKontrol());
@@ -203,10 +206,10 @@ try {
   await ketik("ikhlas");
   const nEnter = panggilanCari().length;
   await js("document.getElementById('cri-cari').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); true"); await tidur(150); await siapMuat();
-  cek("Enter di kotak cari = Tampilkan Data (1 permintaan, kata kunci terbawa) -> hanya MASJID AL-IKHLAS", panggilanCari().length - nEnter === 1 && terakhir().cari === "ikhlas" && (await jumlahBaris()) === 1 && /MASJID AL-IKHLAS/.test(await teks("#cri-daftar")) && /Belum ada pengurus/.test(await teks("#cri-daftar")), await teks("#cri-daftar"));
+  cek("Enter di kotak cari = Tampilkan Data (1 permintaan, kata kunci terbawa) -> hanya MASJID AL-IKHLAS", panggilanCari().length - nEnter === 1 && terakhir().cari === "ikhlas" && (await jumlahBaris()) === 1 && /MASJID AL-IKHLAS/.test(await teks("#cri-daftar")) && /Belum ada DJPM/.test(await teks("#cri-daftar")), await teks("#cri-daftar"));
   await ketik("budi santoso"); await tampil_();
   const hasilOrang = await teks("#cri-daftar");
-  cek("cari dari sisi orang: 'budi santoso' -> rumah ibadah-nya + nama & layanan pengurus tampil", (await jumlahBaris()) === 1 && /RUMAH IBADAH 04/.test(hasilOrang) && /BUDI SANTOSO/.test(hasilOrang) && /NAZIR MASJID/.test(hasilOrang) && /KHATIB JUMAT/.test(hasilOrang) && /Ada pengurus \(2\)/.test(hasilOrang), hasilOrang);
+  cek("cari dari sisi orang: 'budi santoso' -> rumah ibadah-nya + nama & layanan pengurus tampil", (await jumlahBaris()) === 1 && /RUMAH IBADAH 04/.test(hasilOrang) && /BUDI SANTOSO/.test(hasilOrang) && /NAZIR MASJID/.test(hasilOrang) && /KHATIB JUMAT/.test(hasilOrang) && /Ada DJPM \(2\)/.test(hasilOrang), hasilOrang);
   await ketik("tidak ada yang cocok"); await tampil_();
   cek("tanpa hasil: pesan kosong ramah, halaman 1 dari 1", /Tidak ada rumah ibadah yang sesuai/.test(await teks("#cri-daftar")) && /Halaman 1 dari 1/.test(await teks("#cri-halaman")));
 
@@ -224,10 +227,10 @@ try {
   const hrpAll = cariMock({ jenis: "MASJID_MUSHOLLA", page: 1, limit: 20 });
   await klik("[data-cri-aksi=status][data-cri-nilai=BELUM]"); await tidur(200); await siapMuat();
   const argBelum = terakhir();
-  cek("klik kartu 'Belum ada pengurus': status=BELUM, halaman 1, hanya baris 'Belum ada pengurus'", argBelum.status === "BELUM" && argBelum.page === 1 && argBelum.jenis === "MASJID_MUSHOLLA" && !/Ada pengurus \(/.test(await teks("#cri-daftar")) && (await jumlahBaris()) === Math.min(20, hrpAll.ringkasan.belum), JSON.stringify(argBelum));
+  cek("klik kartu 'Belum ada DJPM': status=BELUM, halaman 1, hanya baris 'Belum ada DJPM'", argBelum.status === "BELUM" && argBelum.page === 1 && argBelum.jenis === "MASJID_MUSHOLLA" && !/Ada pengurus \(/.test(await teks("#cri-daftar")) && (await jumlahBaris()) === Math.min(20, hrpAll.ringkasan.belum), JSON.stringify(argBelum));
   cek("kartu aktif bertanda aria-pressed", (await js("document.querySelector('[data-cri-aksi=status][data-cri-nilai=BELUM]').getAttribute('aria-pressed')")) === "true");
   await klik("[data-cri-aksi=status][data-cri-nilai=ADA]"); await siapMuat();
-  cek("kartu 'Sudah ada pengurus': hanya baris berpengurus", !/Belum ada pengurus/.test(await teks("#cri-daftar")) && (await jumlahBaris()) === Math.min(20, hrpAll.ringkasan.ada), await teks("#cri-halaman"));
+  cek("kartu 'Sudah ada DJPM': hanya baris berpengurus", !/Belum ada DJPM/.test(await teks("#cri-daftar")) && (await jumlahBaris()) === Math.min(20, hrpAll.ringkasan.ada), await teks("#cri-halaman"));
   await tampil_();
   cek("Tampilkan Data lagi mengembalikan kartu ke 'Semua' (status kosong)", terakhir().status === "");
 
