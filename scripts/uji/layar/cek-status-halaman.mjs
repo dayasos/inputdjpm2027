@@ -34,7 +34,12 @@ const foto = async (nama) => { const r = await kirimCdp("Page.captureScreenshot"
 const tungguSampai = async (ekspresi, ms = 20000) => { const s = Date.now(); while (Date.now() - s < ms) { if (await js(ekspresi)) return true; await tidur(200); } return false; };
 const isi = (nik, tgl) => js(`(() => { const n=document.getElementById('nik'), t=document.getElementById('tgl');
   n.value=${JSON.stringify(nik)}; n.dispatchEvent(new Event('input',{bubbles:true}));
-  t.value=${JSON.stringify(tgl)}; t.dispatchEvent(new Event('input',{bubbles:true})); return true; })()`);
+  t.value=${JSON.stringify(tgl.split('-').reverse().join(''))}; t.dispatchEvent(new Event('input',{bubbles:true})); return true; })()`);
+// Pengetikan SUNGGUHAN (satu karakter per peristiwa, seperti papan ketik HP) dan tombol hapus.
+const ketik = async (teks) => { for (const c of teks) await kirimCdp("Input.insertText", { text: c }); };
+const hapus = async (n = 1) => { for (let i = 0; i < n; i++) { for (const type of ["keyDown", "keyUp"]) await kirimCdp("Input.dispatchKeyEvent", { type, key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8 }); } };
+const nilaiTgl = () => js(`document.getElementById('tgl').value`);
+const infoTgl = () => js(`document.getElementById('tgl-info').textContent`);
 
 try {
   await sambung();
@@ -48,6 +53,28 @@ try {
   cek("tidak ada gulir mendatar", await js(`document.documentElement.scrollWidth <= document.documentElement.clientWidth`));
   cek("tombol nonaktif di awal", await js(`document.getElementById('kirim').disabled`));
   cek("huruf kolom >= 16px (cegah zoom iOS)", (await js(`parseFloat(getComputedStyle(document.getElementById('nik')).fontSize)`)) >= 16);
+
+  // Tanggal lahir DIKETIK, bukan dipilih dari kalender.
+  cek("kolom tanggal lahir berupa teks angka (bukan pemilih kalender)", await js(`(() => { const t = document.getElementById('tgl'); return t.type === 'text' && t.inputMode === 'numeric'; })()`));
+  await js(`document.getElementById('tgl').focus()`);
+  await ketik("31121990");
+  cek("mengetik 31121990 -> 31-12-1990", (await nilaiTgl()) === "31-12-1990", await nilaiTgl());
+  cek("konfirmasi ramah '31 Desember 1990'", (await infoTgl()).includes("31 Desember 1990"), await infoTgl());
+  await hapus(3);
+  cek("Backspace 3x -> 31-12-1 (tidak tersangkut di tanda pisah)", (await nilaiTgl()) === "31-12-1", await nilaiTgl());
+  await hapus(2);
+  cek("Backspace lagi -> 31-12 lalu 31-1", (await nilaiTgl()) === "31-1", await nilaiTgl());
+  await hapus(5);
+  cek("dihapus sampai kosong", (await nilaiTgl()) === "");
+  await ketik("31022000");
+  cek("31-02-2000 -> pesan 'tidak ada di kalender'", (await infoTgl()).includes("tidak ada di kalender"), await infoTgl());
+  await isi("1111111111111111", "2999-01-01");
+  cek("tanggal masa depan -> pesan + tombol tetap nonaktif", (await infoTgl()).includes("masa depan") && (await js(`document.getElementById('kirim').disabled`)));
+  await js(`(() => { const t=document.getElementById('tgl'); t.value='1990-01-01'; t.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+  cek("tempel format ISO 1990-01-01 -> 01-01-1990", (await nilaiTgl()) === "01-01-1990", await nilaiTgl());
+  await js(`(() => { const t=document.getElementById('tgl'); t.value='1/1/1990'; t.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+  cek("tempel 1/1/1990 -> 01-01-1990", (await nilaiTgl()) === "01-01-1990", await nilaiTgl());
+  await foto("0-tanggal-diketik");
 
   // Menempel NIK berspasi/bertanda baca dibersihkan.
   await isi("1111 1111-1111.1111abc999", "1990-01-01");

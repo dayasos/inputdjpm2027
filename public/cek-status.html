@@ -34,6 +34,9 @@
     .pesan{border-radius:10px;padding:12px 14px;font-size:.92rem;margin-top:14px}
     .pesan.galat{background:#fef2f2;border:1px solid #fecaca;color:#7f1d1d}
     .pesan.info{background:#f8fafc;border:1px solid #cbd5e1;color:#334155}
+    .infotgl{display:block;font-size:.85rem;margin-top:6px;min-height:1.3em}
+    .infotgl.ok{color:#166534}
+    .infotgl.salah{color:#b91c1c}
     .tersembunyi{display:none}
     dl{margin:0}
     dt{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-top:12px}
@@ -72,8 +75,11 @@
                  autocapitalize="off" spellcheck="false" aria-describedby="galat" placeholder="Contoh: 1271xxxxxxxxxxxx">
         </div>
         <div class="baris">
-          <label for="tgl">Tanggal lahir <span class="bantu">Sesuai KTP</span></label>
-          <input type="date" id="tgl" name="tgl-cek" min="1900-01-01" autocomplete="off" aria-describedby="galat">
+          <label for="tgl">Tanggal lahir <span class="hitung" id="hitung-tgl" aria-hidden="true"></span>
+            <span class="bantu">Sesuai KTP. Ketik angka saja, contoh 31121990 (hari, bulan, tahun)</span></label>
+          <input type="text" id="tgl" name="tgl-cek" inputmode="numeric" maxlength="10" autocomplete="off"
+                 autocapitalize="off" spellcheck="false" aria-describedby="tgl-info galat" placeholder="HH-BB-TTTT">
+          <span id="tgl-info" class="infotgl" aria-live="polite"></span>
         </div>
         <div id="widget" aria-label="Verifikasi keamanan"></div>
         <button type="submit" class="tombol" id="kirim" disabled>Cek Status</button>
@@ -96,9 +102,16 @@
     </footer>
   </div>
 
+  <script src="/cek-status-tanggal.js"></script>
   <script>
   (function () {
     'use strict';
+    if (!window.CekTanggal) {
+      var g = document.getElementById('galat');
+      g.textContent = 'Halaman belum termuat sempurna. Muat ulang halaman ini.';
+      g.classList.remove('tersembunyi');
+      return;
+    }
 
     // Kunci situs Turnstile bersifat publik (widget "Cek Status DJPM 2027", hostname djpmkotamedan.web.id). Tidak berfungsi
     // di localhost; untuk uji lokal sementara ganti ke kunci uji Cloudflare 1x00000000000000000000AA (jangan di-commit).
@@ -130,12 +143,17 @@
       var p = function (n) { return (n < 10 ? '0' : '') + n; };
       return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
     }
-    tgl.max = hariIni();
+    var info = $('tgl-info'), hitungTgl = $('hitung-tgl');
 
     function nikBersih() { return nik.value.replace(/\D/g, '').slice(0, 16); }
-    function tglValid() {
-      var v = tgl.value;
-      return /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= '1900-01-01' && v <= hariIni();
+    function hasilTgl() { return window.CekTanggal.periksa(tgl.value, hariIni()); }
+    function tglValid() { return hasilTgl().status === 'ok'; }
+    function tglIso() { var h = hasilTgl(); return h.status === 'ok' ? h.iso : ''; }
+    function tampilkanInfoTgl() {
+      var h = hasilTgl();
+      hitungTgl.textContent = tgl.value.replace(/\D/g, '').length + '/8';
+      info.className = 'infotgl' + (h.status === 'ok' ? ' ok' : h.status === 'salah' ? ' salah' : '');
+      info.textContent = h.status === 'ok' ? '\u2714 ' + h.teks : h.status === 'salah' ? h.pesan : '';
     }
     function perbarui() {
       var n = nikBersih();
@@ -161,6 +179,7 @@
     function kosongkanSemua() {
       nik.value = '';
       tgl.value = '';
+      tampilkanInfoTgl();
       sembunyikanGalat();
       bersihkanHasil();
       form.classList.remove('tersembunyi');
@@ -209,7 +228,7 @@
       if (kirim.disabled) return;
       sibuk = true; kirim.disabled = true; kirim.textContent = 'Memeriksa...';
       sembunyikanGalat();
-      var badan = JSON.stringify({ nik: nikBersih(), tanggalLahir: tgl.value, turnstileToken: tokenTurnstile });
+      var badan = JSON.stringify({ nik: nikBersih(), tanggalLahir: tglIso(), turnstileToken: tokenTurnstile });
 
       fetch('/api/cek-status', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: badan,
@@ -229,7 +248,7 @@
           tampilkanGalat(PESAN[j && j.kode] || PESAN.GALAT);
         }
         // Jangan menyimpan NIK terlalu lama di kolom setelah hasil muncul.
-        if (!hasil.classList.contains('tersembunyi')) { nik.value = ''; tgl.value = ''; }
+        if (!hasil.classList.contains('tersembunyi')) { nik.value = ''; tgl.value = ''; tampilkanInfoTgl(); }
         perbarui();
       });
     }
@@ -239,8 +258,14 @@
       if (nik.value !== b) nik.value = b;
       perbarui();
     });
-    tgl.addEventListener('input', perbarui);
-    tgl.addEventListener('change', perbarui);
+    function saatTglBerubah() {
+      var r = window.CekTanggal.rapikan(tgl.value);
+      if (tgl.value !== r) tgl.value = r;
+      tampilkanInfoTgl();
+      perbarui();
+    }
+    tgl.addEventListener('input', saatTglBerubah);
+    tgl.addEventListener('change', saatTglBerubah);
     form.addEventListener('submit', periksa);
     $('hapus').addEventListener('click', kosongkanSemua);
 
@@ -265,6 +290,7 @@
     s.onerror = function () { tampilkanGalat(PESAN.TURNSTILE); };
     document.head.appendChild(s);
 
+    tampilkanInfoTgl();
     perbarui();
   })();
   </script>
