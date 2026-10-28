@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cek Status Penerima Dana Jasa Pelayanan 2027</title>
+  <meta name="description" content="Cek status verifikasi penerima Dana Jasa Pelayanan Kepada Warga Pelayan Masyarakat Kota Medan Tahun Anggaran 2027 dengan NIK dan tanggal lahir.">
+  <!-- F1/F2: belum diindeks dan belum ditautkan. Diganti "index, follow" + canonical + sitemap saat go-live (F3). -->
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#1d4ed8">
+  <link rel="icon" href="/logo-medan.png">
+  <style>
+    *,*::before,*::after{box-sizing:border-box}
+    html{-webkit-text-size-adjust:100%}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:16px;line-height:1.5;color:#1e293b;background:#f1f5f9}
+    .bungkus{max-width:30rem;margin:0 auto;padding:16px}
+    header{text-align:center;padding:8px 0 4px}
+    header img{width:64px;height:auto}
+    h1{font-size:1.15rem;line-height:1.3;margin:10px 0 4px;color:#0f172a}
+    .sub{margin:0;font-size:.9rem;color:#475569}
+    .kartu{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;margin-top:16px;box-shadow:0 1px 2px rgba(15,23,42,.06)}
+    label{display:block;font-weight:600;font-size:.95rem;margin:0 0 6px}
+    .bantu{display:block;font-weight:400;font-size:.8rem;color:#64748b;margin-top:2px}
+    input[type=text],input[type=date]{width:100%;font:inherit;font-size:16px;padding:11px 12px;border:1px solid #94a3b8;border-radius:10px;background:#fff;color:#0f172a}
+    input:focus,button:focus-visible{outline:3px solid #93c5fd;outline-offset:1px;border-color:#2563eb}
+    .baris{margin-bottom:16px}
+    #nik{letter-spacing:.06em;font-variant-numeric:tabular-nums}
+    .hitung{float:right;font-weight:400;font-size:.8rem;color:#64748b}
+    .tombol{display:block;width:100%;font:inherit;font-weight:700;padding:13px 16px;border:0;border-radius:10px;background:#1d4ed8;color:#fff;cursor:pointer}
+    .tombol:disabled{background:#94a3b8;cursor:not-allowed}
+    .tombol.abu{background:#e2e8f0;color:#1e293b;margin-top:12px}
+    #widget{min-height:65px;margin:0 0 16px;display:flex;justify-content:center}
+    .pesan{border-radius:10px;padding:12px 14px;font-size:.92rem;margin-top:14px}
+    .pesan.galat{background:#fef2f2;border:1px solid #fecaca;color:#7f1d1d}
+    .pesan.info{background:#f8fafc;border:1px solid #cbd5e1;color:#334155}
+    .tersembunyi{display:none}
+    dl{margin:0}
+    dt{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-top:12px}
+    dd{margin:2px 0 0;font-weight:600;color:#0f172a;word-break:break-word}
+    .lencana{display:inline-block;padding:5px 12px;border-radius:999px;font-weight:700;font-size:.9rem;margin-top:4px}
+    .lencana.hijau{background:#dcfce7;color:#14532d;border:1px solid #86efac}
+    .lencana.kuning{background:#fef9c3;color:#713f12;border:1px solid #fde047}
+    .lencana.merah{background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5}
+    .lencana.abu{background:#e2e8f0;color:#1e293b;border:1px solid #cbd5e1}
+    .penjelas{margin:8px 0 0;font-size:.92rem;color:#334155}
+    .kaki{font-size:.8rem;color:#475569;margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0}
+    .privasi{font-size:.78rem;color:#64748b;margin-top:14px;text-align:center}
+    footer{text-align:center;margin:22px 0 8px;line-height:1.25}
+    footer .a{display:block;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#64748b;font-weight:600}
+    footer .b{display:block;font-size:12px;font-weight:700;color:#1e293b;margin-top:2px}
+    footer .c{display:block;font-size:10px;color:#64748b;margin-top:2px}
+    noscript{display:block;margin-top:16px;padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;font-size:.9rem}
+  </style>
+</head>
+<body>
+  <div class="bungkus">
+    <header>
+      <img src="/logo-medan.png" alt="Logo Pemerintah Kota Medan" width="64" height="64">
+      <h1>Cek Status Penerima Dana Jasa Pelayanan Tahun Anggaran 2027</h1>
+      <p class="sub">Dana Jasa Pelayanan Kepada Warga Pelayan Masyarakat Kota Medan</p>
+    </header>
+
+    <noscript>Halaman ini membutuhkan JavaScript. Aktifkan JavaScript di browser Anda lalu muat ulang.</noscript>
+
+    <main>
+      <form id="form" class="kartu" autocomplete="off" novalidate>
+        <div class="baris">
+          <label for="nik">NIK <span class="hitung" id="hitung" aria-hidden="true">0/16</span>
+            <span class="bantu">16 digit angka, sesuai KTP</span></label>
+          <input type="text" id="nik" name="nik-cek" inputmode="numeric" maxlength="24" autocomplete="off"
+                 autocapitalize="off" spellcheck="false" aria-describedby="galat" placeholder="Contoh: 1271xxxxxxxxxxxx">
+        </div>
+        <div class="baris">
+          <label for="tgl">Tanggal lahir <span class="bantu">Sesuai KTP</span></label>
+          <input type="date" id="tgl" name="tgl-cek" min="1900-01-01" autocomplete="off" aria-describedby="galat">
+        </div>
+        <div id="widget" aria-label="Verifikasi keamanan"></div>
+        <button type="submit" class="tombol" id="kirim" disabled>Cek Status</button>
+        <div id="galat" class="pesan galat tersembunyi" role="alert" aria-live="polite"></div>
+      </form>
+
+      <section id="hasil" class="kartu tersembunyi" aria-live="polite" aria-labelledby="judul-hasil">
+        <h2 id="judul-hasil" style="font-size:1rem;margin:0 0 4px">Hasil pengecekan</h2>
+        <div id="isi-hasil"></div>
+        <button type="button" class="tombol abu" id="hapus">Hapus hasil &amp; cek lagi</button>
+      </section>
+    </main>
+
+    <p class="privasi">NIK dan tanggal lahir hanya dipakai untuk mencocokkan data pada saat pengecekan dan tidak disimpan oleh halaman ini.</p>
+
+    <footer>
+      <span class="a">Developed by</span>
+      <span class="b">Dedi Armansyah, S.AP</span>
+      <span class="c">Tim Kelembagaan Bidang Dayasos</span>
+    </footer>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // Kunci situs Turnstile bersifat publik. Nilai di bawah adalah KUNCI UJI Cloudflare (selalu lolos) -- wajib diganti dengan
+    // kunci situs asli sebelum F2 (plan bagian 11). Kunci uji TIDAK boleh ada di produksi.
+    var TURNSTILE_SITEKEY = '1x00000000000000000000AA';
+    var HASIL_TAMPIL_MS = 2 * 60 * 1000;
+
+    var PESAN = {
+      TIDAK_TERDATA: 'NIK dan/atau tanggal lahir yang dimasukkan Tidak Terdata atau Belum ada di database Penerima Dana Jasa Pelayanan Kepada Warga Pelayan Masyarakat Kota Medan Tahun Anggaran 2027. Pastikan NIK dan tanggal lahir sesuai KTP. Bila sudah benar, hubungi petugas kelurahan/kecamatan Anda.',
+      FORMAT: 'NIK harus 16 digit angka dan tanggal lahir harus valid.',
+      TURNSTILE: 'Verifikasi keamanan gagal. Muat ulang halaman lalu coba lagi.',
+      TERKUNCI: 'Terlalu banyak percobaan. Silakan coba lagi dalam 15 menit.',
+      NONAKTIF: 'Layanan cek status sedang tidak tersedia. Silakan coba beberapa saat lagi.',
+      GALAT: 'Terjadi gangguan. Silakan coba lagi nanti.'
+    };
+    var STATUS = {
+      'Memenuhi Syarat': { kelas: 'hijau', ikon: '✔ ', teks: 'Data Anda telah diverifikasi dan memenuhi syarat.' },
+      'Proses Verifikasi': { kelas: 'kuning', ikon: '⏳ ', teks: 'Data Anda sedang diperiksa petugas. Silakan cek kembali beberapa hari lagi.' },
+      'Berkas Tidak Lengkap': { kelas: 'merah', ikon: '⚠ ', teks: 'Berkas Anda belum lengkap. Hubungi petugas kecamatan/kelurahan Anda untuk melengkapinya.' }
+    };
+    var KAKI = 'Status ini bukan jaminan pencairan. Informasi ini hanya untuk pemilik NIK; jangan bagikan hasil ini kepada orang lain.';
+
+    var $ = function (id) { return document.getElementById(id); };
+    var form = $('form'), nik = $('nik'), tgl = $('tgl'), kirim = $('kirim'), galat = $('galat');
+    var hasil = $('hasil'), isiHasil = $('isi-hasil'), hitung = $('hitung');
+    var tokenTurnstile = '', widgetId = null, sibuk = false, pewaktuHasil = null;
+
+    function hariIni() {
+      var d = new Date();
+      var p = function (n) { return (n < 10 ? '0' : '') + n; };
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+    tgl.max = hariIni();
+
+    function nikBersih() { return nik.value.replace(/\D/g, '').slice(0, 16); }
+    function tglValid() {
+      var v = tgl.value;
+      return /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= '1900-01-01' && v <= hariIni();
+    }
+    function perbarui() {
+      var n = nikBersih();
+      hitung.textContent = n.length + '/16';
+      kirim.disabled = sibuk || !(n.length === 16 && tglValid() && tokenTurnstile);
+    }
+
+    function tampilkanGalat(teks) {
+      galat.textContent = teks;
+      galat.classList.remove('tersembunyi');
+    }
+    function sembunyikanGalat() { galat.textContent = ''; galat.classList.add('tersembunyi'); }
+
+    function bersihkanHasil() {
+      clearTimeout(pewaktuHasil);
+      isiHasil.textContent = '';
+      hasil.classList.add('tersembunyi');
+    }
+    function resetWidget() {
+      tokenTurnstile = '';
+      try { if (window.turnstile && widgetId !== null) window.turnstile.reset(widgetId); } catch (e) { /* abaikan */ }
+    }
+    function kosongkanSemua() {
+      nik.value = '';
+      tgl.value = '';
+      sembunyikanGalat();
+      bersihkanHasil();
+      form.classList.remove('tersembunyi');
+      resetWidget();
+      perbarui();
+    }
+
+    function baris(dl, label, nilai) {
+      var dt = document.createElement('dt'); dt.textContent = label;
+      var dd = document.createElement('dd'); dd.textContent = nilai;
+      dl.appendChild(dt); dl.appendChild(dd);
+    }
+    function tampilkanData(d) {
+      isiHasil.textContent = '';
+      var dl = document.createElement('dl');
+      baris(dl, 'Nama', d.nama);
+      baris(dl, 'Layanan', d.layanan);
+      baris(dl, 'Kecamatan', d.kecamatan);
+      baris(dl, 'Kelurahan', d.kelurahan);
+      var dtS = document.createElement('dt'); dtS.textContent = 'Status Verifikasi'; dl.appendChild(dtS);
+      var info = STATUS[d.status] || { kelas: 'abu', ikon: '', teks: 'Status: ' + d.status + '.' };
+      var dd = document.createElement('dd');
+      var l = document.createElement('span'); l.className = 'lencana ' + info.kelas; l.textContent = info.ikon + d.status;
+      dd.appendChild(l); dl.appendChild(dd);
+      isiHasil.appendChild(dl);
+      var p = document.createElement('p'); p.className = 'penjelas'; p.textContent = info.teks; isiHasil.appendChild(p);
+      var k = document.createElement('p'); k.className = 'kaki'; k.textContent = KAKI; isiHasil.appendChild(k);
+    }
+
+    function tampilkanGagalDiHasil(teks) {
+      isiHasil.textContent = '';
+      var p = document.createElement('p'); p.className = 'pesan info'; p.style.marginTop = '8px'; p.textContent = teks;
+      isiHasil.appendChild(p);
+    }
+
+    function tampilkanKartuHasil() {
+      form.classList.add('tersembunyi');
+      hasil.classList.remove('tersembunyi');
+      clearTimeout(pewaktuHasil);
+      pewaktuHasil = setTimeout(kosongkanSemua, HASIL_TAMPIL_MS);
+      $('hapus').focus();
+    }
+
+    function periksa(e) {
+      e.preventDefault();
+      if (kirim.disabled) return;
+      sibuk = true; kirim.disabled = true; kirim.textContent = 'Memeriksa...';
+      sembunyikanGalat();
+      var badan = JSON.stringify({ nik: nikBersih(), tanggalLahir: tgl.value, turnstileToken: tokenTurnstile });
+
+      fetch('/api/cek-status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: badan,
+        cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'
+      }).then(function (res) {
+        return res.json().then(function (j) { return j; }, function () { return { sukses: false, kode: 'GALAT' }; });
+      }).catch(function () {
+        return { sukses: false, kode: 'GALAT' };
+      }).then(function (j) {
+        sibuk = false; kirim.textContent = 'Cek Status';
+        resetWidget(); // token Turnstile hanya berlaku sekali
+        if (j && j.sukses === true && j.data) {
+          tampilkanData(j.data); tampilkanKartuHasil();
+        } else if (j && j.kode === 'TIDAK_TERDATA') {
+          tampilkanGagalDiHasil(PESAN.TIDAK_TERDATA); tampilkanKartuHasil();
+        } else {
+          tampilkanGalat(PESAN[j && j.kode] || PESAN.GALAT);
+        }
+        // Jangan menyimpan NIK terlalu lama di kolom setelah hasil muncul.
+        if (!hasil.classList.contains('tersembunyi')) { nik.value = ''; tgl.value = ''; }
+        perbarui();
+      });
+    }
+
+    nik.addEventListener('input', function () {
+      var b = nikBersih();
+      if (nik.value !== b) nik.value = b;
+      perbarui();
+    });
+    tgl.addEventListener('input', perbarui);
+    tgl.addEventListener('change', perbarui);
+    form.addEventListener('submit', periksa);
+    $('hapus').addEventListener('click', kosongkanSemua);
+
+    // Tombol Kembali/bfcache tidak boleh memunculkan hasil lama.
+    window.addEventListener('pageshow', function (e) { if (e.persisted) kosongkanSemua(); });
+
+    // Turnstile dimuat setelah halaman siap; tombol tetap nonaktif sampai token ada.
+    window.onloadTurnstile = function () {
+      try {
+        widgetId = window.turnstile.render('#widget', {
+          sitekey: TURNSTILE_SITEKEY,
+          language: 'id',
+          callback: function (t) { tokenTurnstile = t; perbarui(); },
+          'expired-callback': function () { tokenTurnstile = ''; perbarui(); },
+          'error-callback': function () { tokenTurnstile = ''; tampilkanGalat(PESAN.TURNSTILE); perbarui(); }
+        });
+      } catch (e) { tampilkanGalat(PESAN.TURNSTILE); }
+    };
+    var s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onloadTurnstile';
+    s.async = true; s.defer = true;
+    s.onerror = function () { tampilkanGalat(PESAN.TURNSTILE); };
+    document.head.appendChild(s);
+
+    perbarui();
+  })();
+  </script>
+</body>
+</html>

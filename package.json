@@ -10,6 +10,7 @@
     "check-lines": "node scripts/verify-lines.js",
     "check-css": "node scripts/cek-css-terbaru.js",
     "uji:cek-status": "node --test scripts/uji/cek-status-inti.test.mjs",
+    "uji:worker-cek-status": "node --test scripts/uji/worker-cek-status.test.mjs",
     "check-koordinat": "node scripts/sinkron-koordinat.js --cek",
     "sync:2026": "node scripts/sync-2026.js",
     "cf:dev": "npm run build && wrangler dev",

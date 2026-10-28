@@ -4,6 +4,8 @@
 // - scheduled : cekBatasWaktuVerifikasi tiap 18:00 UTC (01:00 WIB)
 // Semua selain /api/* dilayani sebagai aset statis (lihat "assets" di wrangler.jsonc).
 
+import { tanganiCekStatus } from './cek-status.js';
+
 const DEFAULT_TARGET_URL = 'https://wwqxbscumaakvziwzwjx.supabase.co/functions/v1/api';
 
 const CORS_HEADERS = {
@@ -182,6 +184,7 @@ export default {
     }
     if (pathname === '/api/gas') return tanganiGas(request, env);
     if (pathname === '/api/health') return tanganiHealth(env);
+    if (pathname === '/api/cek-status') return tanganiCekStatus(request, env, { panggilBackend });
     if (pathname.startsWith('/api/')) return jsonResponse({ error: 'Not Found' }, 404);
     return env.ASSETS.fetch(request);
   },

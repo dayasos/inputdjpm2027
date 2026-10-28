@@ -1,7 +1,7 @@
 # Plan: Cek Status Penerima untuk Warga (NIK + Tanggal Lahir)
 
 > Dibuat 2026-10-26, direvisi menjadi rencana lengkap pada hari yang sama.
-> **STATUS: F0 SELESAI SECARA LOKAL (2026-10-26), belum di-commit dan belum diterapkan ke produksi. Tidak ada perubahan live.**
+> **STATUS: F0 (2026-10-26) dan F1 (2026-10-28) SELESAI SECARA LOKAL; F1 belum di-commit. Tidak ada perubahan live.**
 > Dokumen ini adalah satu-satunya sumber kebenaran fitur ini; perbarui bagian "Catatan realisasi" (bagian 18) setiap fase selesai.
 
 ## Daftar isi
@@ -394,6 +394,18 @@ Perkiraan upaya (kerja efektif, bukan kalender): F0 ± 0,5 hari · F1 ± 1 hari 
 **Temuan data (perlu dikoreksi user lewat aplikasi sebelum F2)**
 - id 32356583, nomor urut 1575, GURU MAGHRIB MENGAJI, Kec. Medan Selayang, Kel. Tanjung Sari: **tahun lahir 0199** (umur tercatat 1.827), jelas salah ketik; penerima ini tak akan pernah bisa lolos cek.
 - id 32306464, nomor urut 902, PENGURUS GEREJA, Kec. Medan Belawan: **kelurahan kosong**.
+
+### F1 — selesai lokal, 2026-10-28 (belum commit, belum diterapkan ke produksi)
+**Dibuat:** `worker/cek-status.js` (rute `/api/cek-status`, didaftarkan di `worker/index.js`); `public/cek-status.html` (mandiri, `noindex`, tanpa Tailwind); blok CSP + `no-cache` untuk `/cek-status` di `public/_headers`; uji `scripts/uji/worker-cek-status.test.mjs` (`npm run uji:worker-cek-status`) dan uji layar `scripts/uji/layar/cek-status-halaman.mjs` (Chrome CDP, manual).
+
+**Hasil uji**
+- 19 uji Node Worker lulus (format, badan >1 KB, metode, Turnstile gagal/hostname beda/tak terjangkau, pemetaan kode, 5 kolom, waktu minimal 400 ms, tidak ada console.* berisi NIK/tanggal/token/nama); 31 uji F0 tetap lulus; `npm run check-css` lolos.
+- End-to-end lokal (`vite build` + `wrangler dev` + backend tiruan + kunci uji Turnstile): semua jalur menjawab kode dan HTTP yang benar; kolom ekstra dari backend terbuang; waktu respons seragam (~0,64 dtk); log Worker tanpa NIK/token/nama.
+- `/cek-status` dilayani dari `cek-status.html` (bukan jatuh ke `index.html`): terbukti di `wrangler dev` (bagian 9.1 terjawab, tanpa aturan tambahan).
+- Uji layar Chrome 360/390/1280 px: 24/24 lulus (tanpa gulir mendatar, huruf >=16 px, NIK dibersihkan, tombol menunggu Turnstile, hasil hijau/merah, pesan tidak terdata & terkunci seragam, tidak ada NIK di URL/storage/cookie, Hapus hasil, pageshow).
+
+**Belum terbukti:** Chrome lama (<111) (hanya Chrome terbaru dicoba); keyboard-saja/pembaca layar; pengukuran waktu 50 sampel per jalur terhadap backend nyata; Edge Function dan SQL percobaan (masih F2).
+**Wajib sebelum F2:** ganti `TURNSTILE_SITEKEY` di `cek-status.html` (kini kunci UJI Cloudflare yang selalu lolos) dengan site key asli; `TURNSTILE_SECRET_KEY` lewat `wrangler secret put`.
 
 ## 19. Lampiran teknis
 **Berkas yang diperkirakan berubah/ditambah**
