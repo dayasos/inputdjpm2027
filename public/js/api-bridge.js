@@ -254,7 +254,7 @@ const DOMAIN_FRESHNESS = {
 
 const MUTATION_INVALIDATIONS = {
   simpanDataKeSheet: ['penerima', 'dashboard', 'kuota'],
-  editDataPenerima: ['penerima', 'penerima_detail', 'dashboard', 'riwayat'],
+  editDataPenerima: ['penerima', 'penerima_detail', 'dashboard', 'data_detail', 'riwayat'],
   verifikasiSatuData: ['penerima', 'penerima_detail', 'dashboard', 'data_detail'],
   laporkanPerbaikanBerkas: ['penerima', 'penerima_detail'],
   tandaiSudahDiperbaiki: ['penerima', 'penerima_detail', 'dashboard', 'data_detail'],
@@ -295,7 +295,8 @@ const MUTATION_INVALIDATIONS = {
   simpanSkLayanan: ['tools_sk_layanan'],
 
   tambahRumahIbadah: ['rumah_ibadah', 'master'],
-  ubahRumahIbadah: ['rumah_ibadah', 'master'],
+  // Mengubah nama/alamat rumah ibadah ikut memperbarui penerima & data_detail yang tertaut (server, satu transaksi) -> segarkan juga cache data penerima.
+  ubahRumahIbadah: ['rumah_ibadah', 'master', 'penerima', 'penerima_detail', 'dashboard', 'data_detail', 'riwayat'],
   hapusRumahIbadah: ['rumah_ibadah', 'master'],
 
   // Kelola Data & Berkas (khusus UTAMA): mengubah/menghapus penerima atau berkasnya memengaruhi

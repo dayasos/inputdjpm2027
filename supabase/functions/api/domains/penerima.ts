@@ -13,8 +13,15 @@ import {
 } from "../_shared/akses.ts";
 import { periksaIzinInput } from "./setelan.ts";
 import { cekKuotaTersedia } from "./validasi.ts";
-import { cariRumahIbadah, kelurahanAdaDiKecamatan, tentukanWilayahTugas } from "../_shared/wilayahTugas.ts";
+import {
+  cariRumahIbadah,
+  kelurahanAdaDiKecamatan,
+  periksaTempatTugasDariDaftar,
+  pilihRumahIbadahId,
+  tentukanWilayahTugas,
+} from "../_shared/wilayahTugas.ts";
 import { layananWajibKoordinat, normalisasiKoordinat } from "../_shared/koordinat.ts";
+import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
 
 // ---------------------------------------------------------------------------
 // Penanda PENGINPUT di Lihat Data (rencana akun MUI, 2026-10-20): data hasil input akun MUI diberi tanda
@@ -492,6 +499,15 @@ export const MAP_IDX_KE_KOLOM_TEKS: Record<number, string> = {
   31: "link_koordinat_lokasi", // hanya layanan Guru; divalidasi/dinormalkan di editDataPenerima
 };
 
+// Kolom `penerima` yang JUGA disalin ke tabel `data_detail` (Data Detail, cover PDF, sumber proses Pembayaran). Edit data harus menyamakan
+// salinan itu untuk kolom-kolom ini -- sama seperti Kelola Data (kelolaData.ts). Berkas (link_*), koordinat, dan kolom administrasi
+// lain TIDAK ada di data_detail sehingga sengaja tidak termasuk. `rumah_ibadah_id` (tautan ke rumah ibadah) hanya ikut bila kode lain
+// mengisinya ke setValues; selama belum ada, entri ini tidak berpengaruh.
+const KOLOM_SALINAN_DATA_DETAIL = new Set([
+  "nama", "nik", "jenis_kelamin", "tempat_lahir", "tanggal_lahir", "alamat", "tempat_tugas", "alamat_tugas", "kelurahan",
+  "nama_rekening", "nomor_rekening", "kantor_cabang", "no_kontak", "status_bpjs_tk", "umur", "rumah_ibadah_id",
+]);
+
 export const MAP_IDX_KE_KOLOM_BERKAS: Record<number, string> = {
   18: "link_ktp",
   19: "link_buku_rekening",
@@ -708,9 +724,9 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
     }
 
     // ── Validasi server (port Kode.gs baris 1087-1100) ──
-    if ((umurHitung ?? -1) < 18) {
-      return { sukses: false, pesan: "GAGAL: Usia di bawah 18 tahun tidak memenuhi syarat." };
-    }
+    // Tanggal lahir: kalender sah, tahun >= 1900, tidak di masa depan, umur 18-100 (validasiPenerima.ts; berlaku utk semua peran).
+    const cekTglLahir = periksaTanggalLahir(tglLahirRaw, { tahunAktif: TAHUN_AKTIF, hariIni: tanggalHariIniWIB() });
+    if (!cekTglLahir.ok) return { sukses: false, pesan: cekTglLahir.pesan };
     if (!nama || nik.length !== 16 || nomorRekening.length !== 14 || !layanan || !kecamatan) {
       return { sukses: false, pesan: "GAGAL: Data wajib tidak lengkap atau format NIK/Rekening salah." };
     }
@@ -730,6 +746,9 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
     if (!wilayahTugas.ok) return { sukses: false, pesan: wilayahTugas.pesan };
     kecamatan = wilayahTugas.kecamatan;
     kelurahan = wilayahTugas.kelurahan;
+    // Tautan ke rumah ibadah (plans/plan-penautan-rumah-ibadah-id.md): ID bila tempat tugas + alamat persis satu rumah ibadah
+    // terdaftar, selain itu null (RUMAH/LAINNYA/layanan tempat bebas). Server yang menentukan -- klien tidak perlu mengirim ID.
+    const rumahIbadahId = pilihRumahIbadahId(await cariRumahIbadah(tempatTugas, alamatTugas), kecamatan, kelurahan);
 
     // ── Domisili: kosong (formulir lama / tidak diisi) -> ikut wilayah tugas. Kewajiban mengisi
     // ditegakkan formulir (required); server hanya memvalidasi pasangan yang benar-benar dikirim.
@@ -824,7 +843,7 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
               link_domisili_kelurahan, link_formulir_pendataan, link_berkas_pendukung,
               link_foto_plank_rumah_ibadah, link_foto_lokasi_ibadah, link_foto_kegiatan_belajar,
               link_rekomendasi_bkm, link_rekomendasi_rumah_ibadah, link_domisili_rumah_ibadah,
-              id_folder_berkas, link_koordinat_lokasi,
+              id_folder_berkas, link_koordinat_lokasi, rumah_ibadah_id,
               status_verifikasi, catatan_perbedaan_nama,
               dibuat_oleh_akun_id, sync_status,
               kecamatan_domisili, kelurahan_domisili,
@@ -840,7 +859,7 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
               ${linkDomisili}, ${linkFormulirPendataan}, ${linkBerkasPendukung},
               ${linkFotoPlank}, ${linkFotoIbadah}, ${linkFotoKegiatan},
               ${linkRekomendasiBkm}, ${linkRekomendasiRi}, ${linkDomisiliRumahIbadah},
-              ${idFolderBerkas}, ${koordinatLink},
+              ${idFolderBerkas}, ${koordinatLink}, ${rumahIbadahId},
               'Proses Verifikasi', ${catatanPerbedaanNama},
               ${sesi.akunId}, 'SUKSES',
               ${kecamatanDomisili}, ${kelurahanDomisili},
@@ -1034,8 +1053,28 @@ export async function editDataPenerima(
       }
     }
 
+    // ── Layanan wajib-daftar: pasangan tempat tugas + alamat yang BARU harus persis rumah ibadah terdaftar (hanya dicek bila
+    // tempat ATAU alamat tugas berubah, supaya edit kolom lain pada data lama yang belum cocok tidak tiba-tiba gagal). Semua peran. ──
+    if (tempatBerubah) {
+      const cekDaftar = await periksaTempatTugasDariDaftar(layananSheet, tempatTugasBaruEdit, alamatTugasBaruEdit);
+      if (!cekDaftar.ok) return { sukses: false, pesan: cekDaftar.pesan };
+    }
+
     // ── Wilayah tugas saat edit (kecamatan tidak bisa diedit; hanya dicek bila tempat tugas /
     // kelurahan BERUBAH, supaya edit kolom lain pada data lama tidak tiba-tiba gagal) ──
+    // Kelurahan tugas TIDAK BOLEH dikosongkan oleh siapa pun, termasuk Admin Utama
+    // (plans/plan-perbaikan-validasi-data-penerima.md, G4).
+    const kelurahanEditBaru = teks[11] !== undefined ? rapikanTeks(teks[11]) : "";
+    const kelurahanEditBerubah = teks[11] !== undefined && kelurahanEditBaru !== rapikanTeks(rowLama.kelurahan);
+    if (kelurahanEditBerubah && !kelurahanEditBaru) {
+      return { sukses: false, pesan: "GAGAL: Kelurahan wilayah tugas wajib dipilih." };
+    }
+    if (peranSesi === "UTAMA" && kelurahanEditBerubah) {
+      const kecBarisUtama = rapikanTeks(rowLama.kecamatan);
+      if (!(await kelurahanAdaDiKecamatan(kecBarisUtama, kelurahanEditBaru))) {
+        return { sukses: false, pesan: "GAGAL: Kelurahan " + kelurahanEditBaru + " tidak berada di Kecamatan " + kecBarisUtama + "." };
+      }
+    }
     if (peranSesi !== "UTAMA") {
       const kecBaris = rapikanTeks(rowLama.kecamatan);
       const kelTerkunci = rapikanTeks(kelurahanTerkunciDari(sesi));
@@ -1072,12 +1111,11 @@ export async function editDataPenerima(
       }
     }
 
-    // Validasi umur bila tanggal lahir berubah (port Kode.gs baris 2682-2687)
+    // Validasi tanggal lahir bila berubah (port Kode.gs baris 2682-2687, diperketat: kalender sah, tahun >= 1900,
+    // tidak di masa depan, umur 18-100; sebelumnya hanya umur < 18 sehingga tahun 0199 dan tanggal masa depan lolos).
     if (teks[5] !== undefined) {
-      const umurCekBaru = hitungUmur(String(teks[5]).trim());
-      if (umurCekBaru !== null && umurCekBaru < 18) {
-        return { sukses: false, pesan: "GAGAL: Usia di bawah 18 tahun tidak memenuhi syarat." };
-      }
+      const cekTglEdit = periksaTanggalLahir(String(teks[5]).trim(), { tahunAktif: TAHUN_AKTIF, hariIni: tanggalHariIniWIB() });
+      if (!cekTglEdit.ok) return { sukses: false, pesan: cekTglEdit.pesan };
     }
 
     // ── Bangun SET clause dinamis ──
@@ -1150,6 +1188,17 @@ export async function editDataPenerima(
       });
     }
 
+    // Tautan rumah ibadah ikut diperbarui hanya bila tempat/alamat tugas berubah (plans/plan-penautan-rumah-ibadah-id.md);
+    // null bila tempat yang baru bukan rumah ibadah terdaftar. Edit kolom lain tidak menyentuh tautan.
+    if (setValues["tempat_tugas"] !== undefined || setValues["alamat_tugas"] !== undefined) {
+      const tempatAkhir = setValues["tempat_tugas"] !== undefined ? setValues["tempat_tugas"] : rowLama.tempat_tugas;
+      const alamatAkhir = setValues["alamat_tugas"] !== undefined ? setValues["alamat_tugas"] : rowLama.alamat_tugas;
+      const kelurahanAkhir = setValues["kelurahan"] !== undefined ? setValues["kelurahan"] : rowLama.kelurahan;
+      setValues["rumah_ibadah_id"] = pilihRumahIbadahId(
+        await cariRumahIbadah(tempatAkhir, alamatAkhir), rowLama.kecamatan, kelurahanAkhir,
+      );
+    }
+
     // Plan wajib lapor perbaikan (2026-10-22): user (bukan Admin Utama) mengganti berkas pada data Berkas Tidak Lengkap ->
     // catat waktunya di server supaya Admin Utama tahu walau user menutup tab sebelum menekan "Laporkan Sudah Diperbaiki".
     // Status dibaca dari baris yang sudah dimuat di atas (tanpa query baru). Perubahan teks saja TIDAK memicu.
@@ -1178,11 +1227,26 @@ export async function editDataPenerima(
     const setParts = setCols.map((col, i) => `${col} = $${i + 1}`).join(", ");
     const whereIdx = setCols.length + 1;
 
-    // UPDATE data penerima secara langsung di Postgres
-    await sql.unsafe(
-      `update penerima set ${setParts} where id = $${whereIdx} and tahun = $${whereIdx + 1}`,
-      [...setVals, id, TAHUN_AKTIF],
-    );
+    // UPDATE data penerima secara langsung di Postgres, DAN salinannya di data_detail untuk kolom yang disalin (KOLOM_SALINAN_DATA_DETAIL).
+    // Dulu hanya `penerima` yang diubah sehingga Data Detail/cover/sumber Pembayaran tertinggal (mis. rekening atau nama yang sudah dikoreksi
+    // petugas). Satu transaksi: salah satu gagal = tidak ada yang berubah. Baris data_detail belum ada (belum "Memenuhi Syarat") -> UPDATE
+    // 0 baris, aman. Di dalam sql.begin hanya boleh memakai `trx` (pool 2 koneksi; lihat _shared/db.ts).
+    const kolomDetail = setCols.filter((c) => KOLOM_SALINAN_DATA_DETAIL.has(c));
+    // deno-lint-ignore no-explicit-any
+    await sql.begin(async (trx: any) => {
+      await trx.unsafe(
+        `update penerima set ${setParts} where id = $${whereIdx} and tahun = $${whereIdx + 1}`,
+        [...setVals, id, TAHUN_AKTIF],
+      );
+      if (kolomDetail.length > 0) {
+        // Nama kolom datang dari daftar tetap KOLOM_SALINAN_DATA_DETAIL -- bukan dari input pengguna.
+        const setDetail = kolomDetail.map((c, i) => `${c} = $${i + 1}`).join(", ");
+        await trx.unsafe(
+          `update data_detail set ${setDetail}, diperbarui_at = now() where penerima_id = $${kolomDetail.length + 1} and tahun = $${kolomDetail.length + 2}`,
+          [...kolomDetail.map((c) => setValues[c]), id, TAHUN_AKTIF],
+        );
+      }
+    });
 
     // ── Catat riwayat edit (port catatRiwayatEdit_ Kode.gs baris 3129-3146) ──
     if (riwayat.length > 0) {

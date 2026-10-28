@@ -6,7 +6,9 @@ import { formatTanggalDDMMYYYY } from "../_shared/tanggal.ts";
 import { panggilGasAdmin } from "../_shared/gasDrive.ts";
 import { hapusObjekStorage, pathStorageDariUrl } from "../_shared/storage.ts";
 import { getMasterLayanan } from "./master.ts";
-import { hitungUmur, labelKolom, MAP_IDX_KE_KOLOM_BERKAS, tglDDMMYYYYkeISO } from "./penerima.ts";
+import { labelKolom, MAP_IDX_KE_KOLOM_BERKAS, tglDDMMYYYYkeISO } from "./penerima.ts";
+import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
+import { cariRumahIbadah, periksaTempatTugasDariDaftar, pilihRumahIbadahId } from "../_shared/wilayahTugas.ts";
 
 // ---------------------------------------------------------------------------
 // KELOLA DATA & BERKAS -- CRUD penuh khusus Admin Utama (role "UTAMA") atas seluruh data
@@ -286,12 +288,6 @@ function isoDariRow(v: unknown): string {
   return str(v).slice(0, 10);
 }
 
-function tanggalIsoValid(iso: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
-  const d = new Date(iso + "T00:00:00Z");
-  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso;
-}
-
 export async function adminUbahData(
   token: string,
   id: number,
@@ -375,6 +371,10 @@ export async function adminUbahData(
       if ("kecamatan" in baru && !KECAMATAN_MEDAN_URUT.includes(baru.kecamatan)) {
         return { sukses: false, pesan: "GAGAL: Kecamatan tidak dikenal." };
       }
+      if (("kecamatan" in baru || "kelurahan" in baru) && !eff("kelurahan")) {
+        // Kelurahan tugas tidak boleh kosong (sebelumnya pemeriksaan dilewati bila kosong -> bisa tersimpan kosong).
+        return { sukses: false, pesan: "GAGAL: Kelurahan wilayah tugas wajib dipilih." };
+      }
       if (("kecamatan" in baru || "kelurahan" in baru) && eff("kelurahan")) {
         const w = await trx`
           select 1 from wilayah
@@ -384,10 +384,10 @@ export async function adminUbahData(
         if (w.length === 0) return { sukses: false, pesan: "GAGAL: Kelurahan tidak sesuai dengan kecamatan yang dipilih." };
       }
       if ("tanggal_lahir" in baru) {
-        if (!tanggalIsoValid(baru.tanggal_lahir)) return { sukses: false, pesan: "GAGAL: Tanggal lahir tidak valid." };
-        const umur = hitungUmur(baru.tanggal_lahir);
-        if (umur === null || umur < 18) return { sukses: false, pesan: "GAGAL: Usia di bawah 18 tahun tidak memenuhi syarat." };
-        setValues["umur"] = umur;
+        // Aturan sama dengan input baru & edit (validasiPenerima.ts): kalender sah, tahun >= 1900, tidak di masa depan, umur 18-100.
+        const cekTgl = periksaTanggalLahir(baru.tanggal_lahir, { tahunAktif: TAHUN_AKTIF, hariIni: tanggalHariIniWIB() });
+        if (!cekTgl.ok) return { sukses: false, pesan: cekTgl.pesan };
+        setValues["umur"] = cekTgl.umur;
       }
 
       // ── Duplikat (semua memakai trx) ──
@@ -400,6 +400,12 @@ export async function adminUbahData(
         if (d.length > 0) return { sukses: false, pesan: "GAGAL: Nomor rekening " + baru.nomor_rekening + " sudah digunakan." };
       }
       const layananEff = eff("layanan").toUpperCase();
+      if ("tempat_tugas" in baru || "alamat_tugas" in baru || "layanan" in baru) {
+        // Layanan wajib-daftar: pasangan tempat + alamat hasil akhir harus persis rumah ibadah terdaftar. Ini juga menutup
+        // jalan pintas "ubah layanan" (mis. Bilal Jenazah -> Nazir Masjid dengan tempat ketikan bebas). Memakai trx (pool kecil).
+        const cekDaftar = await periksaTempatTugasDariDaftar(layananEff, eff("tempat_tugas"), eff("alamat_tugas"), trx);
+        if (!cekDaftar.ok) return { sukses: false, pesan: cekDaftar.pesan };
+      }
       if (
         ("tempat_tugas" in baru || "alamat_tugas" in baru || "layanan" in baru) &&
         LAYANAN_BATASI_TEMPAT_TUGAS.includes(layananEff)
@@ -441,10 +447,17 @@ export async function adminUbahData(
           sesudah: k === "tanggal_lahir" ? formatTanggalDDMMYYYY(baru[k]) : baru[k],
         });
       }
+      // Tautan rumah ibadah (plans/plan-penautan-rumah-ibadah-id.md) ikut diperbarui hanya bila tempat/alamat/layanan berubah;
+      // null bila hasil akhirnya bukan rumah ibadah terdaftar. Memakai trx (pool kecil, lihat catatan di atas berkas).
+      if ("tempat_tugas" in baru || "alamat_tugas" in baru || "layanan" in baru) {
+        setValues["rumah_ibadah_id"] = pilihRumahIbadahId(
+          await cariRumahIbadah(eff("tempat_tugas"), eff("alamat_tugas"), trx), eff("kecamatan"), eff("kelurahan"),
+        );
+      }
       const cols = Object.keys(setValues);
       const vals = cols.map((c) => setValues[c]);
       const setSql = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
-      // Nama kolom datang dari daftar tetap KOLOM_EDIT/umur -- bukan dari input pengguna.
+      // Nama kolom datang dari daftar tetap KOLOM_EDIT/umur/rumah_ibadah_id -- bukan dari input pengguna.
       await trx.unsafe(
         `update penerima set ${setSql}, diperbarui_at = now() where id = $${cols.length + 1} and tahun = $${cols.length + 2}`,
         [...vals, idNum, th],

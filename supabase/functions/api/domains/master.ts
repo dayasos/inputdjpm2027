@@ -1,7 +1,7 @@
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
 import type { DataSesi } from "../_shared/sesi.ts";
-import { rapikanTeks } from "../_shared/config.ts";
+import { LAYANAN_BATASI_TEMPAT_TUGAS, rapikanTeks, TAHUN_AKTIF } from "../_shared/config.ts";
 // Catatan: akses.ts juga meng-import master.ts (siklus). Aman karena kelurahanTerkunciDari hanya
 // dipanggil di dalam fungsi (saat request), bukan saat modul dimuat.
 import { kelurahanTerkunciDari } from "../_shared/akses.ts";
@@ -441,6 +441,66 @@ export async function ambilDaftarRumahIbadahAdmin(
   }
 }
 
+// Rumah ibadah lain (id berbeda) dengan nama + alamat yang sama persis setelah dinormalisasi (rapikanTeks). `q` = pool atau trx.
+// deno-lint-ignore no-explicit-any
+async function cariKembarRumahIbadah(q: any, kecualiId: number | null, nama: string, alamat: string) {
+  const n = rapikanTeks(nama);
+  const a = rapikanTeks(alamat);
+  // Dua kueri terpisah (bukan fragmen SQL bersarang) -- lebih sederhana dan tidak bergantung pada perilaku pustaka di dalam transaksi.
+  const rows = kecualiId == null
+    ? await q`
+        select id, kecamatan, kelurahan
+        from rumah_ibadah
+        where upper(btrim(regexp_replace(nama, '\\s+', ' ', 'g'))) = ${n}
+          and upper(btrim(regexp_replace(coalesce(alamat, ''), '\\s+', ' ', 'g'))) = ${a}
+        limit 1
+      `
+    : await q`
+        select id, kecamatan, kelurahan
+        from rumah_ibadah
+        where upper(btrim(regexp_replace(nama, '\\s+', ' ', 'g'))) = ${n}
+          and upper(btrim(regexp_replace(coalesce(alamat, ''), '\\s+', ' ', 'g'))) = ${a}
+          and id <> ${kecualiId}
+        limit 1
+      `;
+  return rows.length > 0 ? { id: Number(rows[0].id), kecamatan: String(rows[0].kecamatan || ""), kelurahan: String(rows[0].kelurahan || "") } : null;
+}
+
+function pesanKembarRumahIbadah(k: { id: number; kecamatan: string; kelurahan: string }): string {
+  return "GAGAL: Nama dan alamat yang sama persis sudah ada pada rumah ibadah lain (ID " + k.id + ", Kec. " + k.kecamatan +
+    ", Kel. " + k.kelurahan + "). Nama + alamat harus unik supaya penerima bisa ditautkan ke rumah ibadah yang tepat. " +
+    "Bedakan alamatnya atau ubah data yang sudah ada.";
+}
+
+// Jumlah penerima (tahun aktif) yang tertaut ke satu rumah ibadah -- dasar dialog konfirmasi sebelum nama/alamat diubah.
+export async function hitungPemakaianRumahIbadah(token: string, idRumahIbadah: number) {
+  let sesi;
+  try {
+    sesi = await wajibSesi(token);
+  } catch (e) {
+    return { sukses: false, pesan: e instanceof Error ? e.message : String(e) };
+  }
+  if (sesi.role !== "UTAMA") {
+    return { sukses: false, pesan: "Akses ditolak: Hanya Admin Utama yang dapat melihat pemakaian rumah ibadah." };
+  }
+  const id = Number(idRumahIbadah);
+  if (!id || id <= 0) return { sukses: false, pesan: "ID rumah ibadah tidak valid." };
+  try {
+    const rows = await sql`
+      select layanan, count(*)::int as n
+      from penerima
+      where tahun = ${TAHUN_AKTIF} and rumah_ibadah_id = ${id}
+      group by layanan
+      order by n desc, layanan asc
+    `;
+    const perLayanan = rows.map((r: { layanan: unknown; n: unknown }) => ({ layanan: String(r.layanan || ""), jumlah: Number(r.n) || 0 }));
+    const jumlah = perLayanan.reduce((a: number, b: { jumlah: number }) => a + b.jumlah, 0);
+    return { sukses: true, id, tahun: TAHUN_AKTIF, jumlah, perLayanan };
+  } catch (err) {
+    return { sukses: false, pesan: "Gagal menghitung pemakaian rumah ibadah: " + (err instanceof Error ? err.message : String(err)) };
+  }
+}
+
 export async function tambahRumahIbadah(
   token: string,
   payload: { jenis: string; kecamatan: string; kelurahan: string; nama: string; alamat?: string },
@@ -469,6 +529,10 @@ export async function tambahRumahIbadah(
   if (!nama || nama.length < 3) return { sukses: false, pesan: "Nama tempat ibadah wajib diisi minimal 3 karakter." };
 
   try {
+    // Nama + alamat harus unik di seluruh daftar: itulah kunci yang menautkan penerima ke rumah ibadah
+    // (plans/plan-penautan-rumah-ibadah-id.md). Dua baris kembar membuat penautan ambigu.
+    const kembar = await cariKembarRumahIbadah(sql, null, nama, alamat);
+    if (kembar) return { sukses: false, pesan: pesanKembarRumahIbadah(kembar) };
     const inserted = await sql`
       insert into rumah_ibadah (jenis, kecamatan, kelurahan, nama, alamat)
       values (${jenis}, ${kecamatan}, ${kelurahan}, ${nama}, ${alamat})
@@ -486,7 +550,13 @@ export async function tambahRumahIbadah(
 
 export async function ubahRumahIbadah(
   token: string,
-  payload: { id: number; jenis: string; kecamatan: string; kelurahan: string; nama: string; alamat?: string },
+  payload: {
+    id: number; jenis: string; kecamatan: string; kelurahan: string; nama: string; alamat?: string;
+    // Jumlah penerima tertaut yang dilihat admin di dialog konfirmasi. WAJIB bila perubahan nama/alamat akan memperbarui >= 1 penerima:
+    // server menolak (perluKonfirmasi) bila tidak dikirim -- sehingga tidak ada klien (halaman lama/permintaan langsung) yang bisa
+    // memperbarui penerima secara diam-diam -- dan menolak (jumlahBerubah) bila berbeda dari jumlah sebenarnya saat disimpan.
+    jumlahDikonfirmasi?: number;
+  },
 ) {
   let sesi;
   try {
@@ -514,17 +584,141 @@ export async function ubahRumahIbadah(
   if (!kelurahan) return { sukses: false, pesan: "Kelurahan wajib dipilih." };
   if (!nama || nama.length < 3) return { sukses: false, pesan: "Nama tempat ibadah wajib diisi minimal 3 karakter." };
 
+  const namaBaru = rapikanTeks(nama);
+  const alamatBaru = rapikanTeks(alamat);
+  const dikonfirmasi = payload?.jumlahDikonfirmasi == null ? null : Number(payload.jumlahDikonfirmasi);
+
   try {
-    const updated = await sql`
-      update rumah_ibadah
-      set jenis = ${jenis}, kecamatan = ${kecamatan}, kelurahan = ${kelurahan}, nama = ${nama}, alamat = ${alamat}
-      where id = ${id}
-      returning id
-    `;
-    if (updated.length === 0) {
-      return { sukses: false, pesan: "Data rumah ibadah tidak ditemukan atau sudah dihapus." };
-    }
-    return { sukses: true, pesan: `Data rumah ibadah "${nama}" berhasil diperbarui.` };
+    // Satu transaksi: rumah ibadah + penerima + data_detail + riwayat + log berubah bersama atau tidak sama sekali.
+    // Di dalam sql.begin hanya boleh memakai `trx` (pool 2 koneksi; lihat _shared/db.ts).
+    // deno-lint-ignore no-explicit-any
+    return await sql.begin(async (trx: any) => {
+      const lamaRows = await trx`
+        select id, jenis, kecamatan, kelurahan, nama, alamat
+        from rumah_ibadah where id = ${id} for update
+      `;
+      if (lamaRows.length === 0) {
+        return { sukses: false, pesan: "Data rumah ibadah tidak ditemukan atau sudah dihapus." };
+      }
+      const lama = lamaRows[0];
+      const namaBerubah = rapikanTeks(lama.nama) !== namaBaru;
+      const alamatBerubah = rapikanTeks(lama.alamat) !== alamatBaru;
+      const wilayahBerubah = rapikanTeks(lama.kecamatan) !== rapikanTeks(kecamatan) ||
+        rapikanTeks(lama.kelurahan) !== rapikanTeks(kelurahan);
+
+      if (namaBerubah || alamatBerubah) {
+        const kembar = await cariKembarRumahIbadah(trx, id, nama, alamat);
+        if (kembar) return { sukses: false, pesan: pesanKembarRumahIbadah(kembar) };
+      }
+
+      // Penerima (tahun aktif) yang tertaut ke rumah ibadah ini lewat ID -- BUKAN lewat kecocokan nama.
+      const tertaut = (namaBerubah || alamatBerubah || wilayahBerubah)
+        ? await trx`
+            select id, layanan, nama
+            from penerima
+            where tahun = ${TAHUN_AKTIF} and rumah_ibadah_id = ${id}
+            order by id
+          `
+        : [];
+
+      if (wilayahBerubah && tertaut.length > 0) {
+        return {
+          sukses: false,
+          pesan: "GAGAL: Kecamatan/Kelurahan rumah ibadah ini tidak dapat diubah karena masih dipakai " + tertaut.length +
+            " penerima (tahun " + TAHUN_AKTIF + "). Perubahan wilayah memengaruhi kuota dan hak akses sehingga belum disebarkan otomatis. " +
+            "Pindahkan penerima terkait lebih dulu, atau ubah hanya nama/alamat.",
+        };
+      }
+
+      const menyebar = tertaut.length > 0 && (namaBerubah || alamatBerubah);
+      if (menyebar) {
+        if (dikonfirmasi == null || !Number.isFinite(dikonfirmasi)) {
+          return {
+            sukses: false,
+            perluKonfirmasi: true,
+            jumlah: tertaut.length,
+            pesan: "GAGAL: Perubahan ini akan memperbarui " + tertaut.length + " penerima yang memakai rumah ibadah ini, sehingga perlu " +
+              "konfirmasi. Muat ulang halaman Data Ibadah, lalu simpan kembali dan setujui dialog konfirmasinya.",
+          };
+        }
+        if (dikonfirmasi !== tertaut.length) {
+          return {
+            sukses: false,
+            jumlahBerubah: true,
+            pesan: "GAGAL: Jumlah penerima yang terdampak berubah (dari " + dikonfirmasi + " menjadi " + tertaut.length +
+              ") sejak Anda membuka dialog konfirmasi. Muat ulang lalu simpan kembali.",
+          };
+        }
+
+        // Pra-periksa indeks unik uq_penerima_*_tempat_tugas (layanan tertentu): tolak SEBELUM menulis apa pun.
+        // Satu kueri per layanan berbatas (maks. 5) dengan kesamaan biasa -- tanpa fungsi bantu daftar milik pustaka.
+        const layananBatas = [...new Set(tertaut.map((t: { layanan: unknown }) => String(t.layanan || "")))]
+          .filter((l) => (LAYANAN_BATASI_TEMPAT_TUGAS as string[]).includes(l));
+        for (const lay of layananBatas) {
+          const bentrok = await trx`
+            select nama, layanan from penerima
+            where tahun = ${TAHUN_AKTIF} and layanan = ${lay}
+              and tempat_tugas = ${namaBaru} and alamat_tugas = ${alamatBaru}
+              and rumah_ibadah_id is distinct from ${id}
+            limit 1
+          `;
+          if (bentrok.length > 0) {
+            return {
+              sukses: false,
+              pesan: "GAGAL: Nama + alamat baru sudah dipakai penerima " + String(bentrok[0].nama || "") + " untuk layanan " +
+                String(bentrok[0].layanan || "") + " (belum tertaut ke rumah ibadah ini). Selesaikan data itu lebih dulu.",
+            };
+          }
+        }
+
+        // Riwayat dicatat SEBELUM data penerima diubah (supaya nilai lama terbaca).
+        if (namaBerubah) {
+          await trx`
+            insert into riwayat_edit (waktu, editor_username, editor_role, penerima_id, tahun, nama_penerima, kolom_diubah, sebelum, sesudah)
+            select now(), ${sesi.username}::text, ${sesi.role}::text, p.id, p.tahun, p.nama, 'Tempat Tugas', p.tempat_tugas, ${namaBaru}::text
+            from penerima p
+            where p.tahun = ${TAHUN_AKTIF} and p.rumah_ibadah_id = ${id} and p.tempat_tugas is distinct from ${namaBaru}
+          `;
+        }
+        if (alamatBerubah) {
+          await trx`
+            insert into riwayat_edit (waktu, editor_username, editor_role, penerima_id, tahun, nama_penerima, kolom_diubah, sebelum, sesudah)
+            select now(), ${sesi.username}::text, ${sesi.role}::text, p.id, p.tahun, p.nama, 'Alamat Tugas', p.alamat_tugas, ${alamatBaru}::text
+            from penerima p
+            where p.tahun = ${TAHUN_AKTIF} and p.rumah_ibadah_id = ${id} and p.alamat_tugas is distinct from ${alamatBaru}
+          `;
+        }
+        await trx`
+          update penerima set tempat_tugas = ${namaBaru}, alamat_tugas = ${alamatBaru}, diperbarui_at = now()
+          where tahun = ${TAHUN_AKTIF} and rumah_ibadah_id = ${id}
+        `;
+        // Snapshot data_detail (Data Detail, cover PDF) ikut disamakan.
+        await trx`
+          update data_detail set tempat_tugas = ${namaBaru}, alamat_tugas = ${alamatBaru}, diperbarui_at = now()
+          where tahun = ${TAHUN_AKTIF} and rumah_ibadah_id = ${id}
+        `;
+        await trx`
+          insert into log_perubahan_rumah_ibadah
+            (username, rumah_ibadah_id, aksi, nama_lama, alamat_lama, nama_baru, alamat_baru, tahun, jumlah, ids)
+          values (${sesi.username}, ${id}, 'UBAH', ${String(lama.nama || "")}, ${String(lama.alamat || "")}, ${nama}, ${alamat},
+                  ${TAHUN_AKTIF}, ${tertaut.length}, ${trx.json(tertaut.map((t: { id: unknown }) => Number(t.id)))})
+        `;
+      }
+
+      await trx`
+        update rumah_ibadah
+        set jenis = ${jenis}, kecamatan = ${kecamatan}, kelurahan = ${kelurahan}, nama = ${nama}, alamat = ${alamat}
+        where id = ${id}
+      `;
+      const pesanDasar = `Data rumah ibadah "${nama}" berhasil diperbarui.`;
+      return menyebar
+        ? {
+          sukses: true,
+          pesan: pesanDasar + " " + tertaut.length + " penerima yang tertaut ikut diperbarui.",
+          jumlahPenerimaDiperbarui: tertaut.length,
+        }
+        : { sukses: true, pesan: pesanDasar, jumlahPenerimaDiperbarui: 0 };
+    });
   } catch (err) {
     return { sukses: false, pesan: "Gagal memperbarui rumah ibadah: " + (err instanceof Error ? err.message : String(err)) };
   }
@@ -545,16 +739,36 @@ export async function hapusRumahIbadah(token: string, idRumahIbadah: number) {
   if (!id || id <= 0) return { sukses: false, pesan: "ID rumah ibadah tidak valid." };
 
   try {
+    // Satu pernyataan: hapus HANYA bila tidak ada penerima (tahun mana pun) yang tertaut -- tidak ada celah antara
+    // "cek dipakai" dan "hapus". Rumah ibadah yang masih dipakai tidak boleh hilang diam-diam.
     const deleted = await sql`
-      delete from rumah_ibadah
-      where id = ${id}
-      returning id, nama
+      delete from rumah_ibadah r
+      where r.id = ${id}
+        and not exists (select 1 from penerima p where p.rumah_ibadah_id = r.id)
+      returning r.id, r.nama
     `;
     if (deleted.length === 0) {
-      return { sukses: false, pesan: "Data rumah ibadah tidak ditemukan atau sudah dihapus sebelumnya." };
+      const info = await sql`
+        select r.nama, (select count(*)::int from penerima p where p.rumah_ibadah_id = r.id) as dipakai
+        from rumah_ibadah r where r.id = ${id}
+      `;
+      if (info.length === 0) {
+        return { sukses: false, pesan: "Data rumah ibadah tidak ditemukan atau sudah dihapus sebelumnya." };
+      }
+      const dipakai = Number(info[0].dipakai) || 0;
+      return {
+        sukses: false,
+        pesan: "GAGAL: Rumah ibadah \"" + String(info[0].nama || "") + "\" masih dipakai " + dipakai +
+          " penerima sehingga tidak dapat dihapus. Pindahkan atau ubah tempat tugas penerima itu lebih dulu.",
+      };
     }
     return { sukses: true, pesan: `Data rumah ibadah "${deleted[0]?.nama || ""}" berhasil dihapus.` };
   } catch (err) {
-    return { sukses: false, pesan: "Gagal menghapus data rumah ibadah: " + (err instanceof Error ? err.message : String(err)) };
+    const pesanErr = err instanceof Error ? err.message : String(err);
+    // Pengaman tingkat database (foreign key ON DELETE RESTRICT, bila diterapkan): penerima baru saja tertaut di antara pengecekan dan hapus.
+    if (/foreign key|23503/i.test(pesanErr)) {
+      return { sukses: false, pesan: "GAGAL: Rumah ibadah ini baru saja dipakai penerima sehingga tidak dapat dihapus. Muat ulang daftar lalu periksa lagi." };
+    }
+    return { sukses: false, pesan: "Gagal menghapus data rumah ibadah: " + pesanErr };
   }
 }

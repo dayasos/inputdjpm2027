@@ -12,6 +12,7 @@ import {
   getSheetName,
   getVersiAplikasi,
   hapusRumahIbadah,
+  hitungPemakaianRumahIbadah,
   tambahRumahIbadah,
   ubahRumahIbadah,
 } from "./domains/master.ts";
@@ -123,6 +124,7 @@ const ALLOWED: Record<string, Handler> = {
   tambahRumahIbadah,
   ubahRumahIbadah,
   hapusRumahIbadah,
+  hitungPemakaianRumahIbadah,
   getKemenagData,
   getSheetName,
   getVersiAplikasi,

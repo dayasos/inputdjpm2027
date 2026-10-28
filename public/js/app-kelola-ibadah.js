@@ -70,6 +70,11 @@
   // ---------------------------------------------------------------------------
   function $(id) { return document.getElementById(id); }
 
+  // Normalisasi sama dengan rapikanTeks di server: huruf besar + spasi ganda dirapikan.
+  function normTeks(v) {
+    return String(v == null ? '' : v).trim().replace(/\s+/g, ' ').toUpperCase();
+  }
+
   function esc(val) {
     if (typeof window.esc === 'function') return window.esc(val);
     return String(val === null || val === undefined ? '' : val)
@@ -1056,22 +1061,84 @@
 
     if (id) {
       payload.id = Number(id);
+
+      var pulihkanTombol = function () {
+        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = 'Simpan Data'; }
+      };
+      var kirimUbah = function () {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            pulihkanTombol();
+            if (res && res.sukses) {
+              if (typeof tampilkanToast === 'function') tampilkanToast(res.pesan || 'Data berhasil diperbarui!', 'sukses');
+              $('modal-form-rumah-ibadah')?.classList.add('hidden');
+              muat(false);
+            } else {
+              if (typeof tampilkanToast === 'function') tampilkanToast(res ? res.pesan : 'Gagal memperbarui data.', 'gagal');
+            }
+          })
+          .withFailureHandler(function (err) {
+            pulihkanTombol();
+            if (typeof tampilkanToast === 'function') tampilkanToast('Error: ' + (err && err.message ? err.message : err), 'gagal');
+          })
+          .ubahRumahIbadah(token(), payload);
+      };
+
+      // Penerima yang memakai rumah ibadah ini tertaut lewat ID. Bila nama/alamat/wilayah berubah, tanyakan dulu berapa yang terdampak
+      // (server tetap menjadi penentu terakhir: wilayah ditolak bila masih dipakai, jumlah divalidasi ulang saat menyimpan).
+      // Bila data pembanding tidak ada (daftar baru dimuat ulang), anggap nama/alamat BERUBAH supaya jumlah terdampak tetap diperiksa dan
+      // dialog konfirmasi tetap muncul -- jangan pernah melewatinya karena "tidak tahu". Wilayah dianggap tidak berubah (server yang menolak).
+      var asli = S.cacheBaris[payload.id];
+      var namaAlamatBerubah = !asli || (normTeks(asli.nama) !== normTeks(nama) || normTeks(asli.alamat) !== normTeks(alamat));
+      var wilayahBerubah = !!asli && (normTeks(asli.kecamatan) !== normTeks(kecamatan) || normTeks(asli.kelurahan) !== normTeks(kelurahan));
+      if (!namaAlamatBerubah && !wilayahBerubah) { kirimUbah(); return; }
+
       google.script.run
-        .withSuccessHandler(function (res) {
-          if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = 'Simpan Data'; }
-          if (res && res.sukses) {
-            if (typeof tampilkanToast === 'function') tampilkanToast(res.pesan || 'Data berhasil diperbarui!', 'sukses');
-            $('modal-form-rumah-ibadah')?.classList.add('hidden');
-            muat(false);
-          } else {
-            if (typeof tampilkanToast === 'function') tampilkanToast(res ? res.pesan : 'Gagal memperbarui data.', 'gagal');
+        .withSuccessHandler(async function (pakai) {
+          if (!pakai || !pakai.sukses) {
+            pulihkanTombol();
+            if (typeof tampilkanToast === 'function') tampilkanToast((pakai && pakai.pesan) || 'Tidak dapat memeriksa pemakaian rumah ibadah. Coba lagi.', 'gagal');
+            return;
           }
+          var jumlah = Number(pakai.jumlah) || 0;
+          if (jumlah === 0) { kirimUbah(); return; }
+
+          var rincian = (pakai.perLayanan || []).map(function (l) { return '- ' + l.layanan + ': ' + l.jumlah; }).join('\n');
+          if (wilayahBerubah) {
+            pulihkanTombol();
+            if (typeof tampilkanToast === 'function') {
+              tampilkanToast('Kecamatan/Kelurahan tidak dapat diubah: rumah ibadah ini masih dipakai ' + jumlah + ' penerima (tahun ' + pakai.tahun + '). Ubah hanya nama/alamat, atau pindahkan penerima terkait lebih dulu.', 'gagal');
+            }
+            return;
+          }
+
+          var yakin = (typeof window.konfirmasiAksi === 'function')
+            ? await window.konfirmasiAksi({
+              judul: 'Perbarui Data Penerima Terkait',
+              pesan: jumlah + ' penerima (tahun ' + pakai.tahun + ') memakai rumah ibadah ini:\n' + rincian +
+                '\n\nNama/alamat tempat tugas mereka akan IKUT DIPERBARUI otomatis (Data Detail dan cover PDF juga). Rumah ibadah lain yang namanya sama tidak terpengaruh.\n\nLanjutkan?',
+              tipe: 'warning',
+              teksKonfirmasi: 'Ya, Perbarui ' + jumlah + ' Penerima',
+              teksBatal: 'Batal'
+            })
+            : window.confirm(jumlah + ' penerima akan ikut diperbarui. Lanjutkan?');
+          if (!yakin) { pulihkanTombol(); return; }
+
+          payload.jumlahDikonfirmasi = jumlah;
+          kirimUbah();
         })
         .withFailureHandler(function (err) {
-          if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = 'Simpan Data'; }
+          // Server lama (fungsi belum di-deploy ulang) belum mengenal aksi penghitung ini: jawabannya "Aksi tidak diizinkan: ...".
+          // Hanya untuk galat JENIS ITU tampilan menyimpan seperti perilaku lama (server lama memang tidak menyebarkan ke penerima),
+          // supaya tampilan baru dan fungsi baru boleh dirilis berurutan. Galat lain (jaringan, sesi, dll.) TIDAK menyimpan.
+          if (err && typeof err.message === 'string' && /^Aksi tidak diizinkan: hitungPemakaianRumahIbadah/.test(err.message)) {
+            kirimUbah();
+            return;
+          }
+          pulihkanTombol();
           if (typeof tampilkanToast === 'function') tampilkanToast('Error: ' + (err && err.message ? err.message : err), 'gagal');
         })
-        .ubahRumahIbadah(token(), payload);
+        .hitungPemakaianRumahIbadah(token(), payload.id);
     } else {
       google.script.run
         .withSuccessHandler(function (res) {

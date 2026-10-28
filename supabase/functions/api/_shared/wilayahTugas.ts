@@ -1,6 +1,7 @@
 import { sql } from "./db.ts";
 import { rapikanTeks } from "./config.ts";
 import { kelurahanTerkunciDari } from "./akses.ts";
+import { putuskanKelurahanTugas } from "./validasiPenerima.ts";
 import type { DataSesi } from "./sesi.ts";
 
 // ---------------------------------------------------------------------------
@@ -35,7 +36,9 @@ export const LAYANAN_KEMENAG_BEBAS = [
 // Layanan yang tempat tugasnya WAJIB rumah ibadah terdaftar (tidak punya opsi RUMAH/LAINNYA di
 // formulir). Sama dengan kategoriModal (app-admin.js) + Kemenag bebas (ROLE_KEMENAG_BEBAS di
 // app-core.js). GMM & USTADZ sengaja TIDAK di sini: punya opsi RUMAH/LAINNYA (isi manual).
-// Hanya diberlakukan untuk input baru -- 250 dari 335 baris lama tidak cocok dengan tabel.
+// Diberlakukan untuk input baru (semua peran, termasuk UTAMA) dan untuk perubahan tempat tugas/layanan
+// (edit data & Kelola Data). Data lama yang sudah tidak cocok dibiarkan selama tempat tugas/layanannya
+// tidak diubah, supaya edit kolom lain tidak tiba-tiba gagal.
 export const LAYANAN_WAJIB_RUMAH_IBADAH = [
   "IMAM MASJID",
   "KHATIB JUMAT",
@@ -51,26 +54,83 @@ export const LAYANAN_WAJIB_RUMAH_IBADAH = [
   "PENATUA GEREJA",
 ];
 
-type LokasiRumahIbadah = { kecamatan: string; kelurahan: string };
+// `id` = rumah_ibadah.id (bigint -> Number); null bila tidak tersedia. Dipakai menautkan penerima ke rumah ibadah
+// (penerima.rumah_ibadah_id, plans/plan-penautan-rumah-ibadah-id.md).
+type LokasiRumahIbadah = { id: number | null; kecamatan: string; kelurahan: string };
+
+/**
+ * Pilih ID rumah ibadah untuk sebuah penerima dari hasil `cariRumahIbadah` (nama + alamat persis).
+ * - tepat 1 kecocokan  -> ID itu
+ * - >1 kecocokan       -> dipersempit dengan kecamatan + kelurahan penerima; hanya bila tersisa tepat 1 -> ID itu
+ * - 0 kecocokan / tetap ambigu -> null (penerima dibiarkan tidak tertaut; perilaku sama seperti sebelum fitur ini)
+ */
+export function pilihRumahIbadahId(lokasi: LokasiRumahIbadah[], kecamatan: unknown, kelurahan: unknown): number | null {
+  const sah = lokasi.filter((l) => l.id != null && Number.isFinite(Number(l.id)));
+  if (sah.length === 1) return Number(sah[0].id);
+  if (sah.length === 0) return null;
+  const kec = rapikanTeks(kecamatan);
+  const kel = rapikanTeks(kelurahan);
+  const sempit = sah.filter((l) => l.kecamatan === kec && l.kelurahan === kel);
+  return sempit.length === 1 ? Number(sempit[0].id) : null;
+}
 
 // Semua rumah ibadah dengan nama + alamat yang sama persis (setelah rapikanTeks, normalisasi
 // yang sama dipakai saat menyimpan tempat_tugas/alamat_tugas). Bisa >1 baris: nama+alamat
 // kembar di kelurahan/kecamatan berbeda.
-export async function cariRumahIbadah(tempatTugas: string, alamatTugas: string): Promise<LokasiRumahIbadah[]> {
+// `q` = pelaksana kueri; secara bawaan pool global. Dari dalam transaksi (mis. Kelola Data) teruskan objek
+// transaksinya: pool hanya punya 2 koneksi, jadi kueri tambahan di luar transaksi bisa saling menunggu.
+export async function cariRumahIbadah(tempatTugas: string, alamatTugas: string, q: any = sql): Promise<LokasiRumahIbadah[]> {
   const nama = rapikanTeks(tempatTugas);
   const alamat = rapikanTeks(alamatTugas);
   if (!nama) return [];
-  const rows = await sql`
-    select kecamatan, kelurahan, alamat
+  const rows = await q`
+    select id, kecamatan, kelurahan, alamat
     from rumah_ibadah
     where upper(btrim(regexp_replace(nama, '\\s+', ' ', 'g'))) = ${nama}
   `;
   const hasil: LokasiRumahIbadah[] = [];
   for (const r of rows) {
     if (rapikanTeks(r.alamat) !== alamat) continue;
-    hasil.push({ kecamatan: rapikanTeks(r.kecamatan), kelurahan: rapikanTeks(r.kelurahan) });
+    hasil.push({
+      id: r.id == null ? null : Number(r.id),
+      kecamatan: rapikanTeks(r.kecamatan),
+      kelurahan: rapikanTeks(r.kelurahan),
+    });
   }
   return hasil;
+}
+
+export function layananWajibRumahIbadah(layanan: unknown): boolean {
+  return LAYANAN_WAJIB_RUMAH_IBADAH.includes(rapikanTeks(layanan));
+}
+
+// Pesan untuk input baru (ada tombol "Pilih Rumah Ibadah" di formulir).
+function pesanWajibDaftarInput(layanan: string): string {
+  return "GAGAL: Tempat tugas untuk layanan " + layanan + " wajib dipilih dari daftar rumah ibadah. " +
+    "Silakan klik tombol \"Pilih Rumah Ibadah\" lalu pilih ulang.";
+}
+
+/**
+ * Untuk PERUBAHAN tempat tugas/layanan pada data yang sudah ada (edit data & Kelola Data): layanan yang wajib
+ * memakai daftar rumah ibadah harus tetap berpasangan nama + alamat persis dengan satu baris di tabel rumah_ibadah.
+ * Layanan lain (Bilal Jenazah, Penggali Kubur, Guru Maghrib Mengaji, Ustadz/Ustadzah) lolos tanpa pemeriksaan.
+ */
+export async function periksaTempatTugasDariDaftar(
+  layanan: string,
+  tempatTugas: string,
+  alamatTugas: string,
+  q: any = sql,
+): Promise<{ ok: true } | { ok: false; pesan: string }> {
+  const lay = rapikanTeks(layanan);
+  if (!layananWajibRumahIbadah(lay)) return { ok: true };
+  const lokasi = await cariRumahIbadah(tempatTugas, alamatTugas, q);
+  if (lokasi.length > 0) return { ok: true };
+  return {
+    ok: false,
+    pesan: "GAGAL: Tempat tugas \"" + rapikanTeks(tempatTugas) + "\" (alamat \"" + rapikanTeks(alamatTugas) +
+      "\") untuk layanan " + lay + " tidak ada di daftar rumah ibadah. Nama dan alamatnya harus sama persis dengan " +
+      "daftar. Pilih dari daftar rumah ibadah, atau minta Admin menambah/memperbaiki data di Manajemen Data Rumah Ibadah terlebih dahulu.",
+  };
 }
 
 export async function kelurahanAdaDiKecamatan(kecamatan: string, kelurahan: string): Promise<boolean> {
@@ -132,7 +192,25 @@ export async function tentukanWilayahTugas(params: {
   };
 
   if (peran === "UTAMA") {
-    return tolakBedaKecamatan() ?? { ok: true, kecamatan: kecKirim, kelurahan: kelKirim, dariRumahIbadah: false };
+    const tolak = tolakBedaKecamatan();
+    if (tolak) return tolak;
+    // Layanan wajib-daftar: tempat tugas Admin Utama juga harus rumah ibadah terdaftar (sebelumnya cabang ini
+    // keluar lebih awal sehingga teks bebas bisa tersimpan lewat Admin Utama / permintaan langsung ke server).
+    if (lokasi.length === 0 && LAYANAN_WAJIB_RUMAH_IBADAH.includes(layanan)) {
+      return { ok: false, pesan: pesanWajibDaftarInput(layanan) };
+    }
+    // Admin Utama tidak dibatasi wilayah, tetapi kelurahan tugas TETAP wajib terisi dan sah (sama seperti petugas lain):
+    // sebelumnya langsung diloloskan sehingga kelurahan kosong/ngawur bisa tersimpan (plans/plan-perbaikan-validasi-data-penerima.md, G5).
+    if (!kecKirim) return { ok: false, pesan: "GAGAL: Kecamatan wilayah tugas wajib dipilih." };
+    const kel = await putuskanKelurahanTugas({
+      kecamatan: kecKirim,
+      kelurahanKirim: kelKirim,
+      daftarKelurahanRumahIbadah: lokasi.filter((l) => l.kecamatan === kecKirim && l.kelurahan).map((l) => l.kelurahan),
+      tempatTugas: rapikanTeks(params.tempatTugas),
+      adaDiWilayah: kelurahanAdaDiKecamatan,
+    });
+    if (!kel.ok) return kel;
+    return { ok: true, kecamatan: kecKirim, kelurahan: kel.kelurahan, dariRumahIbadah: false };
   }
 
   if (lokasi.length > 0) {
@@ -205,11 +283,7 @@ export async function tentukanWilayahTugas(params: {
 
   // Tidak cocok dengan rumah ibadah terdaftar = input langsung oleh petugas.
   if (LAYANAN_WAJIB_RUMAH_IBADAH.includes(layanan)) {
-    return {
-      ok: false,
-      pesan: "GAGAL: Tempat tugas untuk layanan " + layanan + " wajib dipilih dari daftar rumah ibadah. " +
-        "Silakan klik tombol \"Pilih Rumah Ibadah\" lalu pilih ulang.",
-    };
+    return { ok: false, pesan: pesanWajibDaftarInput(layanan) };
   }
   const kecTugas = kecSesi || kecKirim;
   if (!kecTugas) return { ok: false, pesan: "GAGAL: Kecamatan wilayah tugas wajib dipilih." };

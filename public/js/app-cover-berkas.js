@@ -250,11 +250,105 @@
     return janjiLogo;
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // Pilihan dialog "Unduh Cover" (murni, tanpa DOM): penyaringan Kecamatan/Kelurahan/Layanan dan nama berkas.
+  // Kelurahan dicocokkan sebagai PASANGAN (kecamatan, kelurahan): nama kelurahan yang sama bisa ada di kecamatan berbeda
+  // (ada pada data nyata), sehingga nilai opsi berbentuk "KECAMATAN||KELURAHAN", bukan nama kelurahan saja.
+  // ---------------------------------------------------------------------------------------------
+  var PEMISAH_KEL = '||';
+  var TEKS_TANPA_KELURAHAN = '(TANPA KELURAHAN)';
+
+  function teksTrim(v) { return String(v == null ? '' : v).trim(); }
+  function bandingId(a, b) { return String(a).localeCompare(String(b), 'id', { sensitivity: 'base', numeric: true }); }
+
+  /** Nama aman untuk berkas: huruf/angka, pemisah '-', dipotong maks. karakter. */
+  function namaAman(t, maks) {
+    var s = String(t == null ? '' : t), out = '', adaStrip = true;
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charAt(i), kode = s.charCodeAt(i);
+      var huruf = (kode >= 48 && kode <= 57) || (kode >= 65 && kode <= 90) || (kode >= 97 && kode <= 122);
+      if (huruf) { out += c; adaStrip = false; } else if (!adaStrip) { out += '-'; adaStrip = true; }
+    }
+    out = out.replace(/-+$/, '');
+    return out.slice(0, maks || 40).replace(/-+$/, '');
+  }
+
+  function kunciKelurahan(kec, kel) { return teksTrim(kec) + PEMISAH_KEL + teksTrim(kel); }
+  /** Memecah nilai opsi "KEC||KEL" menjadi {kec, kel}; null bila bentuknya tidak dikenal. */
+  function uraiKunciKelurahan(nilai) {
+    var s = String(nilai == null ? '' : nilai);
+    var i = s.indexOf(PEMISAH_KEL);
+    if (i < 0) return null;
+    return { kec: s.slice(0, i), kel: s.slice(i + PEMISAH_KEL.length) };
+  }
+
+  /**
+   * Pasangan (kecamatan, kelurahan) yang ADA pada data, dibatasi `kec` bila diisi. Hasil: [{kec, kel, nilai, label}], urut nama
+   * kelurahan lalu kecamatan (kelurahan kosong di akhir). Label memuat nama kecamatan HANYA bila nama kelurahan itu muncul di
+   * lebih dari satu kecamatan pada daftar yang tampil. Kelurahan kosong berlabel "(TANPA KELURAHAN)".
+   */
+  function daftarKelurahan(daftar, kec) {
+    var kecPilih = teksTrim(kec), ada = {}, pasangan = [];
+    for (var i = 0; i < daftar.length; i++) {
+      var k = teksTrim(daftar[i].kecamatan), l = teksTrim(daftar[i].kelurahan);
+      if (kecPilih && k !== kecPilih) continue;
+      var kunci = kunciKelurahan(k, l);
+      if (!Object.prototype.hasOwnProperty.call(ada, kunci)) { ada[kunci] = true; pasangan.push({ kec: k, kel: l, nilai: kunci }); }
+    }
+    var perNama = {};
+    pasangan.forEach(function (p) { perNama[p.kel] = (perNama[p.kel] || 0) + 1; });
+    pasangan.forEach(function (p) {
+      var dasar = p.kel || TEKS_TANPA_KELURAHAN;
+      p.label = perNama[p.kel] > 1 ? dasar + ' (' + (p.kec || 'TANPA KECAMATAN') + ')' : dasar;
+    });
+    pasangan.sort(function (a, b) {
+      if (!a.kel !== !b.kel) return a.kel ? -1 : 1;
+      return bandingId(a.kel, b.kel) || bandingId(a.kec, b.kec);
+    });
+    return pasangan;
+  }
+
+  /**
+   * Menyaring baris cover. kec / lay = nama (kosong = semua); kel = nilai opsi "KEC||KEL" (kosong = semua kelurahan).
+   * Nilai kel yang tidak dikenal menghasilkan daftar KOSONG (bukan semua), supaya salah nilai tidak mengunduh seluruh data.
+   */
+  function saringCover(daftar, kec, kel, lay) {
+    var kecT = teksTrim(kec), layT = teksTrim(lay);
+    var pasangan = kel ? uraiKunciKelurahan(kel) : null;
+    if (kel && !pasangan) return [];
+    return daftar.filter(function (r) {
+      if (kecT && teksTrim(r.kecamatan) !== kecT) return false;
+      if (pasangan && (teksTrim(r.kecamatan) !== pasangan.kec || teksTrim(r.kelurahan) !== pasangan.kel)) return false;
+      if (layT && teksTrim(r.layanan) !== layT) return false;
+      return true;
+    });
+  }
+
+  /** Kecamatan efektif dan teks kelurahan untuk nama berkas (kelurahan terpilih membawa kecamatannya sendiri). */
+  function uraiPilihanCover(kec, kel) {
+    var p = kel ? uraiKunciKelurahan(kel) : null;
+    if (p) return { kec: teksTrim(kec) || p.kec, kelTeks: p.kel || TEKS_TANPA_KELURAHAN };
+    return { kec: teksTrim(kec), kelTeks: '' };
+  }
+
+  function namaDasarBerkas(kec, kelTeks, lay, tanggal) {
+    return 'Cover-Berkas_' + (kec ? namaAman(kec, 30) : 'SEMUA-KECAMATAN') + '_' + (kelTeks ? namaAman(kelTeks, 30) : 'SEMUA-KELURAHAN') +
+      '_' + (lay ? namaAman(lay, 30) : 'SEMUA-LAYANAN') + '_' + tanggal;
+  }
+
   global.djpmCover = {
     muatLogo: muatLogo,
     bersihkanTeks: bersihkanTeks,
     gambarCover: gambarCover,
     bangunPdf: bangunPdf,
+    namaAman: namaAman,
+    daftarKelurahan: daftarKelurahan,
+    saringCover: saringCover,
+    kunciKelurahan: kunciKelurahan,
+    uraiKunciKelurahan: uraiKunciKelurahan,
+    uraiPilihanCover: uraiPilihanCover,
+    namaDasarBerkas: namaDasarBerkas,
+    TEKS_TANPA_KELURAHAN: TEKS_TANPA_KELURAHAN,
     MAKS_HALAMAN_PER_BERKAS: MAKS_HALAMAN_PER_BERKAS
   };
 
@@ -296,17 +390,6 @@
   function barisLayar() {
     try { return (typeof _ddRows !== 'undefined' && Array.isArray(_ddRows)) ? _ddRows : null; } catch (_e) { return null; }
   }
-  function namaAman(t, maks) {
-    var s = String(t == null ? '' : t), out = '', adaStrip = true;
-    for (var i = 0; i < s.length; i++) {
-      var c = s.charAt(i), kode = s.charCodeAt(i);
-      var huruf = (kode >= 48 && kode <= 57) || (kode >= 65 && kode <= 90) || (kode >= 97 && kode <= 122);
-      if (huruf) { out += c; adaStrip = false; } else if (!adaStrip) { out += '-'; adaStrip = true; }
-    }
-    out = out.replace(/-+$/, '');
-    return out.slice(0, maks || 40).replace(/-+$/, '');
-  }
-
   function simpanPdf(doc, nama) {
     doc.save(nama);
   }
@@ -364,12 +447,6 @@
     hasil.sort(function (a, b) { return a.localeCompare(b, 'id', { sensitivity: 'base', numeric: true }); });
     return hasil;
   }
-  function saring(daftar, kec, lay) {
-    return daftar.filter(function (r) {
-      return (!kec || String(r.kecamatan == null ? '' : r.kecamatan).trim() === kec) &&
-             (!lay || String(r.layanan == null ? '' : r.layanan).trim() === lay);
-    });
-  }
   function el(tag, kelas, teks) {
     var e = document.createElement(tag);
     if (kelas) e.className = kelas;
@@ -405,13 +482,17 @@
     latar.setAttribute('role', 'dialog');
     latar.setAttribute('aria-modal', 'true');
     latar.setAttribute('aria-labelledby', 'cover-judul');
-    var kotak = el('div', 'bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-5');
+    // Tinggi dibatasi dan isi dapat digulir: dengan tiga dropdown, dialog lebih tinggi dari layar HP yang dimiringkan (mis. 640x360).
+    var kotak = el('div', 'bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-5 max-h-[90vh] max-h-[90dvh] overflow-y-auto');
     kotak.appendChild(el('h3', 'text-sm font-bold text-slate-800 uppercase tracking-wide', 'Unduh Cover Berkas Penerima')).id = 'cover-judul';
     kotak.appendChild(el('p', 'text-xs text-slate-500 mt-1', 'Satu halaman A4 per penerima: judul dan data penerima. Data sesuai tabel Data Detail yang sedang tampil.'));
 
     var labelKec = el('label', 'block text-xs font-semibold text-slate-600 mt-4', 'Kecamatan');
     var selKec = el('select', 'mt-1 w-full text-xs p-2.5 border border-slate-300 rounded-lg bg-white');
     labelKec.appendChild(selKec);
+    var labelKel = el('label', 'block text-xs font-semibold text-slate-600 mt-3', 'Kelurahan');
+    var selKel = el('select', 'mt-1 w-full text-xs p-2.5 border border-slate-300 rounded-lg bg-white');
+    labelKel.appendChild(selKel);
     var labelLay = el('label', 'block text-xs font-semibold text-slate-600 mt-3', 'Layanan');
     var selLay = el('select', 'mt-1 w-full text-xs p-2.5 border border-slate-300 rounded-lg bg-white');
     labelLay.appendChild(selLay);
@@ -419,7 +500,17 @@
     isiPilihan(selKec, 'Semua kecamatan', daftarKec);
     isiPilihan(selLay, 'Semua layanan', daftarLay);
     if (daftarKec.length === 1) selKec.value = daftarKec[0];
-    kotak.appendChild(labelKec); kotak.appendChild(labelLay);
+    // Kelurahan berantai dengan Kecamatan: hanya kelurahan yang ada pada data (dibatasi kecamatan terpilih), nilai = pasangan
+    // "KEC||KEL". Hanya satu pilihan (mis. akun kelurahan) -> terpilih otomatis, seperti Kecamatan.
+    function isiKelurahan() {
+      var opsi = daftarKelurahan(daftar, selKec.value);
+      selKel.innerHTML = '';
+      selKel.appendChild(new Option('Semua kelurahan', ''));
+      opsi.forEach(function (o) { selKel.appendChild(new Option(o.label, o.nilai)); });
+      selKel.value = opsi.length === 1 ? opsi[0].nilai : '';
+    }
+    isiKelurahan();
+    kotak.appendChild(labelKec); kotak.appendChild(labelKel); kotak.appendChild(labelLay);
 
     var info = el('p', 'text-xs font-semibold text-slate-700 mt-4');
     var catatan = el('p', 'text-[11px] text-slate-500 mt-1', 'Cetak di kertas A4.');
@@ -433,7 +524,7 @@
     kotak.appendChild(baris);
     latar.appendChild(kotak);
 
-    function terpilih() { return saring(daftar, selKec.value, selLay.value); }
+    function terpilih() { return saringCover(daftar, selKec.value, selKel.value, selLay.value); }
     function perbarui() {
       var n = terpilih().length;
       var bagian = Math.ceil(n / MAKS_HALAMAN_PER_BERKAS);
@@ -442,7 +533,8 @@
       btnUnduh.disabled = n === 0 || sedangMenyusun;
       btnUnduh.style.opacity = btnUnduh.disabled ? '0.6' : '';
     }
-    selKec.addEventListener('change', perbarui);
+    selKec.addEventListener('change', function () { isiKelurahan(); perbarui(); });
+    selKel.addEventListener('change', perbarui);
     selLay.addEventListener('change', perbarui);
     perbarui();
 
@@ -451,24 +543,25 @@
       tutupDialog();
     });
     latar.addEventListener('mousedown', function (e) { if (e.target === latar && !sedangMenyusun) tutupDialog(); });
-    btnUnduh.addEventListener('click', function () { jalankanSemua(terpilih(), selKec.value, selLay.value, { btnUnduh: btnUnduh, btnBatal: btnBatal, progres: progres, selKec: selKec, selLay: selLay, perbarui: perbarui }); });
+    btnUnduh.addEventListener('click', function () { jalankanSemua(terpilih(), selKec.value, selKel.value, selLay.value, { btnUnduh: btnUnduh, btnBatal: btnBatal, progres: progres, selKec: selKec, selKel: selKel, selLay: selLay, perbarui: perbarui }); });
 
     document.body.appendChild(latar);
     document.addEventListener('keydown', tekanTombolDialog, true);
     selKec.focus();
   }
 
-  function jalankanSemua(daftar, kec, lay, ui) {
+  function jalankanSemua(daftar, kec, kel, lay, ui) {
     if (sedangMenyusun || daftar.length === 0) return;
     if (!bolehMemakai()) { toast('Sesi berakhir. Silakan masuk kembali.', 'gagal'); return; }
     sedangMenyusun = true; batalkan = false; aturTombol(true);
-    ui.btnUnduh.disabled = true; ui.selKec.disabled = true; ui.selLay.disabled = true;
+    ui.btnUnduh.disabled = true; ui.selKec.disabled = true; ui.selKel.disabled = true; ui.selLay.disabled = true;
     ui.btnBatal.textContent = 'Batalkan';
     ui.progres.classList.remove('hidden');
     ui.progres.textContent = 'Menyiapkan pustaka PDF...';
 
     var jumlahBagian = Math.ceil(daftar.length / MAKS_HALAMAN_PER_BERKAS);
-    var dasarNama = 'Cover-Berkas_' + (kec ? namaAman(kec, 30) : 'SEMUA-KECAMATAN') + '_' + (lay ? namaAman(lay, 30) : 'SEMUA-LAYANAN') + '_' + tanggalIso();
+    var pilihan = uraiPilihanCover(kec, kel);
+    var dasarNama = namaDasarBerkas(pilihan.kec, pilihan.kelTeks, lay, tanggalIso());
     var totalSelesai = 0;
 
     function akhiri(pesan, jenis) {
