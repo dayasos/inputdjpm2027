@@ -37,7 +37,7 @@ alter table public.cek_status_percobaan  enable row level security;
 revoke all on table public.cek_status_pengaturan from anon, authenticated;
 revoke all on table public.cek_status_percobaan  from anon, authenticated;
 
--- Pembersihan harian (pola sama dengan 'bersihkan-login-percobaan-gagal-lama'): baris yang jendelanya lebih dari 1 hari.
+-- Pembersihan tiap jam (pola sama dengan 'bersihkan-login-percobaan-gagal-lama'): baris yang jendelanya lebih dari 1 hari.
 select
   cron.schedule(
     'bersihkan-cek-status-percobaan-lama',
