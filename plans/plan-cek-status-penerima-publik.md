@@ -407,6 +407,13 @@ Perkiraan upaya (kerja efektif, bukan kalender): F0 ± 0,5 hari · F1 ± 1 hari 
 **Belum terbukti:** Chrome lama (<111) (hanya Chrome terbaru dicoba); keyboard-saja/pembaca layar; pengukuran waktu 50 sampel per jalur terhadap backend nyata; Edge Function dan SQL percobaan (masih F2).
 **Wajib sebelum F2:** ganti `TURNSTILE_SITEKEY` di `cek-status.html` (kini kunci UJI Cloudflare yang selalu lolos) dengan site key asli; `TURNSTILE_SECRET_KEY` lewat `wrangler secret put`.
 
+### F2 — deploy tersembunyi selesai, 2026-10-28 (saklar MATI; UAT belum)
+**Diterapkan ke produksi:** migrasi `cek_status_publik` (2 tabel, cron `30 * * * *`, saklar false, RLS aktif, hak anon/authenticated 0); secret `TURNSTILE_SECRET_KEY` (Worker) dan `CEK_STATUS_PEPPER` (Supabase, diisi user di dashboard); fungsi `api` (kini v96); Worker + halaman (version 4053cf4b). Halaman `/cek-status` live tetapi `noindex`, tanpa tautan, tanpa sitemap.
+**Temuan keamanan & perbaikan:** `/api/gas` menyisipkan `_secret` ke semua aksi sehingga `cekStatusPublik` dapat dipanggil lewat jalur itu tanpa Turnstile dan di luar batas laju `/api/cek-status`. Ditutup: Worker menolak aksi itu di `/api/gas` (403), termasuk variasi huruf/spasi. Terbukti: uji Node (22, mutan tertangkap) dan produksi (403). **Syarat go-live baru: denylist ini harus ada di Worker yang live.**
+**Uji SQL:** 20 uji di PGlite lulus (`scripts/uji/sql-cek-status.mjs`); pg_cron dan Deno baru terbukti lewat deploy (cron terdaftar, fungsi aktif).
+**Uji asap produksi:** health OK; `pulihkanSesi` token palsu = "Sesi tidak valid" (4/4; panggilan pertama sesudah tiap deploy kadang kosong = start dingin); `/api/cek-status` tanpa/dengan token palsu = TURNSTILE 403; GET = 405.
+**Belum:** aturan Rate Limiting Cloudflare; kebenaran `CEK_STATUS_PEPPER` (baru teruji saat saklar dihidupkan sementara); UAT 12.4; push cabang ke git.
+
 ## 19. Lampiran teknis
 **Berkas yang diperkirakan berubah/ditambah**
 | Berkas | Perubahan |
