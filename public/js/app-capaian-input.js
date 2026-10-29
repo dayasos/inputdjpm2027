@@ -477,7 +477,8 @@
     if (!modal || !lama || !panel) return;
     var capaian = nama === 'capaian';
     modal.classList.toggle(KELAS_AKTIF, capaian);
-    lama.classList.toggle('hidden', capaian);
+    // Pembungkus punya display:flex INLINE, yang mengalahkan kelas .hidden -> sembunyikan lewat style, bukan kelas.
+    lama.style.display = capaian ? 'none' : 'flex';
     panel.classList.toggle('hidden', !capaian);
     var bar = $(ID_TAB);
     if (bar) Array.prototype.forEach.call(bar.children, function (b) {
