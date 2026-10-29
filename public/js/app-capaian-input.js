@@ -24,6 +24,8 @@
   var kecamatanTerbuka = {};   // { "MEDAN AREA": true }
   var sedangMemuat = false;
   var pemuatUlang = null;
+  var JUDUL_CAPAIAN = 'Dashboard Capaian Input';
+  var judulLama = '';          // judul Dashboard lama yang disimpan selama tab Capaian Input aktif
   var cakupanPdf = 'SEMUA';    // 'SEMUA' | 'KEC:<nama>' | 'LAY:<nama>'
   var sedangUnduh = false;
   // Versi (?v=) skrip ini, dipakai juga untuk memuat skrip PDF & pustaka agar cache ikut terbuang bersama-sama.
@@ -479,6 +481,12 @@
     modal.classList.toggle(KELAS_AKTIF, capaian);
     // Pembungkus punya display:flex INLINE, yang mengalahkan kelas .hidden -> sembunyikan lewat style, bukan kelas.
     lama.style.display = capaian ? 'none' : 'flex';
+    // Judul modal milik Dashboard lama (memuat nama kecamatan filter-nya) -> ganti selama tab Capaian Input aktif.
+    var judul = $('judul-modal-dashboard');
+    if (judul) {
+      if (capaian && judul.textContent !== JUDUL_CAPAIAN) { judulLama = judul.textContent; judul.textContent = JUDUL_CAPAIAN; }
+      else if (!capaian && judul.textContent === JUDUL_CAPAIAN && judulLama) judul.textContent = judulLama;   // bila Dashboard lama sudah menulis judul baru, jangan ditimpa
+    }
     panel.classList.toggle('hidden', !capaian);
     var bar = $(ID_TAB);
     if (bar) Array.prototype.forEach.call(bar.children, function (b) {
