@@ -23,6 +23,8 @@
   var bagianAktif = 'A';       // 'A' kecamatan | 'B' kemenag
   var kecamatanTerbuka = {};   // { "MEDAN AREA": true }
   var sedangMemuat = false;
+  var mulaiMuat = 0;           // waktu permintaan muat terakhir; pengaman bila jawaban tak pernah datang
+  var tokenModel = '';         // token sesi pemilik `model` (model tak boleh terbawa ke sesi/peran lain)
   var pemuatUlang = null;
   var JUDUL_CAPAIAN = 'Dashboard Capaian Input';
   var judulLama = '';          // judul Dashboard lama yang disimpan selama tab Capaian Input aktif
@@ -441,6 +443,8 @@
     if (sedangUnduh) return;
     if (!adalahUtama()) { toast('Laporan hanya dapat dibuat oleh Admin Utama.', 'gagal'); return; }
     var tokenAwal = dataPengguna.token;
+    // Keadaan layar diambil SAAT KLIK (pengguna boleh berpindah filter selagi PDF disiapkan).
+    var tampilanKlik = { bagian: bagianAktif, kec: filterKec, terbuka: filterKec ? [] : Object.keys(kecamatanTerbuka).filter(function (k) { return kecamatanTerbuka[k]; }) };
     sedangUnduh = true;
     aturTombolUnduh(true);
     var pustaka = Promise.all([
@@ -452,11 +456,11 @@
       var res = h[0];
       if (!res || res.sukses === false || !Array.isArray(res.kecamatan)) throw new Error((res && res.pesan) || 'Data capaian input tidak valid.');
       if (!adalahUtama() || dataPengguna.token !== tokenAwal) return;           // sesi berganti selagi menunggu
-      model = res;                                                              // layar ikut menampilkan angka yang sama dengan PDF
+      model = res; tokenModel = tokenAwal;                                      // layar ikut menampilkan angka yang sama dengan PDF
       if (filterKec && res.kecamatan.indexOf(filterKec) < 0) filterKec = '';    // kecamatan terpilih sudah tak ada di data
       if (tabAktif === 'capaian') render();
-      // PDF = persis yang sedang terbuka: filter kecamatan, bagian A/B, dan rincian kecamatan yang dibuka (hanya tanpa filter)
-      var tampilan = { bagian: bagianAktif, kec: filterKec, terbuka: filterKec ? [] : Object.keys(kecamatanTerbuka).filter(function (k) { return kecamatanTerbuka[k]; }) };
+      // PDF = persis yang terbuka saat tombol diklik: filter kecamatan, bagian A/B, rincian kecamatan yang dibuka (hanya tanpa filter)
+      var tampilan = tampilanKlik;
       var nama = window.DJPMCapaianPdf.namaBerkas(res, tampilan);
       var doc = window.DJPMCapaianPdf.gambar(window.jspdf, res, tampilan, (dataPengguna && dataPengguna.username) || '');
       doc.save(nama);
@@ -469,23 +473,51 @@
     });
   }
 
+  /**
+   * Logout aplikasi ini TIDAK memuat ulang halaman, jadi skrip, tab dan panel bertahan ke sesi berikutnya (mis. operator
+   * kecamatan yang masuk di peramban yang sama). Fungsi ini menjaga: hanya UTAMA yang melihat tab; selain itu semua data,
+   * filter dan panel dibuang dan tab disembunyikan. Dipanggil saat Dashboard dibuka, saat keluar, saat hak akses diterapkan,
+   * dan sebelum tab dibuka. Mengembalikan true bila sesi sekarang boleh memakai fitur ini.
+   */
+  function selaraskanHakAkses() {
+    var bar = $(ID_TAB), panel = $(ID_PANEL);
+    function bersihkan() {
+      model = null; tokenModel = ''; filterKec = ''; bagianAktif = 'A'; kecamatanTerbuka = {}; sedangMemuat = false; judulLama = '';
+      clearTimeout(pemuatUlang);
+      if (panel) panel.textContent = '';
+    }
+    if (adalahUtama()) {
+      if (tokenModel && tokenModel !== dataPengguna.token) bersihkan();     // akun/sesi lain (walau sama-sama UTAMA)
+      if (bar) bar.style.display = '';
+      return true;
+    }
+    bersihkan();
+    if (tabAktif !== 'verifikasi') pilihTab('verifikasi');
+    if (bar) bar.style.display = 'none';
+    return false;
+  }
+
   function muat(tanpaSkeleton) {
     if (!adalahUtama() || typeof google === 'undefined' || !google.script || !google.script.run) return;
-    if (sedangMemuat) return;
+    if (sedangMemuat && Date.now() - mulaiMuat < 60000) return;
     sedangMemuat = true;
+    mulaiMuat = Date.now();
+    var tokenMinta = dataPengguna.token;
     if (!tanpaSkeleton && !model) pesanPanel('Memuat data…');
     google.script.run
       .withSuccessHandler(function (res) {
         sedangMemuat = false;
+        if (!adalahUtama() || dataPengguna.token !== tokenMinta) return;      // jawaban terlambat: sesi sudah berganti/keluar
         if (!res || !res.sukses) {
           if (!model) pesanPanel('Gagal memuat: ' + (res && res.pesan ? res.pesan : 'tidak diketahui'), true);
           return;
         }
-        model = res;
+        model = res; tokenModel = tokenMinta;
         render();
       })
       .withFailureHandler(function (err) {
         sedangMemuat = false;
+        if (!adalahUtama() || dataPengguna.token !== tokenMinta) return;
         if (!model) pesanPanel('Error: ' + ((err && err.message) || err), true);
       })
       .getCapaianInput(dataPengguna.token);
@@ -495,6 +527,7 @@
   // Pemasangan tab
   // ---------------------------------------------------------------------------------------------
   function pilihTab(nama) {
+    if (nama === 'capaian' && !selaraskanHakAkses()) return;      // bukan UTAMA: tab tak boleh dibuka
     tabAktif = nama;
     var modal = $(ID_MODAL);
     var lama = $(ID_PEMBUNGKUS_LAMA);
@@ -554,15 +587,29 @@
     });
     kotak.insertBefore(bar, bungkus);
 
-    // Tombol Dashboard selalu membuka tab pertama (perilaku lama tidak berubah).
+    // Tombol Dashboard selalu membuka tab pertama (perilaku lama tidak berubah) -- setelah memastikan hak akses sesi ini.
     var tombol = $('btn-dashboard-progres');
-    if (tombol) tombol.addEventListener('click', function () { if (tabAktif !== 'verifikasi') pilihTab('verifikasi'); });
+    if (tombol) tombol.addEventListener('click', function () { selaraskanHakAkses(); if (tabAktif !== 'verifikasi') pilihTab('verifikasi'); });
+    // Keluar dari aplikasi tidak me-reload halaman: buang data & sembunyikan tab seketika (handler asli sudah mengosongkan dataPengguna).
+    var tombolKeluar = $('btn-eksekusi-logout');
+    if (tombolKeluar) tombolKeluar.addEventListener('click', function () { selaraskanHakAkses(); });
+    // Hak akses diterapkan ulang setiap login (juga saat sesi diganti tanpa klik Dashboard).
+    if (typeof window.terapkanHakAkses === 'function' && !window.terapkanHakAkses.__djpmCapaian) {
+      var asliHak = window.terapkanHakAkses;
+      var bungkusHak = function () {
+        var hasil = asliHak.apply(this, arguments);
+        try { selaraskanHakAkses(); } catch (_e) { /* tab hanya pelengkap */ }
+        return hasil;
+      };
+      bungkusHak.__djpmCapaian = true;
+      window.terapkanHakAkses = bungkusHak;
+    }
 
     // Sinyal realtime (domain kuota/penerima): segarkan hanya bila tab ini sedang tampil.
     window.addEventListener('djpm:swr-invalidated', function (ev) {
       var dom = (ev.detail && ev.detail.domains) || [];
       if (!(dom.indexOf('*') !== -1 || dom.indexOf('kuota') !== -1 || dom.indexOf('penerima') !== -1)) return;
-      if (tabAktif !== 'capaian' || modal.classList.contains('hidden')) return;
+      if (tabAktif !== 'capaian' || modal.classList.contains('hidden') || !adalahUtama()) return;
       clearTimeout(pemuatUlang);
       pemuatUlang = setTimeout(function () { muat(true); }, 800);
     });
