@@ -27,7 +27,6 @@
   var JUDUL_CAPAIAN = 'Dashboard Capaian Input';
   var judulLama = '';          // judul Dashboard lama yang disimpan selama tab Capaian Input aktif
   var filterKec = '';          // '' = seluruh kota; selain itu nama kecamatan yang ditampilkan SAJA (layar)
-  var cakupanPdf = 'SEMUA';    // 'SEMUA' | 'KEC:<nama>' | 'LAY:<nama>'
   var sedangUnduh = false;
   // Versi (?v=) skrip ini, dipakai juga untuk memuat skrip PDF & pustaka agar cache ikut terbuang bersama-sama.
   var VERSI = '';
@@ -78,8 +77,6 @@
     '.ci-filter label{font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em}',
     '.ci-filter select{min-width:15rem;font-size:.8rem;font-weight:600;padding:.45rem .6rem;border:1px solid #cbd5e1;border-radius:.5rem;background:#fff;color:#0f172a}',
     '.ci-lencana{font-size:.68rem;font-weight:700;color:#0369a1;background:#e0f2fe;border-radius:999px;padding:.2rem .6rem}',
-    '.ci-pdf{display:inline-flex;gap:.4rem;align-items:center}',
-    '.ci-pilih{max-width:17rem;font-size:.72rem;padding:.4rem .5rem;border:1px solid #cbd5e1;border-radius:.5rem;background:#fff;color:#0f172a}',
     '.ci-unduh{background:#059669;color:#fff;font-size:.72rem;font-weight:600;padding:.45rem .9rem;border-radius:.6rem;border:0;cursor:pointer}',
     '.ci-unduh:hover{background:#047857}.ci-unduh:disabled{opacity:.6;cursor:not-allowed}',
     '.ci-gulir{overflow-x:auto;border:1px solid #e2e8f0;border-radius:.6rem}',
@@ -316,8 +313,6 @@
     pilih.value = kecTampil;
     pilih.addEventListener('change', function () {
       filterKec = pilih.value;
-      // PDF mengikuti pilihan ini (tetap bisa diubah); pilihan "satu layanan Kemenag" tidak ditimpa.
-      if (cakupanPdf.indexOf('LAY:') !== 0) cakupanPdf = filterKec ? 'KEC:' + filterKec : 'SEMUA';
       render();
       var baru = $('ci-filter-kec'); if (baru) baru.focus();
     });
@@ -391,29 +386,15 @@
     if (typeof tampilkanToast === 'function') tampilkanToast(pesan, jenis || 'info', { durasi: durasi || 6000 });
   }
 
+  /** Hanya tombol: PDF selalu berisi PERSIS yang sedang terbuka di layar (filter kecamatan + bagian A/B + rincian yang dibuka). */
   function kontrolPdf() {
-    var wrap = buat('span', 'ci-pdf');
-    var pilih = buat('select', 'ci-pilih');
-    pilih.setAttribute('aria-label', 'Cakupan PDF');
-    function opsi(parent, nilai, teks) { var o = buat('option', '', teks); o.value = nilai; parent.appendChild(o); }
-    opsi(pilih, 'SEMUA', 'PDF: Semua kecamatan (ringkasan + rincian)');
-    var gk = buat('optgroup'); gk.label = 'PDF satu kecamatan (rincian kelurahan)';
-    model.kecamatan.forEach(function (k) { opsi(gk, 'KEC:' + k, 'PDF: Kecamatan ' + k); });
-    pilih.appendChild(gk);
-    var gl = buat('optgroup'); gl.label = 'PDF satu layanan Kemenag (21 kecamatan)';
-    model.layananKemenag.forEach(function (l) { opsi(gl, 'LAY:' + l, 'PDF: Layanan ' + l); });
-    pilih.appendChild(gl);
-    pilih.value = cakupanPdf;
-    if (pilih.value !== cakupanPdf) { cakupanPdf = 'SEMUA'; pilih.value = 'SEMUA'; }
-    pilih.addEventListener('change', function () { cakupanPdf = pilih.value; });
     var tombol = buat('button', 'ci-unduh', sedangUnduh ? 'Menyiapkan…' : 'Unduh PDF');
     tombol.type = 'button';
     tombol.id = 'btn-unduh-capaian-input';
+    tombol.title = 'Unduh PDF berisi data yang sedang tampil di layar';
     tombol.disabled = sedangUnduh;
     tombol.addEventListener('click', unduhPdf);
-    wrap.appendChild(pilih);
-    wrap.appendChild(tombol);
-    return wrap;
+    return tombol;
   }
 
   function panggilSegar(token, penanda) {
@@ -460,9 +441,6 @@
     if (sedangUnduh) return;
     if (!adalahUtama()) { toast('Laporan hanya dapat dibuat oleh Admin Utama.', 'gagal'); return; }
     var tokenAwal = dataPengguna.token;
-    var cakupan = { jenis: 'SEMUA' };
-    if (cakupanPdf.indexOf('KEC:') === 0) cakupan = { jenis: 'KECAMATAN', nama: cakupanPdf.slice(4) };
-    else if (cakupanPdf.indexOf('LAY:') === 0) cakupan = { jenis: 'LAYANAN', nama: cakupanPdf.slice(4) };
     sedangUnduh = true;
     aturTombolUnduh(true);
     var pustaka = Promise.all([
@@ -474,12 +452,13 @@
       var res = h[0];
       if (!res || res.sukses === false || !Array.isArray(res.kecamatan)) throw new Error((res && res.pesan) || 'Data capaian input tidak valid.');
       if (!adalahUtama() || dataPengguna.token !== tokenAwal) return;           // sesi berganti selagi menunggu
-      if (cakupan.jenis === 'KECAMATAN' && res.kecamatan.indexOf(cakupan.nama) < 0) throw new Error('Kecamatan tidak ditemukan.');
-      if (cakupan.jenis === 'LAYANAN' && res.layananKemenag.indexOf(cakupan.nama) < 0) throw new Error('Layanan tidak ditemukan.');
       model = res;                                                              // layar ikut menampilkan angka yang sama dengan PDF
+      if (filterKec && res.kecamatan.indexOf(filterKec) < 0) filterKec = '';    // kecamatan terpilih sudah tak ada di data
       if (tabAktif === 'capaian') render();
-      var nama = window.DJPMCapaianPdf.namaBerkas(res, cakupan);
-      var doc = window.DJPMCapaianPdf.gambar(window.jspdf, res, cakupan, (dataPengguna && dataPengguna.username) || '');
+      // PDF = persis yang sedang terbuka: filter kecamatan, bagian A/B, dan rincian kecamatan yang dibuka (hanya tanpa filter)
+      var tampilan = { bagian: bagianAktif, kec: filterKec, terbuka: filterKec ? [] : Object.keys(kecamatanTerbuka).filter(function (k) { return kecamatanTerbuka[k]; }) };
+      var nama = window.DJPMCapaianPdf.namaBerkas(res, tampilan);
+      var doc = window.DJPMCapaianPdf.gambar(window.jspdf, res, tampilan, (dataPengguna && dataPengguna.username) || '');
       doc.save(nama);
       toast('Laporan PDF diunduh: ' + nama, 'sukses', 7000);
     }).catch(function (e) {

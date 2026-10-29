@@ -4,9 +4,13 @@
  * tombol Unduh PDF diklik (HANYA Admin Utama). Murni fungsi: terima model getCapaianInput -> kembalikan doc.
  * Isi, urutan, warna & ambang SAMA dengan layar (app-capaian-input.js). Rancangan: plans/plan-progres-capaian-input.md
  *
- * Cakupan:  { jenis: 'SEMUA' }                      A4 landscape: ringkasan + matriks A, matriks B, rincian tiap kecamatan
- *           { jenis: 'KECAMATAN', nama: 'MEDAN X' } A4 landscape: rincian kelurahan satu kecamatan
- *           { jenis: 'LAYANAN', nama: 'GURU ...' }  A4 portrait: satu layanan Kemenag, 21 kecamatan
+ * PDF = persis apa yang sedang TERBUKA di layar (tanpa pilihan cakupan terpisah). Parameter `tampilan`:
+ *   { bagian: 'A' | 'B', kec: '' | 'MEDAN X', terbuka: ['MEDAN Y', ...] }
+ *   - kec '' + A : ringkasan + matriks A (+ satu halaman rincian kelurahan untuk tiap kecamatan yang sedang dibuka)
+ *   - kec '' + B : ringkasan + matriks B
+ *   - kec X  + A : ringkasan kecamatan X + tabel seluruh kelurahannya
+ *   - kec X  + B : ringkasan kecamatan X + satu baris Kemenag kecamatan X
+ * Selalu A4 landscape.
  * Gotcha jsPDF: warna isi & teks memakai operator berbeda tetapi isi() harus dipanggil tepat sebelum tiap bentuk.
  */
 (function () {
@@ -42,15 +46,19 @@
   }
   function slug(t) { return String(t || '').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 
-  function namaBerkas(model, cakupan) {
-    var bag = cakupan.jenis === 'SEMUA' ? 'SEMUA' : cakupan.jenis === 'KECAMATAN' ? slug(cakupan.nama) : 'LAYANAN-' + slug(cakupan.nama);
-    return 'Laporan-Capaian-Input-DJPM-2027_' + bag + '_' + wib(model.diperbarui).iso + '.pdf';
+  function namaBerkas(model, tampilan) {
+    var kec = tampilan && tampilan.kec && model.kecamatan.indexOf(tampilan.kec) >= 0 ? slug(tampilan.kec) : 'SEMUA-KECAMATAN';   // sama dengan normalisasi di gambar()
+    var bag = tampilan && tampilan.bagian === 'B' ? 'LAYANAN-KEMENAG' : 'LAYANAN-KECAMATAN';
+    return 'Laporan-Capaian-Input-DJPM-2027_' + kec + '_' + bag + '_' + wib(model.diperbarui).iso + '.pdf';
   }
 
-  function gambar(lib, model, cakupan, pencetak) {
-    var landscape = cakupan.jenis !== 'LAYANAN';
-    var doc = new lib.jsPDF({ unit: 'pt', format: 'a4', orientation: landscape ? 'landscape' : 'portrait', compress: true });
-    var judulDoc = namaBerkas(model, cakupan).replace(/\.pdf$/, '');
+  function gambar(lib, model, tampilan, pencetak) {
+    tampilan = tampilan || {};
+    var bagian = tampilan.bagian === 'B' ? 'B' : 'A';
+    var kecT = tampilan.kec && model.kecamatan.indexOf(tampilan.kec) >= 0 ? tampilan.kec : '';
+    var terbuka = model.kecamatan.filter(function (k) { return (tampilan.terbuka || []).indexOf(k) >= 0; });   // urutan resmi, tanpa duplikat
+    var doc = new lib.jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape', compress: true });
+    var judulDoc = namaBerkas(model, { bagian: bagian, kec: kecT }).replace(/\.pdf$/, '');
     doc.setProperties({ title: judulDoc, subject: 'Laporan Capaian Input DJPM 2027', creator: 'Aplikasi DJPM 2027' });
     var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
     var ML = 30, CW = W - 2 * ML, ATAS = 30, BAWAH = H - 36;
@@ -166,9 +174,9 @@
     }
     function lebarMatriks(n, lebarNama, lebarTotal) { var sisa = CW - lebarNama - lebarTotal, w = [lebarNama]; for (var i = 0; i < n; i++) w.push(sisa / n); w.push(lebarTotal); return w; }
 
-    function matriks(layanan) {
+    function matriks(layanan, hanya) {
       var barisT = [], adaTanpa = false;
-      model.kecamatan.forEach(function (kec) {
+      (hanya ? [hanya] : model.kecamatan).forEach(function (kec) {
         var sels = [{ t: kec, kiri: true, tebal: true }];
         layanan.forEach(function (l) {
           var k = l + '||' + kec, a = ada(model.kuota, k);
@@ -178,13 +186,15 @@
         var tk = agg(kec, layanan); sels.push(sKuota(tk.i, tk.q, tk.ada));
         barisT.push({ sel: sels });
       });
-      var tot = [{ t: 'TOTAL KOTA', kiri: true, k: 'total' }], semua = { i: 0, q: 0, ada: false };
-      layanan.forEach(function (l) {
-        var t = aggLay(l); semua.i += t.i; semua.q += t.q; semua.ada = semua.ada || t.ada;
-        var c = sKuota(t.i, t.q, t.ada); tot.push(c);
-      });
-      tot.push(sKuota(semua.i, semua.q, semua.ada));
-      barisT.push({ sel: tot });
+      if (!hanya) {       // satu kecamatan: barisnya sendiri sudah totalnya (sama dengan layar)
+        var tot = [{ t: 'TOTAL KOTA', kiri: true, k: 'total' }], semua = { i: 0, q: 0, ada: false };
+        layanan.forEach(function (l) {
+          var t = aggLay(l); semua.i += t.i; semua.q += t.q; semua.ada = semua.ada || t.ada;
+          tot.push(sKuota(t.i, t.q, t.ada));
+        });
+        tot.push(sKuota(semua.i, semua.q, semua.ada));
+        barisT.push({ sel: tot });
+      }
       tabel(['KECAMATAN'].concat(layanan).concat(['TOTAL']), lebarMatriks(layanan.length, 92, 62), barisT, { tinggi: 17, ukuran: 6.8 });
       legenda({ kuota: true, tanpaKuota: adaTanpa });
     }
@@ -214,11 +224,21 @@
       legenda({ kuota: true, kelurahan: true, tanpaKuota: adaTanpa });
     }
 
-    function kpi() {
-      var r = model.ringkasan, totI = r.kecamatan.totalInput + r.kemenag.totalInput, totQ = r.kecamatan.totalKuota + r.kemenag.totalKuota;
-      var isiKpi = [[angka(totI), 'TOTAL INPUT'], [angka(totQ), 'TOTAL KUOTA'], [tPersen(persenDari(totI, totQ)), 'CAPAIAN KESELURUHAN'],
-        [tPersen(r.kecamatan.persen), 'LAYANAN KECAMATAN'], [tPersen(r.kemenag.persen), 'LAYANAN KEMENAG'],
-        [angka(r.kelurahanBelumInput) + ' dari ' + angka(r.jumlahKelurahan), 'KELURAHAN BELUM ADA INPUT']];
+    function kpi(kec) {
+      // seluruh kota, atau HANYA kecamatan terpilih (rumus sama dengan layar)
+      var a, b, belum, jml;
+      if (kec) {
+        var ta = agg(kec, model.layananKecamatan), tb = agg(kec, model.layananKemenag), dk = model.kelurahan[kec] || [];
+        a = { totalInput: ta.i, totalKuota: ta.q, persen: persenDari(ta.i, ta.q) };
+        b = { totalInput: tb.i, totalKuota: tb.q, persen: persenDari(tb.i, tb.q) };
+        belum = dk.filter(function (k) { return k.total === 0; }).length; jml = dk.length;
+      } else {
+        a = model.ringkasan.kecamatan; b = model.ringkasan.kemenag; belum = model.ringkasan.kelurahanBelumInput; jml = model.ringkasan.jumlahKelurahan;
+      }
+      var totI = a.totalInput + b.totalInput, totQ = a.totalKuota + b.totalKuota;
+      var isiKpi = [[angka(totI), 'TOTAL INPUT'], [angka(totQ), 'TOTAL KUOTA'], [tPersen(persenDari(totI, totQ)), kec ? 'CAPAIAN KECAMATAN' : 'CAPAIAN KESELURUHAN'],
+        [tPersen(a.persen), 'LAYANAN KECAMATAN'], [tPersen(b.persen), 'LAYANAN KEMENAG'],
+        [angka(belum) + ' dari ' + angka(jml), 'KELURAHAN BELUM ADA INPUT']];
       var gap = 6, w = (CW - gap * (isiKpi.length - 1)) / isiKpi.length;
       isiKpi.forEach(function (d, i) {
         var x = ML + i * (w + gap);
@@ -231,39 +251,24 @@
 
     function subJudul(t) { huruf(true, 9); tinta('#0f172a'); doc.text(latin(t), ML, y + 8); y += 13; }
 
-    // ---- Susun per cakupan ----
-    if (cakupan.jenis === 'SEMUA') {
-      kepalaHalaman('LAPORAN CAPAIAN INPUT', 'Cakupan: Seluruh Kecamatan');
-      kpi();
+    // ---- Susun sesuai tampilan layar ----
+    kepalaHalaman('LAPORAN CAPAIAN INPUT', kecT ? 'Cakupan: ' + kecT : 'Cakupan: Seluruh Kecamatan');
+    kpi(kecT);
+    if (bagian === 'A') {
       subJudul('A. LAYANAN KECAMATAN');
-      matriks(model.layananKecamatan);
-      halamanBaru();
-      kepalaHalaman('LAPORAN CAPAIAN INPUT', 'Cakupan: Seluruh Kecamatan');
-      subJudul('B. LAYANAN KEMENAG');
-      matriks(model.layananKemenag);
-      model.kecamatan.forEach(function (kec) {
-        halamanBaru();
-        kepalaHalaman('RINCIAN KELURAHAN - ' + kec, 'Layanan Kecamatan');
-        rincian(kec);
-      });
-    } else if (cakupan.jenis === 'KECAMATAN') {
-      kepalaHalaman('RINCIAN CAPAIAN INPUT - ' + cakupan.nama, 'Layanan Kecamatan');
-      rincian(cakupan.nama);
+      if (kecT) {
+        rincian(kecT);                       // satu kecamatan: seluruh kelurahannya
+      } else {
+        matriks(model.layananKecamatan, '');
+        terbuka.forEach(function (kec) {     // rincian kecamatan yang sedang dibuka di layar
+          halamanBaru();
+          kepalaHalaman('RINCIAN KELURAHAN - ' + kec, 'Layanan Kecamatan');
+          rincian(kec);
+        });
+      }
     } else {
-      var lay = cakupan.nama;
-      kepalaHalaman('CAPAIAN INPUT - ' + lay, 'Layanan Kemenag');
-      var w = [CW * 0.34, CW * 0.16, CW * 0.16, CW * 0.16, CW * 0.18], barisL = [], adaTanpa = false;
-      model.kecamatan.forEach(function (kec) {
-        var k = lay + '||' + kec, a = ada(model.kuota, k), i = model.input[k] || 0, q = model.kuota[k] || 0, p = persenDari(i, q);
-        if (!a) adaTanpa = true;
-        barisL.push({ sel: [{ t: kec, kiri: true, tebal: true }, { t: angka(i) }, { t: a ? angka(q) : '-' }, { t: a ? angka(q - i) : '-' },
-          a ? { t: tPersen(p), k: kelasWarna(p), tebal: true } : { t: 'Tanpa kuota', k: 'abu' }] });
-      });
-      var t = aggLay(lay), pt = persenDari(t.i, t.q);
-      barisL.push({ sel: [{ t: 'TOTAL KOTA', kiri: true, k: 'total' }, { t: angka(t.i), k: 'total' }, { t: t.ada ? angka(t.q) : '-', k: 'total' },
-        { t: t.ada ? angka(t.q - t.i) : '-', k: 'total' }, t.ada ? { t: tPersen(pt), k: kelasWarna(pt), tebal: true } : { t: '-', k: 'abu' }] });
-      tabel(['KECAMATAN', 'INPUT', 'KUOTA', 'SISA KUOTA', 'CAPAIAN'], w, barisL, { tinggi: 19, ukuran: 7.6 });
-      legenda({ kuota: true, tanpaKuota: adaTanpa, catatan: 'Capaian = jumlah input dibagi kuota kecamatan. Input = semua status verifikasi.' });
+      subJudul('B. LAYANAN KEMENAG');
+      matriks(model.layananKemenag, kecT);
     }
 
     // Kaki halaman di setiap halaman
