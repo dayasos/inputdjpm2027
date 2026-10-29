@@ -2108,12 +2108,23 @@ function badgeStatusVerifikasi(status, tanggalLapor) {
   return '<span class="inline-flex items-center gap-1 bg-slate-100 text-slate-600 border border-slate-200/80 text-[11px] font-semibold px-2.5 py-0.5 rounded-full shadow-xs"><svg class="w-3 h-3 text-slate-500 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>Proses Verifikasi</span>';
 }
 
+// Kalimat yang ditambahkan SISTEM di belakang catatan Verifikator MUI saat Admin Utama menekan "Salin Catatan MUI ke Alasan
+// Verifikasi" (hanya bila rekomendasinya salah). Tidak disimpan di database dan tidak tampil di kotak catatan.
+const RUJUKAN_MUI_DASAR = "Silahkan ke MUI Kota Medan untuk penerbitan Rekomendasi MUI";
+function teksSalinCatatanMui(catatan, statusMui) {
+  let isi = String(catatan || "").trim();
+  if (String(statusMui || "").toUpperCase() === "PERLU_KOREKSI" && isi.toLowerCase().indexOf(RUJUKAN_MUI_DASAR.toLowerCase()) === -1) {
+    isi = isi ? isi + (/[.!?]$/.test(isi) ? " " : ". ") + RUJUKAN_MUI_DASAR + "." : RUJUKAN_MUI_DASAR + ".";
+  }
+  return "[CATATAN REKOMENDASI MUI]: " + isi;
+}
+
 function badgeRekomendasiMui(layanan, statusMui) {
   const lay = (layanan || "").toString().toUpperCase();
   if (!["USTADZ", "USTADZAH", "USTADZ/USTADZAH"].includes(lay)) return "";
   const s = (statusMui || "BELUM_DIPERIKSA").toString().toUpperCase();
   if (s === "PERLU_KOREKSI") {
-    return '<div class="mt-1"><span class="inline-flex items-center gap-1 bg-red-100 text-red-700 border border-red-300 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⚠️ MUI: Perlu Koreksi</span></div>';
+    return '<div class="mt-1"><span class="inline-flex items-center gap-1 bg-red-100 text-red-700 border border-red-300 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs">⚠️ Rekom MUI Salah</span></div>';
   }
   if (s === "SESUAI") {
     return '<div class="mt-1"><span class="inline-flex items-center gap-1 bg-teal-50 text-teal-700 border border-teal-200 text-[10px] font-semibold px-2 py-0.5 rounded-md shadow-2xs">✓ Rekomendasi MUI Sah</span></div>';
@@ -2582,7 +2593,7 @@ function halamanBerikutnya() {
         const badgeMuiHtml = statusMui === "SESUAI"
           ? '<span class="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-bold">✓ Rekomendasi Sah & Terdaftar</span>'
           : statusMui === "PERLU_KOREKSI"
-          ? '<span class="bg-red-100 text-red-800 text-xs px-2.5 py-0.5 rounded-full font-bold">⚠️ Perlu Koreksi / Tidak Sesuai</span>'
+          ? '<span class="bg-red-100 text-red-800 text-xs px-2.5 py-0.5 rounded-full font-bold">⚠️ Rekom MUI Salah</span>'
           : '<span class="bg-slate-100 text-slate-700 text-xs px-2.5 py-0.5 rounded-full font-medium">Belum Diperiksa</span>';
         const linkRekom = d[24] && d[24].toString().startsWith("http")
           ? `<a href="${d[24]}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold shadow-2xs transition">📄 Buka Berkas Rekomendasi MUI ↗</a>`
@@ -2606,11 +2617,11 @@ function halamanBerikutnya() {
           <label class="block text-[11px] font-semibold text-emerald-900 mb-1">Status Keabsahan Dokumen:</label>
           <select id="input-status-verif-mui" class="w-full text-xs p-2 border border-emerald-300 rounded-lg mb-2 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
             <option value="SESUAI" ${statusMui === "SESUAI" ? "selected" : ""}>Rekomendasi Sah & Terdaftar di MUI (Sesuai)</option>
-            <option value="PERLU_KOREKSI" ${statusMui === "PERLU_KOREKSI" ? "selected" : ""}>Perlu Koreksi (Salah / Tidak Terdaftar / Buram / Palsu)</option>
+            <option value="PERLU_KOREKSI" ${statusMui === "PERLU_KOREKSI" ? "selected" : ""}>Rekom MUI Salah (Tidak Terdaftar / Buram / Palsu)</option>
             <option value="BELUM_DIPERIKSA" ${statusMui === "BELUM_DIPERIKSA" ? "selected" : ""}>Belum Diperiksa</option>
           </select>
           <label class="block text-[11px] font-semibold text-emerald-900 mb-1">Catatan untuk Admin Utama:</label>
-          <textarea id="input-catatan-verif-mui" rows="2" placeholder="Tuliskan catatan verifikasi keabsahan rekomendasi MUI ini (wajib jika Perlu Koreksi)..." class="w-full text-xs p-2 border border-emerald-300 rounded-lg mb-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20">${esc(catatanMui)}</textarea>
+          <textarea id="input-catatan-verif-mui" rows="2" placeholder="Tuliskan catatan verifikasi keabsahan rekomendasi MUI ini (wajib jika Rekom MUI Salah)..." class="w-full text-xs p-2 border border-emerald-300 rounded-lg mb-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20">${esc(catatanMui)}</textarea>
           <p class="text-[10px] text-emerald-800/80 mb-2 italic">Catatan ini akan otomatis terkirim dan dibaca oleh Admin Utama Dinas Sosial.</p>
           <button id="btn-simpan-verif-mui" class="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white text-xs font-semibold px-4 py-2 rounded-lg transition shadow-2xs">
             <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
@@ -2621,7 +2632,7 @@ function halamanBerikutnya() {
         const badgeMuiHtml = statusMui === "SESUAI"
           ? '<span class="bg-emerald-100 text-emerald-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">✓ Rekomendasi Sah MUI</span>'
           : statusMui === "PERLU_KOREKSI"
-          ? '<span class="bg-red-100 text-red-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">⚠️ Perlu Koreksi MUI</span>'
+          ? '<span class="bg-red-100 text-red-800 text-[11px] px-2.5 py-0.5 rounded-full font-bold">⚠️ Rekom MUI Salah</span>'
           : '<span class="bg-slate-100 text-slate-600 text-[11px] px-2.5 py-0.5 rounded-full font-medium">MUI: Belum Diperiksa</span>';
         h += `<div class="mb-4 bg-amber-50/80 border border-amber-300/80 rounded-xl px-4 py-3 shadow-2xs">
           <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -2647,7 +2658,7 @@ function halamanBerikutnya() {
       } else if (statusMui === "PERLU_KOREKSI") {
         h += `<div class="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 shadow-2xs">
           <p class="text-xs font-bold text-red-900 flex items-center gap-1.5">
-            <span>⚠️ Catatan MUI: Berkas Rekomendasi Perlu Koreksi</span>
+            <span>⚠️ Catatan MUI: Rekom MUI Salah</span>
           </p>
           <p class="text-xs text-red-800 mt-1">${esc(catatanMui || "Rekomendasi MUI yang diunggah belum sesuai atau tidak terdaftar di MUI Kota Medan.")}</p>
         </div>`;
@@ -2879,7 +2890,7 @@ function halamanBerikutnya() {
         const statusBaru = document.getElementById("input-status-verif-mui").value;
         const catatanBaru = (document.getElementById("input-catatan-verif-mui").value || "").trim();
         if (statusBaru === "PERLU_KOREKSI" && !catatanBaru) {
-          tampilkanToast("Catatan verifikasi wajib diisi jika status Perlu Koreksi.", "gagal");
+          tampilkanToast("Catatan verifikasi wajib diisi jika status Rekom MUI Salah.", "gagal");
           return;
         }
         btnSimpanMui.disabled = true;
@@ -2919,7 +2930,11 @@ function halamanBerikutnya() {
       btnSalinMui.addEventListener("click", function () {
         const taKet = document.getElementById("input-keterangan-verifikasi");
         if (taKet) {
-          const prefix = "[CATATAN REKOMENDASI MUI]: " + catatanMui;
+          const prefix = teksSalinCatatanMui(catatanMui, statusMui);
+          if (taKet.value.indexOf(prefix) !== -1) {      // sudah pernah disalin: jangan digandakan
+            tampilkanToast("Catatan MUI sudah ada di Keterangan Verifikasi.", "info");
+            return;
+          }
           taKet.value = taKet.value ? taKet.value + "\n" + prefix : prefix;
           taKet.focus();
           tampilkanToast("Catatan MUI disalin ke Keterangan Verifikasi.", "sukses");

@@ -1302,7 +1302,7 @@ export async function simpanCatatanRekomendasiMui(
 
   const catatanBersih = (catatan || "").toString().trim();
   if (statusBersih === "PERLU_KOREKSI" && !catatanBersih) {
-    return { sukses: false, pesan: "Catatan verifikasi wajib diisi jika status Perlu Koreksi." };
+    return { sukses: false, pesan: "Catatan verifikasi wajib diisi jika status Rekom MUI Salah." };
   }
 
   try {

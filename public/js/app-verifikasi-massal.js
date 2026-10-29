@@ -20,7 +20,7 @@
   var tahap = 'tutup';          // 'tutup' | 'memuat' | 'pilih' | 'konfirmasi' | 'proses' | 'kosong' | 'galat'
   var ringkasan = null;         // jawaban server terakhir
   var pilihan = null;           // null = belum memilih; '' = semua layanan; selain itu = nama layanan (huruf besar)
-  var lewatiMui = true;         // kotak centang "Lewati Perlu Koreksi MUI"
+  var lewatiMui = true;         // kotak centang "Lewati Rekom MUI Salah"
   var pesanGalat = '';
 
   function $(id) { return document.getElementById(id); }
@@ -116,7 +116,7 @@
     if (koreksi > 0) {
       h += '<label class="mt-3 flex items-start gap-2 text-xs text-slate-700 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2 cursor-pointer">' +
         '<input type="checkbox" id="vm-lewati" class="mt-0.5"' + (lewatiMui ? ' checked' : '') + '>' +
-        '<span>Lewati <b>' + angka(koreksi) + '</b> data Ustadz/Ustadzah yang rekomendasi MUI-nya <b>Perlu Koreksi</b> ' +
+        '<span>Lewati <b>' + angka(koreksi) + '</b> data Ustadz/Ustadzah yang rekomendasi MUI-nya <b>Salah (Rekom MUI Salah)</b> ' +
         '(tetap Proses Verifikasi).</span></label>';
     }
     h += '<p class="mt-3 text-[11px] text-slate-500 leading-relaxed">Hanya data berstatus &quot;Proses Verifikasi&quot; yang diubah. ' +
@@ -147,7 +147,7 @@
       h = '<p class="leading-relaxed">Akan menandai <b class="text-slate-900">' + angka(n) + '</b> data <b class="text-slate-900">' +
         esc2(namaPilihan()) + '</b> menjadi <b>&quot;Memenuhi Syarat&quot;</b>.</p>' +
         (lewatiMui && jumlahMuiKoreksiTerpilih() > 0
-          ? '<p class="mt-2 text-xs text-sky-800">' + angka(jumlahMuiKoreksiTerpilih()) + ' data Ustadz/Ustadzah &quot;Perlu Koreksi&quot; dilewati.</p>' : '') +
+          ? '<p class="mt-2 text-xs text-sky-800">' + angka(jumlahMuiKoreksiTerpilih()) + ' data Ustadz/Ustadzah &quot;Rekom MUI Salah&quot; dilewati.</p>' : '') +
         '<p class="mt-2 text-xs text-slate-500">Data yang masuk setelah pratinjau ini tidak ikut diverifikasi. Lanjutkan?</p>' +
         (pesanGalat ? '<p class="mt-3 text-xs text-rose-700 font-semibold">' + esc2(pesanGalat) + '</p>' : '');
       var proses = tahap === 'proses';
