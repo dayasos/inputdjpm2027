@@ -333,25 +333,23 @@
     var kecTampil = filterKec;
     panel.appendChild(barisFilter(kecTampil));
 
-    // Angka ringkasan: seluruh kota, atau HANYA kecamatan yang dipilih (dihitung dari model yang sama).
+    // Angka ringkasan HANYA untuk bagian yang sedang dibuka (A atau B): seluruh kota, atau kecamatan yang dipilih.
+    var daftarLay = bagianAktif === 'A' ? model.layananKecamatan : model.layananKemenag;
     var ang;
     if (kecTampil) {
-      var ta = totalKec(kecTampil, model.layananKecamatan), tb = totalKec(kecTampil, model.layananKemenag);
+      var t = totalKec(kecTampil, daftarLay);
       var daftarKel = model.kelurahan[kecTampil] || [];
-      ang = { input: ta.input + tb.input, kuota: ta.kuota + tb.kuota, pA: persenDari(ta.input, ta.kuota), pB: persenDari(tb.input, tb.kuota),
-        belum: daftarKel.filter(function (k) { return k.total === 0; }).length, jml: daftarKel.length };
+      ang = { input: t.input, kuota: t.kuota, belum: daftarKel.filter(function (k) { return k.total === 0; }).length, jml: daftarKel.length };
     } else {
-      var r = model.ringkasan;
-      ang = { input: r.kecamatan.totalInput + r.kemenag.totalInput, kuota: r.kecamatan.totalKuota + r.kemenag.totalKuota,
-        pA: r.kecamatan.persen, pB: r.kemenag.persen, belum: r.kelurahanBelumInput, jml: r.jumlahKelurahan };
+      var r = model.ringkasan, rb = bagianAktif === 'A' ? r.kecamatan : r.kemenag;
+      ang = { input: rb.totalInput, kuota: rb.totalKuota, belum: r.kelurahanBelumInput, jml: r.jumlahKelurahan };
     }
     var kpi = buat('div', 'ci-kpi');
     kpi.appendChild(kartuKpi(angka(ang.input), 'Total input'));
     kpi.appendChild(kartuKpi(angka(ang.kuota), 'Total kuota'));
-    kpi.appendChild(kartuKpi(teksPersen(persenDari(ang.input, ang.kuota)), kecTampil ? 'Capaian kecamatan' : 'Capaian keseluruhan'));
-    kpi.appendChild(kartuKpi(teksPersen(ang.pA), 'Layanan Kecamatan'));
-    kpi.appendChild(kartuKpi(teksPersen(ang.pB), 'Layanan Kemenag'));
-    kpi.appendChild(kartuKpi(angka(ang.belum) + ' dari ' + angka(ang.jml), 'Kelurahan belum ada input'));
+    kpi.appendChild(kartuKpi(teksPersen(persenDari(ang.input, ang.kuota)), 'Capaian ' + (bagianAktif === 'A' ? 'layanan kecamatan' : 'layanan Kemenag')));
+    // Kelurahan hanya ada pada layanan Kecamatan (layanan Kemenag dihitung per kecamatan).
+    if (bagianAktif === 'A') kpi.appendChild(kartuKpi(angka(ang.belum) + ' dari ' + angka(ang.jml), 'Kelurahan belum ada input'));
     panel.appendChild(kpi);
 
     var sub = buat('div', 'ci-sub');

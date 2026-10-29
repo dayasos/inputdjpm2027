@@ -225,20 +225,18 @@
     }
 
     function kpi(kec) {
-      // seluruh kota, atau HANYA kecamatan terpilih (rumus sama dengan layar)
-      var a, b, belum, jml;
+      // HANYA bagian yang dibuka (A/B), seluruh kota atau kecamatan terpilih (rumus sama dengan layar)
+      var A = bagian === 'A', lay = A ? model.layananKecamatan : model.layananKemenag, totI, totQ, belum, jml;
       if (kec) {
-        var ta = agg(kec, model.layananKecamatan), tb = agg(kec, model.layananKemenag), dk = model.kelurahan[kec] || [];
-        a = { totalInput: ta.i, totalKuota: ta.q, persen: persenDari(ta.i, ta.q) };
-        b = { totalInput: tb.i, totalKuota: tb.q, persen: persenDari(tb.i, tb.q) };
+        var ta = agg(kec, lay), dk = model.kelurahan[kec] || [];
+        totI = ta.i; totQ = ta.q;
         belum = dk.filter(function (k) { return k.total === 0; }).length; jml = dk.length;
       } else {
-        a = model.ringkasan.kecamatan; b = model.ringkasan.kemenag; belum = model.ringkasan.kelurahanBelumInput; jml = model.ringkasan.jumlahKelurahan;
+        var rb = A ? model.ringkasan.kecamatan : model.ringkasan.kemenag;
+        totI = rb.totalInput; totQ = rb.totalKuota; belum = model.ringkasan.kelurahanBelumInput; jml = model.ringkasan.jumlahKelurahan;
       }
-      var totI = a.totalInput + b.totalInput, totQ = a.totalKuota + b.totalKuota;
-      var isiKpi = [[angka(totI), 'TOTAL INPUT'], [angka(totQ), 'TOTAL KUOTA'], [tPersen(persenDari(totI, totQ)), kec ? 'CAPAIAN KECAMATAN' : 'CAPAIAN KESELURUHAN'],
-        [tPersen(a.persen), 'LAYANAN KECAMATAN'], [tPersen(b.persen), 'LAYANAN KEMENAG'],
-        [angka(belum) + ' dari ' + angka(jml), 'KELURAHAN BELUM ADA INPUT']];
+      var isiKpi = [[angka(totI), 'TOTAL INPUT'], [angka(totQ), 'TOTAL KUOTA'], [tPersen(persenDari(totI, totQ)), A ? 'CAPAIAN LAYANAN KECAMATAN' : 'CAPAIAN LAYANAN KEMENAG']];
+      if (A) isiKpi.push([angka(belum) + ' dari ' + angka(jml), 'KELURAHAN BELUM ADA INPUT']);
       var gap = 6, w = (CW - gap * (isiKpi.length - 1)) / isiKpi.length;
       isiKpi.forEach(function (d, i) {
         var x = ML + i * (w + gap);
