@@ -59,7 +59,7 @@ import {
 import { buatTokenSSORetur } from "./domains/sso.ts";
 import { ambilDataTahunHakAkses, ambilRiwayatEdit, ambilTahunTersedia } from "./domains/riwayat.ts";
 import { getDashboardProgresVerifikasi } from "./domains/dashboard.ts";
-import { getProgresKuota, getSemuaKuota, simpanKuota } from "./domains/kuota.ts";
+import { getCapaianInput, getProgresKuota, getSemuaKuota, simpanKuota } from "./domains/kuota.ts";
 import {
   cekBatasWaktuVerifikasi,
   getDaftarBerkasTidakLengkapUntukWA,
@@ -167,6 +167,7 @@ const ALLOWED: Record<string, Handler> = {
   getSemuaKuota,
   simpanKuota,
   getProgresKuota,
+  getCapaianInput,
   verifikasiSatuData,
   laporkanPerbaikanBerkas,
   tandaiSudahDiperbaiki,

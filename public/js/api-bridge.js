@@ -205,6 +205,7 @@ const SWR_CONFIG = {
   // Kuota: TTL 5 menit
   getSemuaKuota: { ttl: 5 * 60 * 1000, domain: 'kuota' },
   getProgresKuota: { ttl: 5 * 60 * 1000, domain: 'kuota' },
+  getCapaianInput: { ttl: 3 * 60 * 1000, domain: 'dashboard' }, // bergantung pada penerima + kuota; mutasi keduanya sudah membuang domain dashboard
 
   statusInputKecKem: { ttl: 2 * 60 * 1000, domain: 'setelan' },
   ambilStatusDetailSetelan: { ttl: 2 * 60 * 1000, domain: 'setelan' },
