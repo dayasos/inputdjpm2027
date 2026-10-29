@@ -2114,7 +2114,10 @@ const RUJUKAN_MUI_DASAR = "Silahkan ke MUI Kota Medan untuk penerbitan Rekomenda
 function teksSalinCatatanMui(catatan, statusMui) {
   let isi = String(catatan || "").trim();
   if (String(statusMui || "").toUpperCase() === "PERLU_KOREKSI" && isi.toLowerCase().indexOf(RUJUKAN_MUI_DASAR.toLowerCase()) === -1) {
-    isi = isi ? isi + (/[.!?]$/.test(isi) ? " " : ". ") + RUJUKAN_MUI_DASAR + "." : RUJUKAN_MUI_DASAR + ".";
+    // koma/titik dua/titik koma di ujung catatan dibuang agar tidak menjadi ",." sebelum kalimat rujukan (hanya pada status Salah;
+    // status lain disalin apa adanya)
+    const dasar = isi.replace(/[,;:\s]+$/, "");
+    isi = dasar ? dasar + (/[.!?]$/.test(dasar) ? " " : ". ") + RUJUKAN_MUI_DASAR + "." : RUJUKAN_MUI_DASAR + ".";
   }
   return "[CATATAN REKOMENDASI MUI]: " + isi;
 }

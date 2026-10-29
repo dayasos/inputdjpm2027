@@ -116,7 +116,7 @@
     if (koreksi > 0) {
       h += '<label class="mt-3 flex items-start gap-2 text-xs text-slate-700 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2 cursor-pointer">' +
         '<input type="checkbox" id="vm-lewati" class="mt-0.5"' + (lewatiMui ? ' checked' : '') + '>' +
-        '<span>Lewati <b>' + angka(koreksi) + '</b> data Ustadz/Ustadzah yang rekomendasi MUI-nya <b>Salah (Rekom MUI Salah)</b> ' +
+        '<span>Lewati <b>' + angka(koreksi) + '</b> data Ustadz/Ustadzah yang berstatus <b>Rekom MUI Salah</b> ' +
         '(tetap Proses Verifikasi).</span></label>';
     }
     h += '<p class="mt-3 text-[11px] text-slate-500 leading-relaxed">Hanya data berstatus &quot;Proses Verifikasi&quot; yang diubah. ' +
