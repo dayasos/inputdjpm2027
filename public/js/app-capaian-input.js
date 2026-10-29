@@ -26,6 +26,7 @@
   var pemuatUlang = null;
   var JUDUL_CAPAIAN = 'Dashboard Capaian Input';
   var judulLama = '';          // judul Dashboard lama yang disimpan selama tab Capaian Input aktif
+  var filterKec = '';          // '' = seluruh kota; selain itu nama kecamatan yang ditampilkan SAJA (layar)
   var cakupanPdf = 'SEMUA';    // 'SEMUA' | 'KEC:<nama>' | 'LAY:<nama>'
   var sedangUnduh = false;
   // Versi (?v=) skrip ini, dipakai juga untuk memuat skrip PDF & pustaka agar cache ikut terbuang bersama-sama.
@@ -73,6 +74,10 @@
     '.ci-kartu b{display:block;font-size:1.25rem;color:#0f172a;line-height:1.3}.ci-kartu span{font-size:.65rem;font-weight:700;color:#64748b;text-transform:uppercase}',
     '.ci-sub{display:flex;gap:.5rem;margin:.25rem 0 .75rem;flex-wrap:wrap;align-items:center}',
     '.ci-stempel{margin-left:auto;font-size:.68rem;color:#94a3b8}',
+    '.ci-filter{display:flex;align-items:center;gap:.6rem;margin-bottom:.9rem;flex-wrap:wrap}',
+    '.ci-filter label{font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em}',
+    '.ci-filter select{min-width:15rem;font-size:.8rem;font-weight:600;padding:.45rem .6rem;border:1px solid #cbd5e1;border-radius:.5rem;background:#fff;color:#0f172a}',
+    '.ci-lencana{font-size:.68rem;font-weight:700;color:#0369a1;background:#e0f2fe;border-radius:999px;padding:.2rem .6rem}',
     '.ci-pdf{display:inline-flex;gap:.4rem;align-items:center}',
     '.ci-pilih{max-width:17rem;font-size:.72rem;padding:.4rem .5rem;border:1px solid #cbd5e1;border-radius:.5rem;background:#fff;color:#0f172a}',
     '.ci-unduh{background:#059669;color:#fff;font-size:.72rem;font-weight:600;padding:.45rem .9rem;border-radius:.6rem;border:0;cursor:pointer}',
@@ -89,7 +94,7 @@
     '.ci-w3{background:#f0fdf4;color:#16a34a}.ci-w4{background:#dcfce7;color:#15803d}.ci-abu{background:#f1f5f9;color:#64748b}',
     '.ci-klik{cursor:pointer}.ci-klik:hover td.ci-nama{background:#e0f2fe}.ci-klik .ci-panah{display:inline-block;width:1rem;color:#0284c7}',
     '.ci-rinci td{padding:.6rem;background:#f8fafc;text-align:left;white-space:normal}',
-    '.ci-rinci .ci-judul{font-size:.72rem;font-weight:700;color:#0f172a;margin-bottom:.4rem}',
+    '.ci-judul{font-size:.78rem;font-weight:700;color:#0f172a;margin:.1rem 0 .45rem}',
     '.ci-belum td.ci-nama{color:#b91c1c}.ci-belum td{background:#fef2f2}.ci-tabel td.ci-nama small{display:block;font-weight:400;font-size:.62rem}',
     '.ci-nol{color:#b91c1c;font-weight:700}',
     '.ci-ket{display:flex;flex-wrap:wrap;gap:.35rem .9rem;margin:.55rem 0 0;font-size:.66rem;color:#475569;align-items:center}',
@@ -177,12 +182,12 @@
   function selDari(t) { return selKuota(t.input, t.kuota, t.kuotaAda); }
 
   /** Matriks kecamatan x layanan. bisaBuka=true (bagian A): klik kecamatan membuka rincian kelurahan. */
-  function matriksKecamatan(layanan, bisaBuka) {
+  function matriksKecamatan(layanan, bisaBuka, hanya) {
     var tabel = buat('table', 'ci-tabel');
     tabel.appendChild(headTabel('KECAMATAN', layanan, true));
     var tbody = buat('tbody');
     var adaTanpaKuota = false;
-    model.kecamatan.forEach(function (kec) {
+    (hanya ? [hanya] : model.kecamatan).forEach(function (kec) {
       var tr = buat('tr', bisaBuka ? 'ci-klik' : '');
       var nm = buat('td', 'ci-nama');
       if (bisaBuka) {
@@ -220,16 +225,18 @@
         tbody.appendChild(rinci);
       }
     });
-    var trTot = buat('tr', 'ci-total');
-    trTot.appendChild(buat('td', 'ci-nama', 'TOTAL KOTA'));
-    var semua = { input: 0, kuota: 0, kuotaAda: false };
-    layanan.forEach(function (l) {
-      var t = totalLay(l);
-      semua.input += t.input; semua.kuota += t.kuota; semua.kuotaAda = semua.kuotaAda || t.kuotaAda;
-      trTot.appendChild(selDari(t));
-    });
-    trTot.appendChild(selDari(semua));
-    tbody.appendChild(trTot);
+    if (!hanya) {       // satu kecamatan: barisnya sendiri sudah merupakan totalnya, tanpa baris TOTAL KOTA
+      var trTot = buat('tr', 'ci-total');
+      trTot.appendChild(buat('td', 'ci-nama', 'TOTAL KOTA'));
+      var semua = { input: 0, kuota: 0, kuotaAda: false };
+      layanan.forEach(function (l) {
+        var t = totalLay(l);
+        semua.input += t.input; semua.kuota += t.kuota; semua.kuotaAda = semua.kuotaAda || t.kuotaAda;
+        trTot.appendChild(selDari(t));
+      });
+      trTot.appendChild(selDari(semua));
+      tbody.appendChild(trTot);
+    }
     tabel.appendChild(tbody);
     return { tabel: tabel, adaTanpaKuota: adaTanpaKuota };
   }
@@ -297,22 +304,57 @@
     panel.appendChild(buat('p', 'ci-pesan' + (galat ? ' ci-err' : ''), teks));
   }
 
+  /** Filter TAMPILAN (bukan cakupan PDF): '' = seluruh kota, selain itu hanya satu kecamatan. */
+  function barisFilter(kecTampil) {
+    var baris = buat('div', 'ci-filter');
+    var lab = buat('label', '', 'Tampilkan data');
+    lab.setAttribute('for', 'ci-filter-kec');
+    var pilih = buat('select', 'ci-filter-kec');
+    pilih.id = 'ci-filter-kec';
+    var o0 = buat('option', '', 'Semua Kecamatan (Kota Medan)'); o0.value = ''; pilih.appendChild(o0);
+    model.kecamatan.forEach(function (k) { var o = buat('option', '', k); o.value = k; pilih.appendChild(o); });
+    pilih.value = kecTampil;
+    pilih.addEventListener('change', function () {
+      filterKec = pilih.value;
+      // PDF mengikuti pilihan ini (tetap bisa diubah); pilihan "satu layanan Kemenag" tidak ditimpa.
+      if (cakupanPdf.indexOf('LAY:') !== 0) cakupanPdf = filterKec ? 'KEC:' + filterKec : 'SEMUA';
+      render();
+      var baru = $('ci-filter-kec'); if (baru) baru.focus();
+    });
+    baris.appendChild(lab);
+    baris.appendChild(pilih);
+    if (kecTampil) baris.appendChild(buat('span', 'ci-lencana', 'Menampilkan ' + kecTampil + ' saja'));
+    return baris;
+  }
+
   function render() {
     var panel = $(ID_PANEL);
     if (!panel || !model) return;
     var posisi = panel.scrollTop;
     panel.textContent = '';
-    var r = model.ringkasan;
-    var totInput = r.kecamatan.totalInput + r.kemenag.totalInput;
-    var totKuota = r.kecamatan.totalKuota + r.kemenag.totalKuota;
+    if (filterKec && model.kecamatan.indexOf(filterKec) < 0) filterKec = '';
+    var kecTampil = filterKec;
+    panel.appendChild(barisFilter(kecTampil));
 
+    // Angka ringkasan: seluruh kota, atau HANYA kecamatan yang dipilih (dihitung dari model yang sama).
+    var ang;
+    if (kecTampil) {
+      var ta = totalKec(kecTampil, model.layananKecamatan), tb = totalKec(kecTampil, model.layananKemenag);
+      var daftarKel = model.kelurahan[kecTampil] || [];
+      ang = { input: ta.input + tb.input, kuota: ta.kuota + tb.kuota, pA: persenDari(ta.input, ta.kuota), pB: persenDari(tb.input, tb.kuota),
+        belum: daftarKel.filter(function (k) { return k.total === 0; }).length, jml: daftarKel.length };
+    } else {
+      var r = model.ringkasan;
+      ang = { input: r.kecamatan.totalInput + r.kemenag.totalInput, kuota: r.kecamatan.totalKuota + r.kemenag.totalKuota,
+        pA: r.kecamatan.persen, pB: r.kemenag.persen, belum: r.kelurahanBelumInput, jml: r.jumlahKelurahan };
+    }
     var kpi = buat('div', 'ci-kpi');
-    kpi.appendChild(kartuKpi(angka(totInput), 'Total input'));
-    kpi.appendChild(kartuKpi(angka(totKuota), 'Total kuota'));
-    kpi.appendChild(kartuKpi(teksPersen(persenDari(totInput, totKuota)), 'Capaian keseluruhan'));
-    kpi.appendChild(kartuKpi(teksPersen(r.kecamatan.persen), 'Layanan Kecamatan'));
-    kpi.appendChild(kartuKpi(teksPersen(r.kemenag.persen), 'Layanan Kemenag'));
-    kpi.appendChild(kartuKpi(angka(r.kelurahanBelumInput) + ' dari ' + angka(r.jumlahKelurahan), 'Kelurahan belum ada input'));
+    kpi.appendChild(kartuKpi(angka(ang.input), 'Total input'));
+    kpi.appendChild(kartuKpi(angka(ang.kuota), 'Total kuota'));
+    kpi.appendChild(kartuKpi(teksPersen(persenDari(ang.input, ang.kuota)), kecTampil ? 'Capaian kecamatan' : 'Capaian keseluruhan'));
+    kpi.appendChild(kartuKpi(teksPersen(ang.pA), 'Layanan Kecamatan'));
+    kpi.appendChild(kartuKpi(teksPersen(ang.pB), 'Layanan Kemenag'));
+    kpi.appendChild(kartuKpi(angka(ang.belum) + ' dari ' + angka(ang.jml), 'Kelurahan belum ada input'));
     panel.appendChild(kpi);
 
     var sub = buat('div', 'ci-sub');
@@ -329,13 +371,15 @@
     var layanan = bagianAktif === 'A' ? model.layananKecamatan : model.layananKemenag;
     if (!layanan.length) {
       panel.appendChild(buat('p', 'ci-pesan', 'Belum ada layanan untuk bagian ini.'));
+    } else if (kecTampil && bagianAktif === 'A') {
+      panel.appendChild(rincianKelurahan(kecTampil, layanan));      // satu kecamatan: langsung seluruh kelurahannya
     } else {
-      var m = matriksKecamatan(layanan, bagianAktif === 'A');
+      var m = matriksKecamatan(layanan, bagianAktif === 'A' && !kecTampil, kecTampil);
       var gulir = buat('div', 'ci-gulir');
       gulir.appendChild(m.tabel);
       panel.appendChild(gulir);
       panel.appendChild(keterangan({ kuota: true, adaTanpaKuota: m.adaTanpaKuota }));
-      if (bagianAktif === 'A') panel.appendChild(buat('p', 'ci-stempel', 'Klik nama kecamatan untuk melihat rincian per kelurahan.')).style.margin = '.5rem 0 0';
+      if (bagianAktif === 'A' && !kecTampil) panel.appendChild(buat('p', 'ci-stempel', 'Klik nama kecamatan untuk melihat rincian per kelurahan, atau pilih kecamatan pada "Tampilkan data" di atas.')).style.margin = '.5rem 0 0';
     }
     panel.scrollTop = posisi;
   }
@@ -352,12 +396,12 @@
     var pilih = buat('select', 'ci-pilih');
     pilih.setAttribute('aria-label', 'Cakupan PDF');
     function opsi(parent, nilai, teks) { var o = buat('option', '', teks); o.value = nilai; parent.appendChild(o); }
-    opsi(pilih, 'SEMUA', 'PDF: Semua (ringkasan + rincian semua kecamatan)');
-    var gk = buat('optgroup'); gk.label = 'Satu kecamatan (rincian kelurahan)';
-    model.kecamatan.forEach(function (k) { opsi(gk, 'KEC:' + k, k); });
+    opsi(pilih, 'SEMUA', 'PDF: Semua kecamatan (ringkasan + rincian)');
+    var gk = buat('optgroup'); gk.label = 'PDF satu kecamatan (rincian kelurahan)';
+    model.kecamatan.forEach(function (k) { opsi(gk, 'KEC:' + k, 'PDF: Kecamatan ' + k); });
     pilih.appendChild(gk);
-    var gl = buat('optgroup'); gl.label = 'Satu layanan Kemenag (21 kecamatan)';
-    model.layananKemenag.forEach(function (l) { opsi(gl, 'LAY:' + l, l); });
+    var gl = buat('optgroup'); gl.label = 'PDF satu layanan Kemenag (21 kecamatan)';
+    model.layananKemenag.forEach(function (l) { opsi(gl, 'LAY:' + l, 'PDF: Layanan ' + l); });
     pilih.appendChild(gl);
     pilih.value = cakupanPdf;
     if (pilih.value !== cakupanPdf) { cakupanPdf = 'SEMUA'; pilih.value = 'SEMUA'; }

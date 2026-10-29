@@ -22,6 +22,7 @@ Bahan laporan ke **pimpinan**, lalu diteruskan ke **tiap kecamatan** (layanan Ke
 | D7 | **PDF dengan tampilan sama** dengan layar, dari model data yang sama | user |
 | D9 | **Semua layanan diikutsertakan** (seluruh `master.kecamatan` dan `master.kemenag`), walau belum ada input atau belum ada kuota. Sel yang inputnya 0 **ditulis "0"** (tidak dikosongkan atau diganti "-"). Berbeda dengan Progres Kuota lama yang menyembunyikan layanan tanpa kuota | user, 2026-10-29 |
 | D10 | Layanan **tanpa kuota** di suatu kecamatan: sel ditulis `0` berwarna **abu-abu netral** (bukan merah). **Keterangan (legenda) di bawah setiap tabel**, di layar dan PDF | user, 2026-10-29 |
+| D11 | **Filter kecamatan untuk TAMPILAN** ("Tampilkan data": Semua Kecamatan / satu kecamatan), terpisah dari pilihan cakupan PDF. Dipilih kecamatan -> ringkasan, bagian A (langsung tabel semua kelurahannya) dan bagian B (satu baris kecamatan itu) HANYA memuat kecamatan itu; pilihan PDF otomatis mengikuti (kecuali pilihan "layanan Kemenag"). Ditambahkan 2026-10-29 setelah user mengira pilihan PDF adalah filter ("saya klik medan amplas, data masih kota medan") | user |
 | D8 | Hanya **Admin Utama**; tanpa kop/tanda tangan/nomor surat; nama berkas `Laporan-Capaian-Input-DJPM-2027_{SEMUA\|LAYANAN\|KECAMATAN}_{YYYY-MM-DD}.pdf` | usulan (konsisten dengan PDF Dashboard) |
 
 ## 2. Temuan di kode sekarang
