@@ -315,6 +315,8 @@ const MUTATION_INVALIDATIONS = {
   adminHapusData: ['penerima', 'penerima_detail', 'dashboard', 'kuota', 'data_detail', 'riwayat'],
   adminHapusDataMassal: ['penerima', 'penerima_detail', 'dashboard', 'kuota', 'data_detail', 'riwayat'],
   simpanCatatanRekomendasiMui: ['penerima', 'penerima_detail'],
+  // Cek Alamat Tugas GMM: perbaikan alamat tugas = edit satu kolom penerima (lewat editDataPenerima di server).
+  cekAlamatPerbaiki: ['penerima', 'penerima_detail', 'data_detail', 'riwayat'],
   simpanResponAdminMui: ['penerima', 'penerima_detail'],
 };
 
