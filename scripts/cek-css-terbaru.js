@@ -32,6 +32,10 @@ const kurang = [...B].filter((x) => !A.has(x));
 const lebih = [...A].filter((x) => !B.has(x));
 if (kurang.length === 0 && lebih.length === 0) {
   console.log("OK: public/css/tailwind.css sudah terbaru (" + B.size + " aturan).");
+  // Penjaga cache: CSS berubah dari HEAD => nomor ?v= di index.html wajib naik (lihat scripts/cek-versi-css.js).
+  const v = require("./cek-versi-css.js").periksa();
+  if (!v.ok) { console.error("GAGAL versi CSS: " + v.pesan); process.exit(1); }
+  console.log("OK versi CSS: " + v.catatan);
   process.exit(0);
 }
 console.error("GAGAL: public/css/tailwind.css ketinggalan. Jalankan `npm run build:css` lalu commit berkas CSS-nya.");

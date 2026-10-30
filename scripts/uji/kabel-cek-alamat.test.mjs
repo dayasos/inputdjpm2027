@@ -66,6 +66,16 @@ test("PEMUAT MALAS: hanya UTAMA dan GURU MAGHRIB MENGAJI yang mengunduh modul; p
   assert.ok(!html.includes("app-cek-alamat.js"), "dimuat malas, tidak statis di index.html");
 });
 
+test("VERSI CSS: nomor ?v= pada tailwind.css dinaikkan (CSS fitur ini memuat kelas baru; tanpa kenaikan, browser/service worker memakai CSS lama dan tombol utama pop-up tak berlatar)", () => {
+  const html = baca("index.html");
+  const v = Number((/\/css\/tailwind\.css\?v=(\d+)/.exec(html) || [])[1]);
+  assert.ok(v >= 20271060, "tailwind.css?v= harus >= 20271060 (nilai lama 20271026 dipakai sebelum kelas orange ada), sekarang " + v);
+  const css = baca("public/css/tailwind.css");
+  assert.ok(css.includes(".bg-orange-600{"), "kelas tombol utama pop-up ada di CSS");
+  assert.ok(fs.existsSync(new URL("../../scripts/cek-versi-css.js", import.meta.url)), "penjaga versi CSS ada");
+  assert.match(baca("scripts/cek-css-terbaru.js"), /cek-versi-css\.js/, "check-css memanggil penjaga versi CSS");
+});
+
 test("VERSI: versi skrip yang berubah dinaikkan (cache-busting); skrip peran memakai versi app-pesan-periode.js", () => {
   const html = baca("index.html");
   const v = (nama) => Number((new RegExp(`/js/${nama}\\.js\\?v=(\\d+)`).exec(html) || [])[1]);

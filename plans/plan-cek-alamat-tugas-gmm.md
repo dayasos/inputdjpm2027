@@ -147,3 +147,13 @@ Tinjauan ulang yang berfokus pada apa yang BELUM pernah dilihat/diuji menemukan 
 3. **ESC tidak berfungsi / ganda:** modal-a11y.js mengabaikan ESC pada modal yang memasang `role` sendiri. Kini role dibiarkan ke modal-a11y.js, handler ESC sendiri dibuang; penutupan tepat sekali.
 4. **Gangguan sementara menghapus tab:** koneksi DB penuh (kejadian nyata ±1,3%) membuat lencana gagal dan tab hilang. Kini hanya "Aksi tidak diizinkan / does not exist" yang menyembunyikan fitur; gangguan lain mempertahankan tampilan dan mencoba lagi (maks. 3 x 30 detik). Ditemukan juga bug pada perbaikan ini sendiri (tab tidak dibuat bila panggilan pertama gagal), tertangkap uji.
 5. **Rencana rilis migrasi dikoreksi** (lihat bagian 15, langkah 1).
+
+## 17. Pensiun fitur (keputusan user 2026-10-31: Cek Alamat bersifat SEMENTARA)
+Yang dipedomani petugas ke depan adalah aturan saat INPUT (pengingat tahap 0, `plan-pengingat-alamat-rumah-gmm.md`), yang tetap berlaku. Cek Alamat hanya untuk memeriksa data yang sudah ada.
+**Kriteria selesai:** semua permintaan berstatus SELESAI dan tidak ada yang menunggu; bila ada guru GMM RUMAH baru yang belum dibuka, tekan "Buka Permintaan Cek" sekali lagi sebelum pensiun.
+**Urutan pensiun (kebalikan dari rilis; tiap langkah menunggu izin user):**
+1. Ekspor arsip (Excel): permintaan + utas (siapa, kapan, jawaban, alamat sebelum/sesudah). Setelah tabel dihapus utas tidak dapat dipulihkan. Simpan 1-2 minggu sebelum menghapus tabel bila perlu bukti untuk monitoring Dinsos.
+2. Frontend: revert commit fitur (cd170c6 + e4910e3, termasuk tailwind.css yang dibangun ulang) lalu push.
+3. Fungsi `api`: deploy ulang tanpa 10 aksi cekAlamat*.
+4. Hapus tabel: `drop table public.cek_alamat_tugas_pesan, public.cek_alamat_tugas_kecamatan, public.cek_alamat_tugas; drop function public.cek_alamat_tugas_pesan_tolak_ubah();`
+Tidak ada yang bergantung pada tabel/kodenya (tanpa FK; fitur lain tidak memanggilnya). Perbaikan alamat yang sudah dilakukan tetap ada di `penerima`, `data_detail`, dan `riwayat_edit`. Opsi antara: saklar mati/nyala (belum dibangun).

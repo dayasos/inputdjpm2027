@@ -205,6 +205,16 @@ try {
   await tungguSampai("!!document.getElementById('modal-cek-alamat-popup')", "pop-up muncul", 30);
   cek("GMM: pop-up saat masuk menyebut 3 guru dan kecamatan", await js("(() => { const t = document.getElementById('modal-cek-alamat-popup').innerText; return /3\\s+guru Maghrib Mengaji/.test(t) && /MEDAN LABUHAN/.test(t); })()"));
   await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(OUT, "cek-alamat-1-popup.png"), Buffer.from(s.result.data, "base64")));
+  // Kedua tombol pop-up harus TERLIHAT (latar tidak transparan, ukuran wajar), di ponsel maupun desktop.
+  for (const [lebar, tinggi, mobile] of [[390, 900, true], [1280, 800, false]]) {
+    await kirim("Emulation.setDeviceMetricsOverride", { width: lebar, height: tinggi, deviceScaleFactor: 1, mobile });
+    await tidur(300);
+    const tb = await js("(() => { const gaya = (id) => { const b = document.getElementById(id); if (!b) return null; const cs = getComputedStyle(b); const r = b.getBoundingClientRect(); return { lebar: Math.round(r.width), tinggi: Math.round(r.height), latar: cs.backgroundColor, warna: cs.color, tampil: cs.display + '/' + cs.visibility + '/' + cs.opacity }; }; return JSON.stringify({ nanti: gaya('modal-cek-alamat-popup-nanti'), buka: gaya('modal-cek-alamat-popup-buka') }); })()").then(JSON.parse);
+    console.log("INFO tombol pop-up " + lebar + " px:", JSON.stringify(tb));
+    cek("Pop-up " + lebar + " px: tombol 'Buka Cek Alamat' TERLIHAT (latar berwarna, tidak transparan)", !!tb.buka && tb.buka.lebar > 60 && tb.buka.tinggi > 20 && tb.buka.latar !== "rgba(0, 0, 0, 0)" && tb.buka.latar !== "transparent", JSON.stringify(tb));
+    if (lebar === 1280) await kirim("Page.captureScreenshot", { format: "png" }).then((sh) => fs.writeFileSync(path.join(OUT, "cek-alamat-6-popup-desktop.png"), Buffer.from(sh.result.data, "base64")));
+  }
+  await kirim("Emulation.setDeviceMetricsOverride", { width: 390, height: 900, deviceScaleFactor: 2, mobile: true });
   await klik("#modal-cek-alamat-popup-nanti");
   await cekHeader("GMM", "cek-alamat-4-header-gmm.png");
   cek("GMM: 'Nanti' menutup pop-up", await js("!document.getElementById('modal-cek-alamat-popup')"));
