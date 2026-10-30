@@ -1969,7 +1969,8 @@ function renderGmmContent(jenis) {
         <div class="space-y-4 mt-2">
           <div class="text-xs font-semibold text-slate-500 uppercase">Tempat Tugas Terisi Otomatis:</div>
           <input type="text" id="manual-tempat" value="RUMAH" readonly class="w-full p-2 border rounded bg-slate-100 font-medium cursor-not-allowed">
-          <input type="text" id="manual-alamat" maxlength="100" placeholder="Masukkan Alamat Rumah Lengkap" class="w-full p-2 border rounded text-sm">
+          <input type="text" id="manual-alamat" maxlength="100" placeholder="Alamat tempat guru mengajar, sesuai berkas" class="w-full p-2 border rounded text-sm">
+          <p id="pengingat-alamat-rumah-modal" role="note" class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[11px] text-amber-800 font-semibold leading-relaxed">${window.djpmPengingatAlamat ? window.djpmPengingatAlamat.PESAN : ''}</p>
           <button onclick="submitManual()" class="w-full bg-sky-600 text-white p-2 rounded text-sm font-semibold hover:bg-sky-700 transition">Simpan Data</button>
         </div>`;
   } else if (jenis === "LAINNYA") {

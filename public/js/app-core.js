@@ -1991,6 +1991,8 @@ function bukaKunciTempatTugas() {
   bukaKunciForm('TEMPAT_TUGAS');
   // Tempat tugas dikosongkan -> wilayah dari rumah ibadah ikut dilepas (app-admin.js).
   if (typeof terapkanWilayahTugas === 'function') terapkanWilayahTugas('', '');
+  // Kolom dikosongkan lewat kode (tanpa event): pengingat alamat tugas (app-transaksi.js) harus ikut hilang.
+  if (typeof perbaruiPengingatAlamatRumah === 'function') perbaruiPengingatAlamatRumah();
 }
 
 function bukaUlangModalRumahIbadah() {

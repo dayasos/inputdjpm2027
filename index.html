@@ -569,6 +569,8 @@
                 <input type="text" name="inputAlamatTugas" id="input-almt-tugas" maxlength="100" placeholder="MASUKKAN ALAMAT LENGKAP"
                   class="w-full py-2.5 px-3.5 bg-white border border-slate-300 rounded-xl text-sm font-medium uppercase text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 shadow-2xs transition"
                   required>
+                <p id="pengingat-alamat-rumah" role="note"
+                  class="hidden mt-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[11px] text-amber-800 font-semibold leading-relaxed"></p>
                 <button type="button" id="btn-ganti-tempat-tugas"
                   class="hidden mt-1.5 text-[11px] font-semibold text-sky-600 hover:text-sky-800 inline-flex items-center gap-1">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-sky-600 shrink-0" fill="none"
@@ -1834,7 +1836,8 @@
   <!-- Modal Konfirmasi Simpan Data -->
   <div id="modal-konfirmasi-simpan"
     class="hidden fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md border border-slate-200 overflow-hidden">
+    <!-- max-h + overflow-y-auto: di layar kecil (mis. 320x568) isi yang memanjang (pengingat alamat tugas) bisa digulir, tombol tetap terjangkau. -->
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md border border-slate-200 overflow-hidden max-h-[92vh] max-h-[92dvh] overflow-y-auto">
       <div class="bg-slate-800 px-5 py-4 flex items-center gap-3">
         <div
           class="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center shrink-0 text-sky-300">
@@ -1861,6 +1864,13 @@
           </svg>
           <span>Data yang sudah tersimpan <strong>tidak dapat dihapus</strong>. Pastikan NIK, nomor rekening, dan
             seluruh berkas sudah sesuai.</span>
+        </div>
+        <!-- Pengingat alamat tugas (hanya Guru Maghrib Mengaji dengan tempat tugas RUMAH). Diisi pengingat-alamat-rumah.js + app-transaksi.js. -->
+        <div id="pengingat-alamat-rumah-konfirmasi"
+          class="hidden mt-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-xs text-amber-800 leading-relaxed">
+          <p id="pengingat-alamat-rumah-pesan" class="font-bold"></p>
+          <p class="mt-2">Alamat Tugas yang akan disimpan: <strong id="pengingat-alamat-rumah-nilai" class="break-words"></strong></p>
+          <p id="pengingat-alamat-rumah-sama" class="hidden mt-1 font-semibold">Alamat ini SAMA dengan alamat domisili. Pastikan berkas guru memang menulis tempat tugas di rumah tersebut.</p>
         </div>
       </div>
       <div class="px-5 pb-5 flex gap-3">
@@ -3553,12 +3563,13 @@
   <!-- ========================================================================= -->
   <!-- MODUL JAVASCRIPT DJPM 2027 (Standar Maksimal 3.000 Baris Kode per File)  -->
   <!-- ========================================================================= -->
-  <script src="/js/app-core.js?v=20271032" defer></script>
+  <script src="/js/app-core.js?v=20271058" defer></script>
   <script src="/js/koordinat-lokasi.js?v=20271035" defer></script>
   <script src="/js/validasi-tanggal-lahir.js?v=20271040" defer></script>
-  <script src="/js/app-transaksi.js?v=20271057" defer></script>
+  <script src="/js/pengingat-alamat-rumah.js?v=20271058" defer></script>
+  <script src="/js/app-transaksi.js?v=20271058" defer></script>
   <script src="/js/app-wajib-lapor.js?v=20271029" defer></script>
-  <script src="/js/app-admin.js?v=20271019" defer></script>
+  <script src="/js/app-admin.js?v=20271058" defer></script>
   <script src="/js/app-kelola-data.js?v=20271042" defer></script>
   <script src="/js/app-kelola-user.js?v=20271017" defer></script>
   <script src="/js/app-kelola-ibadah.js?v=20271044" defer></script>

@@ -12,6 +12,7 @@
     "uji:cek-status": "node --test scripts/uji/cek-status-inti.test.mjs",
     "uji:worker-cek-status": "node --test scripts/uji/worker-cek-status.test.mjs",
     "uji:gerbang-aksi": "node --test scripts/uji/gerbang-aksi.test.mjs",
+    "uji:pengingat-alamat": "node --test scripts/uji/pengingat-alamat-rumah.test.mjs",
     "uji:cek-status-seo": "node --test scripts/uji/cek-status-seo.test.mjs",
     "uji:cek-status-tanggal": "node --test scripts/uji/cek-status-tanggal.test.mjs",
     "uji:cover": "node --test scripts/uji/cover-kelurahan.test.mjs",

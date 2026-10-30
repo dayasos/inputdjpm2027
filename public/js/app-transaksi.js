@@ -201,7 +201,36 @@ const KONFIG_KOORDINAT = {
   plank: { layananList: ["GURU MAGHRIB MENGAJI"], wrapperId: 'wrapper-foto-plank', idHidden: 'hidden-koordinat-link', idCek: 'status-koordinat-cek', idOk: 'status-koordinat-ok', idGagal: 'status-koordinat-gagal', idTeksOk: 'teks-koordinat-ok', idLinkOk: 'link-koordinat-ok', idInputManual: 'input-koordinat-manual', siap: false },
   ibadah: { layananList: ["GURU SEKOLAH MINGGU", "GURU SEKOLAH BUDDHA", "GURU SEKOLAH HINDU", "GURU SEKOLAH KONG HU CHU"], wrapperId: 'wrapper-foto-ibadah', idHidden: 'hidden-koordinat-link-ibadah', idCek: 'status-koordinat-cek-ibadah', idOk: 'status-koordinat-ok-ibadah', idGagal: 'status-koordinat-gagal-ibadah', idTeksOk: 'teks-koordinat-ok-ibadah', idLinkOk: 'link-koordinat-ok-ibadah', idInputManual: 'input-koordinat-manual-ibadah', siap: false }
 };
+// Pengingat alamat tugas: layanan Guru Maghrib Mengaji + tempat tugas RUMAH. Catatan di bawah kolom Alamat Tempat Tugas, dan
+// penegasan di jendela konfirmasi simpan. Hanya pengingat -- tidak pernah memblokir (plans/plan-pengingat-alamat-rumah-gmm.md).
+function pengingatAlamatRumahAktif() {
+  return !!(window.djpmPengingatAlamat && window.djpmPengingatAlamat.perluPengingat(selectLayanan.value, inputTempatTugas.value));
+}
+function perbaruiPengingatAlamatRumah() {
+  const el = document.getElementById('pengingat-alamat-rumah');
+  if (!el) return;
+  const aktif = pengingatAlamatRumahAktif();
+  el.textContent = aktif ? window.djpmPengingatAlamat.PESAN : '';
+  el.classList.toggle('hidden', !aktif);
+}
+function isiPengingatKonfirmasiSimpan() {
+  const kotak = document.getElementById('pengingat-alamat-rumah-konfirmasi');
+  if (!kotak) return;
+  const aktif = pengingatAlamatRumahAktif();
+  kotak.classList.toggle('hidden', !aktif);
+  if (!aktif) return;
+  const elDomisili = document.getElementById('input-alamat');
+  document.getElementById('pengingat-alamat-rumah-pesan').textContent = window.djpmPengingatAlamat.PESAN;
+  document.getElementById('pengingat-alamat-rumah-nilai').textContent = inputAlamatTugas.value.trim().toUpperCase();
+  document.getElementById('pengingat-alamat-rumah-sama').classList.toggle(
+    'hidden', !window.djpmPengingatAlamat.sama(inputAlamatTugas.value, elDomisili ? elDomisili.value : ''));
+}
+inputTempatTugas.addEventListener('input', perbaruiPengingatAlamatRumah);
+inputTempatTugas.addEventListener('change', perbaruiPengingatAlamatRumah);
+selectLayanan.addEventListener('change', perbaruiPengingatAlamatRumah);
+
 function updateStatusTombolSimpan() {
+  perbaruiPengingatAlamatRumah(); // dipanggil di setiap perubahan status form (reset, pulihkan draf, ganti layanan)
   const btnSimpan = document.getElementById('btn-simpan-data');
   if (!btnSimpan) return;
   const lay = selectLayanan.value;
@@ -449,6 +478,7 @@ function pulihkanDrafLokalForm() {
       if (draf.inputAlamatTugas && inputAlamatTugas) inputAlamatTugas.value = draf.inputAlamatTugas;
       // Layanan wajib-pilih: nilai draf berasal dari pilihan pop up, jadi kolom dikunci lagi.
       if (inputTempatTugas.value && inputAlamatTugas.value && layananHarusPilihTempat()) kunciTempatTugas();
+      perbaruiPengingatAlamatRumah(); // nilai diisi lewat kode (tanpa event): tampilkan pengingat bila GMM + RUMAH
       // Wilayah tugas: dari rumah ibadah yang dipilih (draf baru), atau kelurahan pilihan manual.
       // Draf versi lama tidak punya keduanya -> kelurahan tugas dipilih ulang oleh pengguna.
       const elKelTugasDraf = document.getElementById('input-kelurahan-tugas');
@@ -1167,6 +1197,7 @@ formPembayaran.addEventListener('submit', (e) => {
     }
   }
   // Tampilkan modal konfirmasi
+  isiPengingatKonfirmasiSimpan();
   document.getElementById('modal-konfirmasi-simpan').classList.remove('hidden');
 });
 
