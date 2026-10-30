@@ -110,6 +110,11 @@ test("MODUL: ESC/aksesibilitas diserahkan ke modal-a11y.js (tanpa role sendiri, 
   assert.match(m[1], /Aksi tidak diizinkan\|does not exist\|belum tersedia/, "hanya 'tidak didukung' yang menyembunyikan fitur");
   assert.match(m[1], /percobaanUlang < 3/, "percobaan ulang dibatasi");
   assert.match(m[1], /terapkanLencana\(\)/, "tab tetap dibuat saat gangguan sementara");
-  assert.match(js, /relative h-9 w-9 sm:w-auto sm:px-3/, "tombol tab ringkas di ponsel (tidak mendorong tombol lain di header)");
-  assert.match(js, /hidden sm:inline">Cek Alamat</, "label teks hanya mulai layar sm");
+  // Header: baris navigasi atas lebarnya tetap 485 px dan sudah penuh untuk Admin Utama (tombol di sana saling menimpa di desktop).
+  // Tombol Cek Alamat harus di baris 2 (sebelum tombol Akun) dan hanya ikon, di semua lebar layar.
+  assert.match(js, /var acuan = \$\('fab-ganti-password'\)/, "disisipkan di baris 2 header");
+  assert.match(js, /insertBefore\(ada, acuan\);/, "sebelum tombol Akun");
+  assert.doesNotMatch(js, /\$\('tab-rekap'\)/, "tidak lagi di baris navigasi atas");
+  assert.match(js, /relative h-9 w-9 rounded-lg/, "tombol hanya ikon (w-9)");
+  assert.doesNotMatch(js, /sm:inline">Cek Alamat</, "tanpa label teks yang melebarkan tombol");
 });

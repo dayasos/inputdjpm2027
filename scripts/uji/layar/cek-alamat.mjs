@@ -150,8 +150,37 @@ const teksPanel = () => js("(document.getElementById('modal-cek-alamat') || { in
 const klik = (sel) => js(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; e.click(); return true; })()`);
 const klikTeks = (sel, teks) => js(`(() => { const e = [...document.querySelectorAll(${JSON.stringify(sel)})].find(x => x.textContent.trim().includes(${JSON.stringify(teks)})); if (!e) return false; e.click(); return true; })()`);
 const isiField = (sel, v) => js(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; e.value = ${JSON.stringify(v)}; e.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
-const ukurNav = () => js(`(() => { const n = document.querySelector('nav'); const tombol = [...n.querySelectorAll('button')].filter(b => b.offsetParent !== null || getComputedStyle(b).display !== 'none'); const r = n.getBoundingClientRect(); const t = document.getElementById('tab-cek-alamat'); let tanpa = n.scrollWidth; if (t) { const d = t.style.display; t.style.display = 'none'; tanpa = n.scrollWidth; t.style.display = d; } return JSON.stringify({ lebarNav: Math.round(r.width), scrollNav: n.scrollWidth, scrollTanpaTab: tanpa, klienNav: n.clientWidth, terpotong: n.scrollWidth > n.clientWidth + 1, tombol: tombol.filter(b => b.getBoundingClientRect().width > 0).map(b => ({ id: b.id, teks: b.textContent.trim().replace(/\s+/g, ' ').slice(0, 22), kiri: Math.round(b.getBoundingClientRect().left), kanan: Math.round(b.getBoundingClientRect().right) })), lebarLayar: innerWidth }); })()`).then(JSON.parse);
+const ukurHeader = () => js(`(() => {
+  const nav = document.querySelector('nav');
+  const row2 = nav.nextElementSibling;
+  const t = document.getElementById('tab-cek-alamat');
+  const rect = (e) => { const r = e.getBoundingClientRect(); return { kiri: Math.round(r.left), kanan: Math.round(r.right), atas: Math.round(r.top), bawah: Math.round(r.bottom) }; };
+  const tampak = (b) => b.getBoundingClientRect().width > 0;
+  const tombolNav = [...nav.querySelectorAll('button')].filter(tampak).map((b) => ({ id: b.id, terpotong: b.scrollWidth > b.clientWidth + 1, ...rect(b) }));
+  const tombolRow2 = [...row2.querySelectorAll('button')].filter(tampak).map((b) => ({ id: b.id, ...rect(b) }));
+  let tanpa = row2.scrollWidth; if (t) { const d = t.style.display; t.style.display = 'none'; tanpa = row2.scrollWidth; t.style.display = d; }
+  const tumpang = (a) => { const h = []; for (let i = 0; i < a.length; i++) for (let j = i + 1; j < a.length; j++) { const x = a[i], y = a[j]; if (x.kiri < y.kanan - 1 && y.kiri < x.kanan - 1 && x.atas < y.bawah - 1 && y.atas < x.bawah - 1) h.push(x.id + '|' + y.id); } return h; };
+  return JSON.stringify({ lebar: innerWidth, saya: t ? rect(t) : null, dalamNav: !!(t && nav.contains(t)), nav: { tumpang: tumpang(tombolNav), terpotong: tombolNav.filter((b) => b.terpotong).map((b) => b.id), tombol: tombolNav.length }, row2: { scroll: row2.scrollWidth, klien: row2.clientWidth, tanpa, tumpang: tumpang(tombolRow2), klienKiri: Math.round(row2.getBoundingClientRect().left), klienKanan: Math.round(row2.getBoundingClientRect().right) } });
+})()`).then(JSON.parse);
 const fotoHeader = async (nama) => { const r = await js("(() => { const h = document.querySelector('header') || document.querySelector('nav').parentElement; const b = h.getBoundingClientRect(); return JSON.stringify({ x: 0, y: Math.max(0, Math.round(b.top)), width: innerWidth, height: Math.min(Math.round(b.height) + 8, 400), scale: 1 }); })()").then(JSON.parse); const sh = await kirim("Page.captureScreenshot", { format: "png", clip: r }); fs.writeFileSync(path.join(OUT, nama), Buffer.from(sh.result.data, "base64")); };
+// Header diukur di 3 lebar layar (390 ponsel, 768 tablet, 1280 desktop): tidak ada tombol yang saling menimpa/terpotong, dan tombol baru
+// berada di baris 2 (bukan baris navigasi atas yang lebarnya tetap 485 px).
+const cekHeader = async (peran, foto) => {
+  for (const [lebar, tinggi, mobile] of [[390, 900, true], [768, 900, false], [1280, 800, false]]) {
+    await kirim("Emulation.setDeviceMetricsOverride", { width: lebar, height: tinggi, deviceScaleFactor: lebar === 390 ? 2 : 1, mobile });
+    await tidur(400);
+    const h = await ukurHeader();
+    const tag = peran + " " + lebar + " px";
+    cek("HEADER " + tag + ": tombol Cek Alamat ada di baris 2 header, bukan di baris navigasi atas", !!h.saya && !h.dalamNav, JSON.stringify(h));
+    cek("HEADER " + tag + ": tidak ada tombol yang saling menimpa (baris navigasi dan baris 2)", h.nav.tumpang.length === 0 && h.row2.tumpang.length === 0, JSON.stringify(h));
+    cek("HEADER " + tag + ": teks tombol di baris navigasi tidak terpotong (mis. 'Input Data' utuh)", h.nav.terpotong.length === 0, JSON.stringify(h));
+    cek("HEADER " + tag + ": tombol baru menambah lebar baris 2 tidak lebih dari lebar tombolnya (<= 44 px)", h.row2.scroll - h.row2.tanpa <= 44, JSON.stringify(h));
+    if (peran === "GMM") cek("HEADER " + tag + ": tombol baru terlihat penuh di dalam layar (akun GMM)", h.saya.kiri >= 0 && h.saya.kanan <= h.lebar, JSON.stringify(h));
+    if (foto && lebar === 1280) await fotoHeader(foto);
+  }
+  await kirim("Emulation.setDeviceMetricsOverride", { width: 390, height: 900, deviceScaleFactor: 2, mobile: true });
+  await tidur(300);
+};
 async function tutupSemuaOverlay() { await js(`(() => { const p = document.getElementById('modal-cek-alamat-popup'); if (p) p.remove(); return true; })()`); }
 
 try {
@@ -177,7 +206,7 @@ try {
   cek("GMM: pop-up saat masuk menyebut 3 guru dan kecamatan", await js("(() => { const t = document.getElementById('modal-cek-alamat-popup').innerText; return /3\\s+guru Maghrib Mengaji/.test(t) && /MEDAN LABUHAN/.test(t); })()"));
   await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(OUT, "cek-alamat-1-popup.png"), Buffer.from(s.result.data, "base64")));
   await klik("#modal-cek-alamat-popup-nanti");
-  { const nv = await ukurNav(); console.log("INFO header GMM:", JSON.stringify(nv)); await fotoHeader("cek-alamat-4-header-gmm.png"); cek("HEADER GMM 390 px: semua tombol (termasuk 'Retur & Kematian' yang sudah ada) terlihat penuh di dalam layar, dan selisih gulir akibat tombol baru <= 8 px (sebelumnya 0)", nv.tombol.every((t) => t.kiri >= 0 && t.kanan <= nv.lebarLayar) && nv.scrollNav - nv.klienNav <= 8 && nv.scrollNav - nv.scrollTanpaTab <= 8, JSON.stringify(nv)); }
+  await cekHeader("GMM", "cek-alamat-4-header-gmm.png");
   cek("GMM: 'Nanti' menutup pop-up", await js("!document.getElementById('modal-cek-alamat-popup')"));
   await kirim("Page.navigate", { url: BASE + "/" });
   await tungguSampai("!!document.getElementById('tab-cek-alamat')", "tab setelah muat ulang", 40);
@@ -295,7 +324,7 @@ try {
   await masukSebagai("T-UTAMA");
   await tungguSampai("!!document.getElementById('tab-cek-alamat')", "tab untuk UTAMA (walau belum ada permintaan)", 40);
   cek("UTAMA: tab 'Cek Alamat' ada walau belum ada permintaan; tanpa lencana", await js("document.getElementById('tab-cek-alamat-angka').classList.contains('hidden')"));
-  { const nv = await ukurNav(); console.log("INFO header UTAMA:", JSON.stringify(nv)); await fotoHeader("cek-alamat-5-header-utama.png"); cek("HEADER UTAMA 390 px: tombol Cek Alamat terlihat penuh, dan menambah lebar baris navigasi tidak lebih dari lebar tombolnya sendiri (tombol lain tidak bergeser lebih jauh)", nv.tombol.some((t) => t.id === "tab-cek-alamat" && t.kiri >= 0 && t.kanan <= nv.lebarLayar) && nv.scrollNav - nv.scrollTanpaTab <= 44, JSON.stringify(nv)); }
+  await cekHeader("UTAMA", "cek-alamat-5-header-utama.png");
   cek("UTAMA: tidak ada pop-up (khusus akun GMM)", await js("!document.getElementById('modal-cek-alamat-popup')"));
   await klik("#tab-cek-alamat");
   await tungguSampai("/Belum ada permintaan/.test(document.getElementById('modal-cek-alamat').innerText)", "keadaan kosong", 30);
@@ -332,11 +361,6 @@ try {
   await tidur(400);
   cek("ESC menutup panel (lewat modal-a11y), dan penutupan berjalan TEPAT sekali (satu penyegaran lencana)", (await js("document.getElementById('modal-cek-alamat').classList.contains('hidden')")) && hitung("cekAlamatLencana") - lencanaSebelumEsc === 1, "delta=" + (hitung("cekAlamatLencana") - lencanaSebelumEsc));
 
-  // layar >= 640 px: label teks "Cek Alamat" tampil
-  await kirim("Emulation.setDeviceMetricsOverride", { width: 900, height: 900, deviceScaleFactor: 1, mobile: false });
-  await tidur(300);
-  cek("layar 900 px: tombol menampilkan label teks 'Cek Alamat'", await js("(() => { const t = document.getElementById('tab-cek-alamat'); return !!t && /Cek Alamat/.test(t.innerText); })()"));
-  await kirim("Emulation.setDeviceMetricsOverride", { width: 390, height: 900, deviceScaleFactor: 2, mobile: true });
 
   // ======================= peran lain: tidak ada fitur =======================
   for (const token of ["T-KEC", "T-MUI"]) {

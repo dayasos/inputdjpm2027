@@ -95,20 +95,21 @@
     var ada = $(ID_TAB);
     if (!perluTab()) { if (ada) ada.remove(); return; }
     if (!ada) {
-      var acuan = $('tab-rekap');
+      var acuan = $('fab-ganti-password');   // baris 2 header (sebelum tombol Akun): baris navigasi atas sudah penuh
       if (!acuan || !acuan.parentNode) return;
       ada = document.createElement('button');
       ada.id = ID_TAB;
       ada.type = 'button';
-      // Ringkas di ponsel (ikon + lencana) agar tombol lain di baris ini (mis. "Retur & Kematian") tidak tergeser keluar layar; label tampil mulai 640 px.
-      ada.className = 'relative h-9 w-9 sm:w-auto sm:px-3 rounded-lg border border-orange-400/40 text-orange-200 hover:bg-orange-400/10 hover:text-orange-100 outline-none font-semibold text-xs transition flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0';
+      // Hanya ikon + lencana di SEMUA lebar layar, dan di baris 2 header (bukan baris navigasi atas yang lebarnya tetap 485 px dan sudah penuh
+      // untuk Admin Utama: tombol di sana saling menimpa). Nama tersedia lewat title dan aria-label.
+      ada.className = 'relative h-9 w-9 rounded-lg border border-orange-400/40 text-orange-200 hover:bg-orange-400/10 hover:text-orange-100 outline-none font-semibold text-xs transition flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0';
       ada.title = 'Cek Alamat Tugas Guru Maghrib Mengaji';
       ada.innerHTML = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
         '<path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/>' +
         '<path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>' +
-        '<span class="hidden sm:inline">Cek Alamat</span><span id="' + ID_TAB + '-angka" class="hidden absolute -top-1 -right-1 sm:static min-w-[1.1rem] h-[1.1rem] sm:min-w-[1.25rem] sm:h-5 px-1 rounded-full bg-orange-500 text-white text-[10px] sm:text-[11px] font-bold items-center justify-center"></span>';
+        '<span id="' + ID_TAB + '-angka" class="hidden absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold items-center justify-center"></span>';
       ada.addEventListener('click', function () { window.bukaCekAlamat(); });
-      acuan.parentNode.insertBefore(ada, acuan.nextSibling);
+      acuan.parentNode.insertBefore(ada, acuan);
     }
     var angkaEl = $(ID_TAB + '-angka');
     var n = lencana ? lencana.menunggu : 0;
