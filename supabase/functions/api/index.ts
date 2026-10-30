@@ -61,6 +61,13 @@ import { ambilDataTahunHakAkses, ambilRiwayatEdit, ambilTahunTersedia } from "./
 import { getDashboardProgresVerifikasi } from "./domains/dashboard.ts";
 import { getCapaianInput, getProgresKuota, getSemuaKuota, simpanKuota } from "./domains/kuota.ts";
 import {
+  getTemplatAlasan,
+  hapusTemplatAlasan,
+  simpanTemplatAlasan,
+  ubahAktifTemplatAlasan,
+  urutkanTemplatAlasan,
+} from "./domains/templatAlasan.ts";
+import {
   cekBatasWaktuVerifikasi,
   getDaftarBerkasTidakLengkapUntukWA,
   laporkanPerbaikanBerkas,
@@ -168,6 +175,12 @@ const ALLOWED: Record<string, Handler> = {
   simpanKuota,
   getProgresKuota,
   getCapaianInput,
+  // Templat "Alasan Cepat" keterangan verifikasi (khusus UTAMA; dicek di domains/templatAlasan.ts)
+  getTemplatAlasan,
+  simpanTemplatAlasan,
+  ubahAktifTemplatAlasan,
+  hapusTemplatAlasan,
+  urutkanTemplatAlasan,
   verifikasiSatuData,
   laporkanPerbaikanBerkas,
   tandaiSudahDiperbaiki,

@@ -2530,9 +2530,9 @@ function halamanBerikutnya() {
     let h = `<div class="mb-4">${badgeStatusVerifikasi(statusVerif)}`;
     if ((statusVerif === "Tidak Memenuhi Syarat" || statusVerif === "Berkas Tidak Lengkap") && keteranganVerif) {
       const warnaBox = statusVerif === "Berkas Tidak Lengkap" ? "amber" : "red";
-      const batasWaktuHtml = (statusVerif === "Berkas Tidak Lengkap" && batasWaktuVerif) ? ('<span class="block text-[11px] font-bold text-slate-900 mt-1">Batas waktu perbaikan:' + esc(batasWaktuVerif) + '</span>') : '';
+      const batasWaktuHtml = (statusVerif === "Berkas Tidak Lengkap" && batasWaktuVerif) ? ('<span class="block text-[11px] font-bold text-slate-900 mt-1">Batas waktu perbaikan: ' + esc(batasWaktuVerif) + '</span>') : '';
       h += `<div class="mt-2 bg-${warnaBox}-50 border border-${warnaBox}-200 rounded-lg px-3 py-2 text-xs text-slate-900">
-        <span class="font-bold">Keterangan:</span> ${esc(keteranganVerif)}
+        <span class="font-bold">Keterangan:</span>${keteranganVerif.indexOf("\n") !== -1 ? '<span class="block whitespace-pre-line mt-0.5">' + esc(keteranganVerif) + '</span>' : " " + esc(keteranganVerif)}
         <span class="block text-[10px] text-slate-700 mt-1">Diverifikasi oleh ${esc(olehVerif)} · ${esc(tglVerif)}</span>
         ${batasWaktuHtml}
       </div>`;
@@ -2568,6 +2568,7 @@ function halamanBerikutnya() {
       h += `<div class="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
         <p class="text-xs font-bold text-amber-900 uppercase mb-2">Verifikasi Admin Utama</p>
         <textarea id="input-keterangan-verifikasi" rows="2" placeholder="Tulis alasan jika data ini TIDAK memenuhi syarat atau berkasnya tidak lengkap (tidak perlu diisi untuk Memenuhi Syarat)..." class="w-full text-xs p-2 border border-amber-300 rounded-md mb-2"></textarea>
+        ${window.djpmTemplatAlasan ? window.djpmTemplatAlasan.html(d, getBerkasSesuaiLayanan(d[7])) : ""}
         <label class="block text-[10px] font-semibold text-amber-800 mb-1">Batas Waktu Perbaikan (khusus jika pilih "Berkas Tidak Lengkap")</label>
         <input type="date" id="input-batas-waktu-verifikasi" class="w-full text-xs p-2 border border-amber-300 rounded-md mb-2">
         <div class="flex flex-wrap gap-2">
@@ -2712,6 +2713,7 @@ function halamanBerikutnya() {
       </div>`;
     }
     isiKonten.innerHTML = h;
+    if (window.djpmTemplatAlasan) window.djpmTemplatAlasan.pasang(d); // chip Alasan Cepat (Admin Utama)
     function jalankanVerifikasi(statusBaru, tombolAktif, teksAsliTombol) {
       const memenuhi = statusBaru === "Memenuhi Syarat", putaranBaru = memenuhi || statusBaru === "Berkas Tidak Lengkap"; // putaran baru: tanda laporan dikosongkan server (K9)
       // Memenuhi Syarat: keterangan tidak diperlukan (dikosongkan, sama seperti "Tandai Sudah Diperbaiki").

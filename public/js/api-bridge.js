@@ -207,6 +207,9 @@ const SWR_CONFIG = {
   getProgresKuota: { ttl: 5 * 60 * 1000, domain: 'kuota' },
   getCapaianInput: { ttl: 3 * 60 * 1000, domain: 'dashboard' }, // bergantung pada penerima + kuota; mutasi keduanya sudah membuang domain dashboard
 
+  // Templat Alasan Cepat (khusus UTAMA): jarang berubah; aksi simpan/ubah/hapus/urut membuang domain ini (MUTATION_INVALIDATIONS).
+  getTemplatAlasan: { ttl: 10 * 60 * 1000, domain: 'templat_alasan' },
+
   statusInputKecKem: { ttl: 2 * 60 * 1000, domain: 'setelan' },
   ambilStatusDetailSetelan: { ttl: 2 * 60 * 1000, domain: 'setelan' },
   // Klik "Mengerti" tidak memicu sinyal realtime (sengaja), jadi TTL-nya pendek.
@@ -250,6 +253,7 @@ const DOMAIN_FRESHNESS = {
   tools_pejabat: 60 * 1000,        // 1 menit
   tools_referensi_sk: 60 * 1000,   // 1 menit
   tools_sk_layanan: 60 * 1000,     // 1 menit
+  templat_alasan: 60 * 1000,       // 1 menit
   arsip_tahun: 30 * 60 * 1000,     // 30 menit -- data tahun lampau tidak pernah berubah
 };
 
@@ -294,6 +298,10 @@ const MUTATION_INVALIDATIONS = {
   // jadi cache & modal Data Detail yang terbuka ikut disegarkan begitu SK disimpan.
   simpanReferensiSkWalikota: ['tools_referensi_sk', 'data_detail'],
   simpanSkLayanan: ['tools_sk_layanan'],
+  simpanTemplatAlasan: ['templat_alasan'],
+  ubahAktifTemplatAlasan: ['templat_alasan'],
+  hapusTemplatAlasan: ['templat_alasan'],
+  urutkanTemplatAlasan: ['templat_alasan'],
 
   tambahRumahIbadah: ['rumah_ibadah', 'master'],
   // Mengubah nama/alamat rumah ibadah ikut memperbarui penerima & data_detail yang tertaut (server, satu transaksi) -> segarkan juga cache data penerima.
