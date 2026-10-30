@@ -220,7 +220,9 @@
     return '<option value="">' + semua + '</option>' + daftar.map(function (k) { return '<option value="' + esc2(k) + '">' + esc2(k) + '</option>'; }).join('');
   }
   function opsiStatus() {
-    var o = [['', 'Semua status'], ['MENUNGGU_SAYA', 'Menunggu saya'], ['BELUM', 'Belum dicek'], ['SUDAH_BENAR', 'Sudah benar'], ['DIPERBAIKI', 'Sudah diperbaiki'],
+    // Nilai MENUNGGU_SAYA = guru yang sekarang giliran akun ini bertindak (sama dengan angka lencana). Namanya menyebut tindakannya.
+    var perlu = peranSaya() === 'UTAMA' ? 'Perlu saya tinjau' : 'Perlu saya cek';
+    var o = [['', 'Semua status'], ['MENUNGGU_SAYA', perlu], ['BELUM', 'Belum dicek'], ['SUDAH_BENAR', 'Sudah benar'], ['DIPERBAIKI', 'Sudah diperbaiki'],
       ['TIDAK_PASTI', 'Belum pasti'], ['DIKEMBALIKAN', 'Dikembalikan'], ['SELESAI', 'Selesai']];
     return o.map(function (x) { return '<option value="' + x[0] + '">' + esc2(x[1]) + '</option>'; }).join('');
   }

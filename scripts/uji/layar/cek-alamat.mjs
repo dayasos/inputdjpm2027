@@ -229,6 +229,7 @@ try {
   cek("GMM: membuka panel mencatat 'dilihat' (cekAlamatLencana dengan catatDilihat=true)", log.aksi.some((a) => a.aksi === "cekAlamatLencana" && a.args[1] === true));
   cek("GMM: pilihan kecamatan disembunyikan (akun satu kecamatan)", await js("document.getElementById('cka-kec-bungkus').classList.contains('hidden')"));
   cek("GMM: tombol 'Buka Permintaan Cek' TIDAK ada", !(await teksPanel()).includes("Buka Permintaan Cek"));
+  cek("GMM: pilihan filter bernama 'Perlu saya cek' (bukan 'Menunggu saya')", (await js("[...document.querySelectorAll('#cka-status option')].map(o => o.value + '=' + o.textContent.trim()).join('|')")).includes("MENUNGGU_SAYA=Perlu saya cek") && !(await js("document.getElementById('cka-status').innerText")).includes("Menunggu saya"));
   let t = await teksPanel();
   cek("GMM: kartu memuat tempat tugas, alamat tugas, dan alamat rumah pembanding", /Tempat tugas/.test(t) && /JL\. A NO 1/.test(t) && /Alamat rumah \(pembanding\)/.test(t) && /JL\. Z NO 9/.test(t), t.slice(0, 300));
   cek("GMM: penanda 'SAMA dengan alamat tugas' pada guru yang alamatnya sama (2 dari 3)", ((t.match(/SAMA dengan alamat tugas/g)) || []).length === 2, String((t.match(/SAMA dengan alamat tugas/g) || []).length));
@@ -245,7 +246,8 @@ try {
   cek("Sudah benar tanpa centang: kesalahan di layar dan TANPA panggilan ke server", /Centang pernyataan/.test(await teksPanel()) && hitung("cekAlamatJawab") === 0);
   await klik("#cka-daftar article:nth-of-type(1) input[type=checkbox]");
   await klikTeks("#cka-daftar article:nth-of-type(1) button", "Kirim: sudah benar");
-  await tungguSampai("document.querySelector('#cka-daftar article:nth-of-type(1)').innerText.includes('Sudah benar')", "status berubah", 30);
+  await tungguLog("cekAlamatJawab", 1);
+  await tungguSampai("[...document.querySelectorAll('#cka-daftar article:nth-of-type(1) span')].some(x => x.className.includes('rounded-full') && x.textContent.trim() === 'Sudah benar')", "lencana status sudah benar", 30);
   const j = terakhir("cekAlamatJawab");
   cek("Sudah benar dikirim dengan argumen tepat [id, 'SUDAH_BENAR', catatan, true]", j && j.args[1] === 11 && j.args[2] === "SUDAH_BENAR" && j.args[4] === true, JSON.stringify(j));
   await tungguSampai("document.getElementById('tab-cek-alamat-angka').textContent === '2'", "lencana turun menjadi 2", 30).catch(() => {});
@@ -339,6 +341,7 @@ try {
   await klik("#tab-cek-alamat");
   await tungguSampai("/Belum ada permintaan/.test(document.getElementById('modal-cek-alamat').innerText)", "keadaan kosong", 30);
   cek("UTAMA: keadaan kosong mengarahkan ke 'Buka Permintaan Cek'", true);
+  cek("UTAMA: pilihan filter bernama 'Perlu saya tinjau' (bukan 'Menunggu saya')", (await js("[...document.querySelectorAll('#cka-status option')].map(o => o.value + '=' + o.textContent.trim()).join('|')")).includes("MENUNGGU_SAYA=Perlu saya tinjau") && !(await js("document.getElementById('cka-status').innerText")).includes("Menunggu saya"));
   await klikTeks("#modal-cek-alamat button", "Buka Permintaan Cek");
   await klikTeks("#cka-buka button", "Pratinjau");
   await tungguSampai("/3 guru akan dibuka/.test(document.getElementById('cka-buka').innerText)", "pratinjau", 30);
