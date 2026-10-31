@@ -37,9 +37,7 @@ import {
 } from "./domains/penerima.ts";
 import { eksporDataKeSpreadsheet } from "./domains/ekspor.ts";
 import { ambilDataDetail } from "./domains/dataDetail.ts";
-import { returCari, returDaftarBulan, returRingkasan } from "./domains/retur.ts";
 import { statusAktivasiKembali, statusCariPenerima, statusPilihan, statusRekap, statusSimpanLaporan, statusUnduhExcelRekap } from "./domains/statusPenerima.ts";
-import { returDaftarImpor, returImporBank, returUnduhExcelBulan, returUnduhExcelTidakDitemukan } from "./domains/returAdmin.ts";
 import {
   konfirmasiUploadBerkas,
   mintaUrlUploadBerkas,
@@ -164,13 +162,6 @@ const ALLOWED: Record<string, Handler> = {
   simpanCatatanRekomendasiMui,
   simpanResponAdminMui,
   ambilDataDetail,
-  returRingkasan,
-  returDaftarBulan,
-  returCari,
-  returImporBank,
-  returDaftarImpor,
-  returUnduhExcelBulan,
-  returUnduhExcelTidakDitemukan,
   statusPilihan,
   statusCariPenerima,
   statusSimpanLaporan,

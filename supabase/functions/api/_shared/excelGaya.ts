@@ -75,3 +75,34 @@ export function terapkanFormatUang(ws: any, barisAwal: number, barisAkhir: numbe
     }
   }
 }
+
+// Dipindah dari domains/returAdmin.ts (modul Retur terintegrasi dihapus). Dipakai domains/statusPenerima.ts.
+// deno-lint-ignore no-explicit-any
+export async function susunExcelBase64(namaSheet: string, header: string[], baris: any[][], lebar: number[], warnaHeader: string, kolomTeks: number[]) {
+  const ExcelJS = await muatExcelJS();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(namaSheet);
+  ws.addRow(header);
+  for (const b of baris) ws.addRow(b);
+  ws.columns = lebar.map((w) => ({ width: w }));
+  const tipis = { style: "thin" as const };
+  const garis = { top: tipis, left: tipis, bottom: tipis, right: tipis };
+  for (let r = 1; r <= baris.length + 1; r++) {
+    for (let k = 1; k <= header.length; k++) {
+      const sel = ws.getCell(r, k);
+      sel.border = garis;
+      if (r > 1 && kolomTeks.includes(k)) sel.numFmt = "@"; // NIK / rekening / kontak tetap teks (nol di depan tidak hilang)
+      if (r === 1) {
+        sel.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        sel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: warnaHeader } };
+        sel.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      }
+    }
+  }
+  ws.views = [{ state: "frozen", ySplit: 1 }];
+  const mentah = await wb.xlsx.writeBuffer();
+  const buf: Uint8Array = mentah instanceof Uint8Array ? mentah : new Uint8Array(mentah);
+  let biner = "";
+  for (let i = 0; i < buf.length; i += 8192) biner += String.fromCharCode(...buf.subarray(i, i + 8192));
+  return btoa(biner);
+}

@@ -1,8 +1,8 @@
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
 import { TAHUN_AKTIF } from "../_shared/config.ts";
-import { BULAN, buatPenyaringAkses } from "./retur.ts";
-import { susunExcelBase64 } from "./returAdmin.ts";
+import { BULAN, buatPenyaringAkses } from "../_shared/penyaringAkses.ts";
+import { susunExcelBase64 } from "../_shared/excelGaya.ts";
 
 // ---------------------------------------------------------------------------
 // Modul Retur -- LAPORAN STATUS PENERIMA (pengganti "Usul Laporan Kematian & Tidak Aktif" di Retur lama)
