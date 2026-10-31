@@ -236,6 +236,46 @@ test("DAFTAR: filter status, 'menunggu saya', pencarian, halaman; masukan aneh/i
   await db.close();
 });
 
+test("SELESAI HILANG DARI DAFTAR: setelah ditandai selesai, guru tidak tampil di daftar bawaan (kedua peran) tetapi tetap ada lewat filter 'Selesai' dan 'Semua'; dapat dibuka ulang", opsi, async () => {
+  const db = await baru();
+  const id = await cekIdDari(2);
+  const nama = async (t, f) => (await D.cekAlamatDaftar(t, f)).daftar.map((x) => x.penerimaId).sort((a, b) => a - b);
+  assert.deepEqual(await nama(TOKEN.utama, {}), [1, 2, 3, 7]);
+  const hasilSelesai = await D.cekAlamatSelesai(TOKEN.utama, id, "bukan guru GMM lagi");
+  assert.equal(hasilSelesai.sukses, true);
+  assert.match(hasilSelesai.pesan, /disembunyikan dari daftar.*filter "Selesai"/, "pesan menjelaskan bahwa data hanya disembunyikan, bukan dihapus");
+  // Daftar bawaan: guru no. 2 hilang. Total dan halaman ikut berkurang.
+  assert.deepEqual(await nama(TOKEN.utama, {}), [1, 3, 7]);
+  assert.deepEqual(await nama(TOKEN.labuhan, {}), [1], "akun GMM Labuhan: guru no. 2 juga hilang dari layarnya");
+  assert.equal((await D.cekAlamatDaftar(TOKEN.utama, {})).total, 3);
+  assert.equal((await D.cekAlamatDaftar(TOKEN.utama, { status: "" })).total, 3, "filter kosong = bawaan");
+  // Tetap ada lewat filter yang eksplisit.
+  assert.deepEqual(await nama(TOKEN.utama, { status: "SELESAI" }), [2]);
+  assert.deepEqual(await nama(TOKEN.utama, { status: "selesai" }), [2], "huruf kecil dinormalkan");
+  assert.deepEqual(await nama(TOKEN.utama, { status: "SEMUA" }), [1, 2, 3, 7]);
+  assert.deepEqual(await nama(TOKEN.labuhan, { status: "SEMUA" }), [1, 2], "cakupan kecamatan tetap berlaku");
+  // 'Menunggu saya' tidak pernah memuat yang selesai; pencarian mengikuti filter bawaan.
+  assert.deepEqual(await nama(TOKEN.utama, { status: "MENUNGGU_SAYA" }), []);
+  assert.equal((await D.cekAlamatDaftar(TOKEN.utama, { cari: "BUDI" })).total, 0, "pencarian di daftar bawaan tak memunculkan yang selesai");
+  assert.equal((await D.cekAlamatDaftar(TOKEN.utama, { cari: "BUDI", status: "SEMUA" })).total, 1);
+  // Ringkasan dan lencana tetap menghitung yang selesai (arsip tetap ada).
+  const rg = await D.cekAlamatRingkasan(TOKEN.utama);
+  assert.equal(rg.daftar.reduce((s, k) => s + k.selesai, 0), 1);
+  assert.equal(rg.daftar.reduce((s, k) => s + k.total, 0), 4);
+  assert.equal((await D.cekAlamatLencana(TOKEN.labuhan)).menunggu, 1, "lencana GMM: tinggal 1 yang perlu dicek");
+  // Dibuka ulang -> kembali tampil di daftar bawaan.
+  assert.equal((await D.cekAlamatKembalikan(TOKEN.utama, id, "Dibuka ulang: ada berkas baru")).sukses, true);
+  assert.deepEqual(await nama(TOKEN.utama, {}), [1, 2, 3, 7]);
+  // Semua selesai -> daftar bawaan kosong, tetapi bukan 'belum ada permintaan'.
+  for (const pid of [1, 2, 3, 7]) assert.equal((await D.cekAlamatSelesai(TOKEN.utama, await cekIdDari(pid), "ditutup untuk uji")).sukses, true);
+  const kosong = await D.cekAlamatDaftar(TOKEN.utama, {});
+  assert.deepEqual({ t: kosong.total, n: kosong.daftar.length }, { t: 0, n: 0 });
+  assert.equal((await D.cekAlamatDaftar(TOKEN.utama, { status: "SEMUA" })).total, 4);
+  // Filter status tidak dikenal tetap ditolak.
+  ditolak(await D.cekAlamatDaftar(TOKEN.utama, { status: "HAPUS" }), /Filter status tidak valid/);
+  await db.close();
+});
+
 test("CAKUPAN DINAMIS: data dipindah kecamatan (domisili lintas kecamatan) -> otomatis pindah cakupan; id kecamatan lain 'tidak ditemukan' (sama dgn id fiktif)", opsi, async () => {
   const db = await baru();
   const id2 = await cekIdDari(2);
@@ -445,7 +485,7 @@ test("UTAS: Balas dua arah memindahkan 'menunggu', status tetap; catatan pendek/
   const utas = (await D.cekAlamatUtas(TOKEN.labuhan, id)).pesan;
   assert.deepEqual(utas.map((m) => m.jenis), ["BUKA", "BALAS", "BALAS", "JAWAB", "SELESAI"]);
   assert.deepEqual(utas.map((m) => m.peran), ["UTAMA", "GMM", "UTAMA", "GMM", "UTAMA"]);
-  assert.equal((await D.cekAlamatDaftar(TOKEN.utama, {})).daftar.find((x) => x.id === id).jumlahPesan, 5);
+  assert.equal((await D.cekAlamatDaftar(TOKEN.utama, { status: "SELESAI" })).daftar.find((x) => x.id === id).jumlahPesan, 5);
   await db.close();
 });
 

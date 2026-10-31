@@ -71,7 +71,9 @@ function jawab(aksi, args) {
     const f = args[1] || {};
     let l = lingkup(s);
     if (f.status === "MENUNGGU_SAYA") l = l.filter((x) => x.menunggu === (utama ? "UTAMA" : "GMM"));
+    else if (f.status === "SEMUA") { /* semua termasuk selesai */ }
     else if (f.status) l = l.filter((x) => x.status === f.status);
+    else l = l.filter((x) => x.status !== "SELESAI");   // bawaan: yang selesai disembunyikan
     if (f.cari) l = l.filter((x) => (x.nama + x.kelurahan + x.alamatTugas).toUpperCase().includes(String(f.cari).toUpperCase()));
     return { sukses: true, peran: utama ? "UTAMA" : "GMM", total: l.length, halaman: 1, ukuranHalaman: 25, daftar: JSON.parse(JSON.stringify(l)) };
   }
@@ -365,6 +367,31 @@ try {
   await klikTeks("#cka-daftar article:nth-of-type(2) button", "Selesai");
   await klikTeks("#cka-daftar article:nth-of-type(2) button", "Tandai selesai");
   cek("UTAMA: menutup tanpa jawaban wajib beralasan (kesalahan di layar, tanpa panggilan)", /Alasan wajib diisi/.test(await teksPanel()) && hitung("cekAlamatSelesai") === 0);
+  // --- Tandai selesai: kartu HILANG dari layar (daftar bawaan), tetap dapat dilihat lewat filter 'Selesai'/'Semua' ---
+  await isiField("#cka-daftar article:nth-of-type(2) textarea", "bukan guru GMM lagi");
+  await klikTeks("#cka-daftar article:nth-of-type(2) button", "Tandai selesai");
+  await tungguLog("cekAlamatSelesai", 1);
+  await tungguSampai("document.querySelectorAll('#cka-daftar article').length === 2", "kartu selesai hilang dari layar", 30);
+  const sesudahSelesai = await teksPanel();
+  cek("Tandai selesai terkirim [id, catatan] dan kartu guru itu HILANG dari layar (daftar turun dari 3 ke 2 kartu)", terakhir("cekAlamatSelesai").args[1] === 12 && terakhir("cekAlamatSelesai").args[2] === "bukan guru GMM lagi" && !sesudahSelesai.includes("BUDI") && /2 guru/.test(sesudahSelesai), sesudahSelesai.slice(0, 200));
+  cek("Filter bawaan bernama 'Belum selesai' dan pilihan 'Semua (termasuk selesai)' tersedia", (await js("[...document.querySelectorAll('#cka-status option')].map(o => o.value + '=' + o.textContent.trim()).join('|')")).includes("=Belum selesai") && (await js("document.getElementById('cka-status').innerText")).includes("Semua (termasuk selesai)"));
+  await js("(() => { const e = document.getElementById('cka-status'); e.value = 'SELESAI'; e.dispatchEvent(new Event('change', { bubbles: true })); return true; })()");
+  await tungguSampai("document.querySelectorAll('#cka-daftar article').length === 1", "filter Selesai", 30);
+  cek("Filter 'Selesai' menampilkan guru yang sudah selesai (BUDI) dengan tombol Kembalikan untuk membuka ulang", /BUDI/.test(await teksPanel()) && (await js("[...document.querySelectorAll('#cka-daftar article button')].some(b => b.textContent.trim() === 'Kembalikan')")));
+  await js("(() => { const e = document.getElementById('cka-status'); e.value = 'SEMUA'; e.dispatchEvent(new Event('change', { bubbles: true })); return true; })()");
+  await tungguSampai("document.querySelectorAll('#cka-daftar article').length === 3", "filter Semua", 30);
+  cek("Filter 'Semua (termasuk selesai)' menampilkan ketiga guru", true);
+  await js("(() => { const e = document.getElementById('cka-status'); e.value = ''; e.dispatchEvent(new Event('change', { bubbles: true })); return true; })()");
+  await tungguSampai("document.querySelectorAll('#cka-daftar article').length === 2", "kembali ke bawaan", 30);
+  cek("Daftar bawaan menyebut jumlah 'belum selesai' (bukan total seluruh permintaan)", /2 guru belum selesai/.test(await js("document.getElementById('cka-info').innerText")));
+  // Mencari guru yang sudah selesai di daftar bawaan: bukan "tidak ada data" yang menyesatkan, melainkan petunjuk memakai 'Semua'.
+  await isiField("#cka-cari", "BUDI");
+  await klik("#cka-tampil");
+  await tungguSampai("document.querySelectorAll('#cka-daftar article').length === 0", "pencarian guru yang selesai", 30);
+  cek("Mencari guru yang sudah selesai di daftar bawaan: muncul petunjuk 'coba filter Semua (termasuk selesai)', bukan 'tidak ada data' polos", (await js("document.getElementById('cka-daftar').innerText")).includes("coba filter") && (await js("document.getElementById('cka-daftar').innerText")).includes("disembunyikan"));
+  await isiField("#cka-cari", "");
+  await klik("#cka-tampil");
+  await tungguSampai("document.querySelectorAll('#cka-daftar article').length === 2", "pencarian dikosongkan", 30);
   await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(OUT, "cek-alamat-3-panel-utama.png"), Buffer.from(s.result.data, "base64")));
   cek("UTAMA 390 px: tidak ada gulir mendatar", await js("document.documentElement.scrollWidth <= innerWidth"));
   await klikTeks("#cka-daftar article:nth-of-type(2) button", "Batal");

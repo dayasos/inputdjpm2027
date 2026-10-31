@@ -222,8 +222,9 @@
   function opsiStatus() {
     // Nilai MENUNGGU_SAYA = guru yang sekarang giliran akun ini bertindak (sama dengan angka lencana). Namanya menyebut tindakannya.
     var perlu = peranSaya() === 'UTAMA' ? 'Perlu saya tinjau' : 'Perlu saya cek';
-    var o = [['', 'Semua status'], ['MENUNGGU_SAYA', perlu], ['BELUM', 'Belum dicek'], ['SUDAH_BENAR', 'Sudah benar'], ['DIPERBAIKI', 'Sudah diperbaiki'],
-      ['TIDAK_PASTI', 'Belum pasti'], ['DIKEMBALIKAN', 'Dikembalikan'], ['SELESAI', 'Selesai']];
+    // Bawaan ('') = yang BELUM selesai: permintaan yang sudah ditandai selesai hilang dari layar; tetap dapat dilihat lewat 'Selesai' atau 'Semua'.
+    var o = [['', 'Belum selesai'], ['MENUNGGU_SAYA', perlu], ['BELUM', 'Belum dicek'], ['SUDAH_BENAR', 'Sudah benar'], ['DIPERBAIKI', 'Sudah diperbaiki'],
+      ['TIDAK_PASTI', 'Belum pasti'], ['DIKEMBALIKAN', 'Dikembalikan'], ['SELESAI', 'Selesai'], ['SEMUA', 'Semua (termasuk selesai)']];
     return o.map(function (x) { return '<option value="' + x[0] + '">' + esc2(x[1]) + '</option>'; }).join('');
   }
 
@@ -462,6 +463,11 @@
       formAksi(r, k) + htmlUtas(k) + '</article>';
   }
 
+  /** Ada permintaan yang sudah selesai (menurut ringkasan)? Dipakai agar keadaan kosong tidak menyesatkan. */
+  function adaSelesai() {
+    return !!ringkasan && Array.isArray(ringkasan.daftar) && ringkasan.daftar.some(function (r) { return (Number(r.selesai) || 0) > 0; });
+  }
+
   function renderDaftar() {
     var daftarEl = $('cka-daftar'), info = $('cka-info'), hal = $('cka-halaman');
     if (!daftarEl) return;
@@ -472,11 +478,14 @@
       info.textContent = ''; hal.innerHTML = ''; return;
     }
     if (!data) return;
-    info.textContent = angka(data.total) + ' guru' + (tahap === 'memuat' ? ' · memperbarui...' : '');
+    info.textContent = angka(data.total) + ' guru' + (q.status === '' ? ' belum selesai' : '') + (tahap === 'memuat' ? ' · memperbarui...' : '');
     daftarEl.innerHTML = data.daftar.length === 0
       ? '<p class="py-8 text-center text-sm text-slate-500">' + (data.total === 0 && !q.status && !q.kec && !q.cari
-        ? (peranSaya() === 'UTAMA' ? 'Belum ada permintaan. Klik "Buka Permintaan Cek".' : 'Belum ada permintaan cek untuk kecamatan Anda.')
-        : 'Tidak ada data yang cocok dengan filter.') + '</p>'
+        ? (adaSelesai() ? 'Semua permintaan sudah selesai. Pilih "Selesai" pada filter Status untuk melihatnya.'
+          : (peranSaya() === 'UTAMA' ? 'Belum ada permintaan. Klik "Buka Permintaan Cek".' : 'Belum ada permintaan cek untuk kecamatan Anda.'))
+        : (q.status === '' && adaSelesai()
+          ? 'Tidak ada yang cocok di daftar "Belum selesai". Permintaan yang sudah selesai disembunyikan; coba filter "Semua (termasuk selesai)".'
+          : 'Tidak ada data yang cocok dengan filter.')) + '</p>'
       : data.daftar.map(kartu).join('');
     var total = Math.max(1, Math.ceil(data.total / (data.ukuranHalaman || 25)));
     hal.innerHTML = total <= 1 ? '' :

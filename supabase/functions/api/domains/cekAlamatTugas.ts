@@ -28,6 +28,7 @@ const SQL_NORMAL_RUMAH = `regexp_replace(upper(coalesce(p.alamat, '')), '[^A-Z0-
 const SQL_SAMA_SEKARANG = `(${SQL_NORMAL_TUGAS} <> '' and ${SQL_NORMAL_TUGAS} = ${SQL_NORMAL_RUMAH})`;
 
 const FILTER_STATUS_MENUNGGU_SAYA = "MENUNGGU_SAYA";
+const FILTER_STATUS_SEMUA = "SEMUA";
 
 // deno-lint-ignore no-explicit-any
 type Pembaca = any; // sql atau trx (postgres.js)
@@ -159,10 +160,15 @@ export async function cekAlamatDaftar(
     if (status === FILTER_STATUS_MENUNGGU_SAYA) {
       params.push(lingkup.peran);
       w += ` and c.menunggu = $${params.length}`;
+    } else if (status === FILTER_STATUS_SEMUA) {
+      // Semua status, termasuk yang sudah selesai (untuk menelusuri/membuka ulang).
     } else if (status) {
       if (!statusValid(status)) return { sukses: false, pesan: "Filter status tidak valid." };
       params.push(status);
       w += ` and c.status = $${params.length}`;
+    } else {
+      // Bawaan (tanpa filter): permintaan yang sudah SELESAI disembunyikan dari layar. Tetap dapat dilihat lewat filter "Selesai" / "Semua".
+      w += ` and c.status <> 'SELESAI'`;
     }
     const kec = rapi(f.kecamatan);
     if (kec && !lingkup.kecamatan) {
@@ -433,7 +439,7 @@ export function cekAlamatKembalikan(token: string, cekId: number, alasan: string
 
 export function cekAlamatSelesai(token: string, cekId: number, catatan?: string) {
   return jalankanTransisi(token, cekId, "SELESAI", {
-    jenis: "SELESAI", isi: catatan, isiWajib: selesaiButuhCatatan, pesanSukses: "Permintaan ditandai selesai.",
+    jenis: "SELESAI", isi: catatan, isiWajib: selesaiButuhCatatan, pesanSukses: "Permintaan ditandai selesai dan disembunyikan dari daftar. Lihat lewat filter \"Selesai\" (dapat dibuka ulang).",
   });
 }
 

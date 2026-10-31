@@ -66,6 +66,20 @@ test("PEMUAT MALAS: hanya UTAMA dan GURU MAGHRIB MENGAJI yang mengunduh modul; p
   assert.ok(!html.includes("app-cek-alamat.js"), "dimuat malas, tidak statis di index.html");
 });
 
+test("SELESAI HILANG: daftar bawaan menyembunyikan yang selesai (server), filter 'Selesai'/'Semua' tetap ada (tampilan), keadaan kosong menjelaskan", () => {
+  const dom = baca("supabase/functions/api/domains/cekAlamatTugas.ts");
+  assert.match(dom, /else \{\n\s*\/\/ Bawaan[^\n]*\n\s*w \+= ` and c\.status <> 'SELESAI'`;/, "tanpa filter status: yang SELESAI disembunyikan");
+  assert.match(dom, /const FILTER_STATUS_SEMUA = "SEMUA";/);
+  const js = baca("public/js/app-cek-alamat.js");
+  assert.match(js, /\['', 'Belum selesai'\]/);
+  assert.match(js, /\['SELESAI', 'Selesai'\], \['SEMUA', 'Semua \(termasuk selesai\)'\]/);
+  assert.match(js, /function adaSelesai\(\)/);
+  assert.match(js, /Semua permintaan sudah selesai\. Pilih "Selesai" pada filter Status untuk melihatnya\./);
+  assert.doesNotMatch(js, /'Semua status'/, "label lama 'Semua status' menyesatkan karena yang selesai tersembunyi");
+  assert.match(js, /Tidak ada yang cocok di daftar "Belum selesai"\./, "petunjuk saat pencarian tak menemukan karena yang selesai tersembunyi");
+  assert.match(js, /\(q\.status === '' \? ' belum selesai' : ''\)/, "jumlah di daftar bawaan disebut 'belum selesai'");
+});
+
 test("VERSI CSS: nomor ?v= pada tailwind.css dinaikkan (CSS fitur ini memuat kelas baru; tanpa kenaikan, browser/service worker memakai CSS lama dan tombol utama pop-up tak berlatar)", () => {
   const html = baca("index.html");
   const v = Number((/\/css\/tailwind\.css\?v=(\d+)/.exec(html) || [])[1]);
