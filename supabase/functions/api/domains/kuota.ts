@@ -109,6 +109,29 @@ export async function getProgresKuota(token: string) {
       pemakaian[lay + "||" + kec] = r.jumlah;
     }
 
+    // Pembanding tahun sebelumnya (plans/plan-progres-kuota-banding-2026.md): SEMUA penerima yang pernah tercatat
+    // (keputusan user 2026-11-02, K1) -- bukan hanya yang AKTIF. Tabel `kuota` tidak punya tahun, jadi hanya jumlah, tanpa persen.
+    // try/catch SENDIRI dan berurutan (bukan Promise.all): kegagalan di sini tidak boleh menggagalkan Progres Kuota.
+    const tahunBanding = TAHUN_AKTIF - 1;
+    const pembanding: Record<string, number> = {};
+    let bandingTersedia = true;
+    try {
+      const rowsBanding = await sql`
+        select upper(layanan) as layanan, upper(kecamatan) as kecamatan, count(*)::int as jumlah
+        from penerima
+        where tahun = ${tahunBanding}
+        group by 1, 2
+      `;
+      for (const r of rowsBanding) {
+        const lay = (r.layanan || "").toString().trim().toUpperCase();
+        const kec = (r.kecamatan || "").toString().trim().toUpperCase();
+        if (!lay || !kec) continue;
+        pembanding[lay + "||" + kec] = (pembanding[lay + "||" + kec] || 0) + r.jumlah;
+      }
+    } catch (_e) {
+      bandingTersedia = false;
+    }
+
     // deno-lint-ignore no-explicit-any
     const grup: any[] = [];
     for (const lay of urutanLayanan) {
@@ -118,6 +141,7 @@ export async function getProgresKuota(token: string) {
       const baris: any[] = [];
       let totalKuota = 0;
       let totalInput = 0;
+      let total2026 = 0;
       for (const kec of KECAMATAN_MEDAN_URUT) {
         const key = lay + "||" + kec;
         if (!(key in kuotaMap)) continue;
@@ -126,15 +150,25 @@ export async function getProgresKuota(token: string) {
         const persen = kuotaNilai > 0 ? Math.round((input / kuotaNilai) * 1000) / 10 : 0;
         totalKuota += kuotaNilai;
         totalInput += input;
-        baris.push({ kecamatan: kec, kuota: kuotaNilai, input, sisa: kuotaNilai - input, persen });
+        // Kolom pembanding hanya ditambahkan; kolom lama tidak berubah. null = pembanding tidak tersedia (bukan 0).
+        const input2026 = bandingTersedia ? (pembanding[key] || 0) : null;
+        if (input2026 !== null) total2026 += input2026;
+        baris.push({
+          kecamatan: kec, kuota: kuotaNilai, input, sisa: kuotaNilai - input, persen,
+          input2026, selisih: input2026 === null ? null : input - input2026,
+        });
       }
       if (baris.length === 0) continue;
 
       const persenLayanan = totalKuota > 0 ? Math.round((totalInput / totalKuota) * 1000) / 10 : 0;
-      grup.push({ layanan: lay, totalKuota, totalInput, persenLayanan, baris });
+      grup.push({
+        layanan: lay, totalKuota, totalInput, persenLayanan, baris,
+        total2026: bandingTersedia ? total2026 : null,
+        selisihTotal: bandingTersedia ? totalInput - total2026 : null,
+      });
     }
 
-    return { sukses: true, grup };
+    return { sukses: true, grup, bandingTersedia, tahunBanding };
   } catch (error) {
     return { sukses: false, pesan: String(error) };
   }

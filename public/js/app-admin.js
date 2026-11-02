@@ -11,35 +11,69 @@ function warnaProgresKuota(persen) {
   return { bar: '#ef4444', bg: '#fef2f2', text: '#b91c1c' }; // merah
 }
 
+// Pembanding tahun sebelumnya (plans/plan-progres-kuota-banding-2026.md). Diisi dari jawaban server di muatProgresKuota.
+// tersedia: true = kolom 2026 tampil; false = server melaporkan pembanding gagal (catatan saja); undefined = server lama (tampilan lama).
+let bandingProgresKuota = { tersedia: undefined, tahun: null };
+
+// Selisih input terhadap tahun pembanding. Netral (bukan merah/hijau): di awal periode "di bawah tahun lalu" itu wajar.
+// Arti tidak hanya lewat warna: simbol ▲/▼ + angka + label untuk pembaca layar.
+function htmlSelisihProgresKuota(selisih, warna) {
+  if (selisih === null || selisih === undefined) return '';
+  const th = bandingProgresKuota.tahun || 2026;
+  if (selisih === 0) {
+    return '<span class="font-semibold whitespace-nowrap" style="color:' + warna + ';" title="Sama dengan ' + th + '" aria-label="Sama dengan ' + th + '">= 0</span>';
+  }
+  const naik = selisih > 0;
+  const label = (naik ? 'Lebih banyak ' : 'Lebih sedikit ') + Math.abs(selisih) + ' dari ' + th;
+  return '<span class="font-semibold whitespace-nowrap" style="color:' + warna + ';" title="' + label + '" aria-label="' + label + '">' + (naik ? '▲' : '▼') + Math.abs(selisih) + '</span>';
+}
+
 function bangunProgresKuotaHtml(grup) {
   if (!grup || grup.length === 0) {
     return '<p class="text-slate-400 italic text-sm text-center py-6">Belum ada data kuota untuk kategori ini.</p>';
   }
+  const banding = bandingProgresKuota.tersedia === true;
+  const th = bandingProgresKuota.tahun || 2026;
   let html = '';
   grup.forEach(function (g) {
     const wh = warnaProgresKuota(g.persenLayanan);
+    // Kepala: total tahun pembanding + selisih di ujung kanan, di samping chip persen (K2: pembanding di kepala layanan).
+    const kepalaBanding = banding
+      ? `<span class="text-[11px] sm:text-xs font-semibold whitespace-nowrap" style="color:#e2e8f0;" title="Tercatat ${th} (semua yang pernah tercatat)">${th}: ${g.total2026} ${htmlSelisihProgresKuota(g.selisihTotal, '#cbd5e1')}</span>`
+      : '';
     html += `<div class="mb-6">
       <div class="flex items-center justify-between bg-slate-800 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-lg gap-2">
         <span class="text-xs sm:text-sm font-bold tracking-wide">${esc(g.layanan)}</span>
-        <span class="text-[11px] sm:text-xs font-bold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full whitespace-nowrap" style="background:${wh.bar};color:#fff;">
+        ${banding ? '<span class="flex items-center justify-end gap-2 sm:gap-3 flex-wrap">' : ''}<span class="text-[11px] sm:text-xs font-bold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full whitespace-nowrap" style="background:${wh.bar};color:#fff;">
           ${g.persenLayanan}% &nbsp;(${g.totalInput}/${g.totalKuota})
-        </span>
+        </span>${kepalaBanding}${banding ? '</span>' : ''}
       </div>
       <div class="border border-t-0 border-slate-200 rounded-b-lg divide-y divide-slate-100">`;
     g.baris.forEach(function (b) {
       const w = warnaProgresKuota(b.persen);
       const kecPendek = b.kecamatan.replace('MEDAN ', '');
-      html += `<div class="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5">
+      // Kolom paling kanan (layar lebar) / baris kedua kecil (HP): tahun pembanding + selisih.
+      const selisihBaris = banding ? htmlSelisihProgresKuota(b.selisih, '#475569') : '';
+      const kolomBanding = banding
+        ? `<span class="hidden sm:flex w-24 shrink-0 items-baseline justify-end gap-1.5 text-xs"><span class="font-semibold" style="color:#475569;" title="Tercatat ${th}">${b.input2026}</span>${selisihBaris}</span>`
+          + `<span class="sm:hidden basis-full text-right text-[10px]" style="color:#64748b;">${th}: ${b.input2026} ${selisihBaris}</span>`
+        : '';
+      html += `<div class="flex items-center ${banding ? 'flex-wrap ' : ''}gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5">
         <span class="w-20 sm:w-32 shrink-0 text-xs font-semibold text-slate-700 truncate" title="${esc(kecPendek)}">${esc(kecPendek)}</span>
         <div class="flex-1 h-4 rounded-full overflow-hidden" style="background:${w.bg};border:1px solid ${w.bar}33;">
           <div class="h-full rounded-full" style="width:${Math.min(b.persen, 100)}%;background:${w.bar};"></div>
         </div>
         <span class="w-11 sm:w-14 shrink-0 text-right text-xs font-bold" style="color:${w.text};">${b.persen}%</span>
-        <span class="w-14 sm:w-16 shrink-0 text-right text-[10px] sm:text-[11px] text-slate-500">${b.input}/${b.kuota}</span>
+        <span class="w-14 sm:w-16 shrink-0 text-right text-[10px] sm:text-[11px] text-slate-500">${b.input}/${b.kuota}</span>${kolomBanding}
       </div>`;
     });
     html += `</div></div>`;
   });
+  if (banding) {
+    html += `<p class="text-[11px] text-slate-500 leading-relaxed -mt-3">Kolom paling kanan = jumlah penerima tahun ${th} (semua yang pernah tercatat) sebagai pembanding. ▲/▼ = selisih input saat ini terhadap ${th}. Kuota ${th} tidak tersimpan, jadi tanpa persen.</p>`;
+  } else if (bandingProgresKuota.tersedia === false) {
+    html += `<p class="text-[11px] text-slate-400 italic -mt-3">Data pembanding ${th} sedang tidak tersedia.</p>`;
+  }
   return html;
 }
 
@@ -73,6 +107,8 @@ function muatProgresKuota() {
     .withSuccessHandler(function (res) {
       if (!res || !res.sukses) { isi.innerHTML = `<p class="text-red-500 text-sm text-center py-6">Gagal memuat: ${res ? esc(res.pesan) : 'tidak diketahui'}</p>`; return; }
       grupProgresKuotaCache = res.grup || [];
+      // Tahun dipaksa angka: nilainya dipakai di atribut HTML (title/aria-label).
+      bandingProgresKuota = { tersedia: res.bandingTersedia, tahun: Number(res.tahunBanding) || null };
       renderTabProgresKuota();
     })
     .withFailureHandler(function (err) { isi.innerHTML = `<p class="text-red-500 text-sm text-center py-6">Error server: ${esc(err.message)}</p>`; })
