@@ -1315,7 +1315,15 @@ export async function simpanCatatanRekomendasiMui(
       return { sukses: false, pesan: "Verifikasi rekomendasi MUI hanya berlaku untuk layanan Ustadz atau Ustadzah." };
     }
 
-    const namaPetugas = sesi.nama_lengkap || sesi.user_id || (role === "MUI" ? "MUI Kota Medan" : sesi.username || "Admin Utama");
+    // DataSesi hanya memuat akunId, username, role, kecamatan, userId -- TIDAK ada nama lengkap. Sebelumnya kode membaca
+    // `sesi.nama_lengkap`/`sesi.user_id` (properti yang tak ada) sehingga selalu jatuh ke cadangan terakhir. Nama diambil dari tabel
+    // `akun`; gagal membaca TIDAK boleh menggagalkan verifikasi (pakai label userId / cadangan).
+    let namaLengkap = "";
+    try {
+      const rowsAkun = await sql`select nama_lengkap from akun where id = ${sesi.akunId} limit 1`;
+      namaLengkap = (rowsAkun[0]?.nama_lengkap || "").toString().trim();
+    } catch (_e) { /* pakai cadangan di bawah */ }
+    const namaPetugas = namaLengkap || sesi.userId || (role === "MUI" ? "MUI Kota Medan" : sesi.username || "Admin Utama");
     const waktuSekarang = new Date();
 
     await sql`
