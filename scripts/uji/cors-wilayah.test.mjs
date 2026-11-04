@@ -23,6 +23,17 @@ test("CORS server: mengizinkan x-region dan semua header lama (tidak ada yang hi
   }
 });
 
+test("CORS server: access-control-max-age ada, berupa angka detik, dan tidak melebihi batas Chrome (7200)", () => {
+  const m = indexTs.match(/"access-control-max-age":\s*"(\d+)"/);
+  assert.ok(m, "access-control-max-age tidak ditemukan di CORS_HEADERS");
+  const detik = Number(m[1]);
+  assert.ok(detik >= 600 && detik <= 7200, "di luar rentang wajar: " + detik);
+  // Ada di objek CORS_HEADERS yang sama dengan allow-headers (dipakai pada jawaban OPTIONS).
+  const blok = indexTs.slice(indexTs.indexOf("const CORS_HEADERS"), indexTs.indexOf("function json("));
+  assert.match(blok, /access-control-allow-headers/);
+  assert.match(blok, /access-control-max-age/);
+});
+
 test("PENJAGA: setiap header kustom yang dikirim klien di _fetchEdgeDirect TERCANTUM di CORS server (tanpa ini peramban memblokir SEMUA panggilan)", () => {
   const mulai = klienSrc.indexOf("async function _fetchEdgeDirect(");
   const akhir = klienSrc.indexOf("\n}\n", mulai);

@@ -257,6 +257,10 @@ const CORS_HEADERS: Record<string, string> = {
   "access-control-allow-methods": "POST, PUT, OPTIONS, GET",
   // x-region: klien menyematkan wilayah fungsi (ap-northeast-1 = sama dengan database) -- lihat _WILAYAH_FUNGSI di public/js/api-bridge.js.
   "access-control-allow-headers": "authorization, x-client-info, apikey, content-type, x-session-token, content-range, x-region",
+  // Peramban menyimpan hasil pemeriksaan CORS (OPTIONS) selama nilai ini; tanpanya (bawaan Chrome 5 dtk) hampir tiap panggilan didahului OPTIONS --
+  // terukur 45,5% dari semua pemanggilan fungsi dan satu bolak-balik ekstra per aksi pengguna. 7200 dtk = batas Chrome. AKIBAT: bila daftar
+  // header yang diizinkan di atas diubah, peramban yang sudah menyimpannya baru mengikuti setelah paling lama 2 jam.
+  "access-control-max-age": "7200",
 };
 
 function json(body: unknown, status = 200): Response {
