@@ -1,5 +1,5 @@
 import { sql } from "../_shared/db.ts";
-import { bandingkanHashConstantTime, hashString } from "../_shared/hash.ts";
+import { buatHashBaru, perluUpgradeHash, verifikasiSandi } from "../_shared/sandi.ts";
 import { ambilSesi, buatSesi, hapusSesi } from "../_shared/sesi.ts";
 import { catatGagal, cekTerkunci, resetPercobaan } from "../_shared/bruteforce.ts";
 
@@ -17,7 +17,7 @@ export async function loginPengguna(username: string, password: string) {
       };
     }
 
-    const passwordHashInput = await hashString(String(password || "").trim());
+    const sandiInput = String(password || "").trim();
 
     const rows = await sql`
       select id, username, password_hash, role, kecamatan, user_id, nama_lengkap, nomor_hp, jabatan
@@ -26,9 +26,17 @@ export async function loginPengguna(username: string, password: string) {
       limit 1
     `;
 
-    if (rows.length > 0 && bandingkanHashConstantTime(rows[0].password_hash, passwordHashInput)) {
+    if (rows.length > 0 && await verifikasiSandi(sandiInput, rows[0].password_hash)) {
       await resetPercobaan(usernameUpper);
       const akun = rows[0];
+      // Fase B (secret HASH_SANDI_BARU=1): tingkatkan hash lama/lemah ke PBKDF2 berbasis garam, SEKALI per akun (UPDATE bersyarat pada hash lama
+      // agar tidak menimpa perubahan sandi yang terjadi bersamaan). Gagal meningkatkan TIDAK boleh menggagalkan login. Tidak mengubah diperbarui_at.
+      if (perluUpgradeHash(akun.password_hash)) {
+        try {
+          const hashBaru = await buatHashBaru(sandiInput);
+          await sql`update akun set password_hash = ${hashBaru} where id = ${akun.id} and password_hash = ${akun.password_hash}`;
+        } catch (_e) { /* tetap login; peningkatan dicoba lagi pada login berikutnya */ }
+      }
       const token = await buatSesi({
         akunId: akun.id,
         username: akun.username,

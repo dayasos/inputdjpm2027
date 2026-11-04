@@ -1,6 +1,6 @@
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
-import { hashString } from "../_shared/hash.ts";
+import { hashUntukSimpan, verifikasiSandi } from "../_shared/sandi.ts";
 import { formatTanggalWaktuWIB } from "../_shared/tanggal.ts";
 import { KECAMATAN_MEDAN_URUT } from "../_shared/config.ts";
 import { kelurahanDariUserId } from "../_shared/akses.ts";
@@ -133,8 +133,7 @@ export async function ubahAkunSendiri(
     if (rowsSelf.length === 0) return { sukses: false, pesan: "Akun tidak ditemukan." };
     const { id, password_hash: passwordSheet } = rowsSelf[0];
 
-    const hashVerif = await hashString(verif);
-    if (passwordSheet !== hashVerif) return { sukses: false, pesan: "Password salah." };
+    if (!(await verifikasiSandi(verif, passwordSheet))) return { sukses: false, pesan: "Password salah." };
 
     if (mauGantiUser) {
       // `akun.username` bertipe citext (case-insensitive) — perbandingan ini otomatis
@@ -149,12 +148,12 @@ export async function ubahAkunSendiri(
     const usernameBerubah = mauGantiUser && userBaru.toLowerCase() !== usernameSesi.toLowerCase();
 
     if (usernameBerubah && mauGantiPass) {
-      const hashBaru = await hashString(passBaru);
+      const hashBaru = await hashUntukSimpan(passBaru);
       await sql`update akun set username = ${userBaru}, password_hash = ${hashBaru}, diperbarui_at = now() where id = ${id}`;
     } else if (usernameBerubah) {
       await sql`update akun set username = ${userBaru}, diperbarui_at = now() where id = ${id}`;
     } else if (mauGantiPass) {
-      const hashBaru = await hashString(passBaru);
+      const hashBaru = await hashUntukSimpan(passBaru);
       await sql`update akun set password_hash = ${hashBaru}, diperbarui_at = now() where id = ${id}`;
     }
 
@@ -223,7 +222,7 @@ export async function resetPasswordUser(token: string, usernameTarget: string, p
   }
 
   try {
-    const hash = await hashString(passBaru);
+    const hash = await hashUntukSimpan(passBaru);
     // deno-lint-ignore no-explicit-any
     const ditemukan = await sql.begin(async (trx: any) => {
       const rows = await trx`
@@ -301,7 +300,7 @@ export async function simpanProfilUser(token: string, namaLengkap: string, nomor
   }
 
   try {
-    const hash = await hashString(pb);
+    const hash = await hashUntukSimpan(pb);
     const rowsPw = await sql`
       update akun set password_hash = ${hash}, diperbarui_at = now() where username = ${sesi.username} returning id
     `;
@@ -407,7 +406,7 @@ export async function tambahUserBaru(token: string, userObj: UserBaruInput) {
       return { sukses: false, pesan: `Username "${uName}" sudah digunakan oleh akun lain.` };
     }
 
-    const hash = await hashString(pass);
+    const hash = await hashUntukSimpan(pass);
     const userIdSimpan = (await userIdOtomatis(role, kecamatanSimpan, kelurahanSimpan)) ?? "";
     // Kolom kecamatan/nama_lengkap/nomor_hp/jabatan/user_id bertipe NOT NULL default '' — kirim '' bukan null.
     await sql`
