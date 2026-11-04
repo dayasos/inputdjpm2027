@@ -255,7 +255,8 @@ const CORS_HEADERS: Record<string, string> = {
   "content-type": "application/json",
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "POST, PUT, OPTIONS, GET",
-  "access-control-allow-headers": "authorization, x-client-info, apikey, content-type, x-session-token, content-range",
+  // x-region: klien menyematkan wilayah fungsi (ap-northeast-1 = sama dengan database) -- lihat _WILAYAH_FUNGSI di public/js/api-bridge.js.
+  "access-control-allow-headers": "authorization, x-client-info, apikey, content-type, x-session-token, content-range, x-region",
 };
 
 function json(body: unknown, status = 200): Response {

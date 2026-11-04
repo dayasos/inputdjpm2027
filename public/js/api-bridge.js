@@ -28,6 +28,49 @@ function _getSessionToken() {
   } catch (_e) { return null; }
 }
 
+// ── Wilayah fungsi (2026-11-04) ───────────────────────────────────────────────────────────────────────────────────────────────
+// Database ada di ap-northeast-1 (Tokyo). Tanpa petunjuk, fungsi berjalan di wilayah terdekat peminta (Singapura untuk ±97% permintaan; POP AS
+// -> wilayah AS) dan tiap permintaan membuka koneksi database BARU lintas wilayah (±1,1 dtk median; lihat memori project_koneksi_db_diagnosis).
+// Header x-region menjalankan fungsi di Tokyo (terukur dari Medan: ±1,45 dtk -> ±0,35-0,42 dtk). Ini hanya petunjuk rute; tidak mengubah data.
+//
+// PENGAMAN (agar wilayah ini tidak jadi titik gagal tunggal), tanpa pernah mengirim ulang aksi tulis secara otomatis:
+//  * Kegagalan level-jaringan (TypeError: offline, DNS, atau CORS menolak header baru) -> header dilepas SEGERA selama 5 menit.
+//  * 5 respons 5xx / timeout BERTURUT-TURUT tanpa satu pun keberhasilan di antaranya -> header dilepas 5 menit. Satu-dua galat di tengah
+//    lonjakan (galat koneksi database yang sudah ada sebelumnya) tidak memicunya; respons 4xx tidak dihitung gagal.
+//  * Aksi baca yang diulang oleh _fetchAksiDenganTimeout otomatis memakai keadaan terbaru (tanpa header) pada percobaan berikutnya.
+// Nilai harus sama dengan header yang diizinkan CORS di supabase/functions/api/index.ts (dijaga uji cors-wilayah).
+const _WILAYAH_FUNGSI = 'ap-northeast-1';
+const _JEDA_WILAYAH_NONAKTIF_MS = 5 * 60 * 1000;
+const _BATAS_GAGAL_BERUNTUN_WILAYAH = 5;
+let _wilayahNonaktifSampai = 0;
+let _gagalBeruntunWilayah = 0;
+
+function _wilayahFungsiAktif() {
+  return Date.now() >= _wilayahNonaktifSampai;
+}
+
+function _nonaktifkanWilayah(alasan) {
+  _wilayahNonaktifSampai = Date.now() + _JEDA_WILAYAH_NONAKTIF_MS;
+  _gagalBeruntunWilayah = 0;
+  try { console.warn('[djpm] Penyematan wilayah fungsi dimatikan sementara (5 menit): ' + alasan); } catch (_e) { }
+}
+
+function _tambahGagalBeruntunWilayah(alasan) {
+  _gagalBeruntunWilayah += 1;
+  if (_gagalBeruntunWilayah >= _BATAS_GAGAL_BERUNTUN_WILAYAH) _nonaktifkanWilayah(alasan + ' x' + _gagalBeruntunWilayah + ' berturut-turut');
+}
+
+function _catatKegagalanWilayah(err) {
+  if (err instanceof TypeError) { _nonaktifkanWilayah('kegagalan jaringan/CORS'); return; }
+  _tambahGagalBeruntunWilayah('timeout/galat');
+}
+
+function _catatHasilWilayah(status) {
+  if (status >= 500) _tambahGagalBeruntunWilayah('HTTP ' + status);
+  else _gagalBeruntunWilayah = 0;
+}
+
+
 /**
  * Fetch langsung ke Supabase Edge Function dengan X-Session-Token header.
  * Mengeliminasi hop proxy Worker (/api/gas) → latensi turun ~100-500ms per request.
@@ -43,12 +86,22 @@ async function _fetchEdgeDirect(payload, sessionToken, signal) {
   // dipanggil) -- lihat _AKSI_PUBLIK_LANGSUNG & gerbang "Mode 3" di index.ts. Header dilewati
   // sama sekali drpd dikirim string "undefined" yg cuma bikin bingung log server.
   if (sessionToken) headers['x-session-token'] = sessionToken;
-  return fetch(_SUPABASE_EDGE_URL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-    signal,
-  });
+  const pakaiWilayah = _wilayahFungsiAktif();
+  if (pakaiWilayah) headers['x-region'] = _WILAYAH_FUNGSI;
+  let res;
+  try {
+    res = await fetch(_SUPABASE_EDGE_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal,
+    });
+  } catch (err) {
+    if (pakaiWilayah) _catatKegagalanWilayah(err);
+    throw err;
+  }
+  if (pakaiWilayah) _catatHasilWilayah(res.status);
+  return res;
 }
 
 /**

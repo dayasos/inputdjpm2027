@@ -54,6 +54,14 @@ function pilihTimeout(action) {
   return 30000;
 }
 
+// Wilayah fungsi Supabase (sama dengan database, Tokyo): tanpa petunjuk, permintaan dari POP Cloudflare di AS dijalankan di wilayah AS dan
+// terukur rata-rata 13-16 dtk (p95 ±77 dtk) karena koneksi database lintas samudra. Lihat memori project_koneksi_db_diagnosis_2026_11_04.
+// Harus sama dengan _WILAYAH_FUNGSI di public/js/api-bridge.js.
+const WILAYAH_FUNGSI = 'ap-northeast-1';
+// Hanya aksi yang AMAN diulang bila permintaan berpetunjuk wilayah gagal sebelum ada respons (tanpa efek samping ganda). Aksi lain (mis. cron
+// cekBatasWaktuVerifikasi, cekStatusPublik yang menghitung percobaan) TIDAK diulang otomatis.
+const AKSI_AMAN_ULANG_TANPA_WILAYAH = new Set(['ping', 'pulihkanSesi', 'logoutPengguna', 'getMasterLayanan']);
+
 async function panggilBackend(env, payload, timeoutMs) {
   const targetUrl = sanitizeUrl(env.SUPABASE_EDGE_FUNCTION_URL);
   const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json, text/plain, */*' };
@@ -66,14 +74,23 @@ async function panggilBackend(env, payload, timeoutMs) {
     () => controller.abort(new Error(`Batas waktu permintaan terlampaui (${timeoutMs / 1000} detik)`)),
     timeoutMs
   );
+  const pakaiWilayah = targetUrl.includes('supabase.co');
+  const kirim = (denganWilayah) => fetch(targetUrl, {
+    method: 'POST',
+    headers: denganWilayah ? { ...headers, 'x-region': WILAYAH_FUNGSI } : headers,
+    body: JSON.stringify(payload),
+    redirect: 'follow',
+    signal: controller.signal,
+  });
   try {
-    const res = await fetch(targetUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      redirect: 'follow',
-      signal: controller.signal,
-    });
+    let res;
+    try {
+      res = await kirim(pakaiWilayah);
+    } catch (err) {
+      // Gagal sebelum ada respons dan BUKAN karena batas waktu kita sendiri: ulangi sekali tanpa petunjuk wilayah, hanya utk aksi aman.
+      if (!pakaiWilayah || controller.signal.aborted || !AKSI_AMAN_ULANG_TANPA_WILAYAH.has(payload && payload.action)) throw err;
+      res = await kirim(false);
+    }
     return { res, text: await res.text(), targetUrl };
   } finally {
     clearTimeout(timer);
