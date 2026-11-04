@@ -107,69 +107,120 @@ test("KLIEN: tanpa token sesi, header x-session-token tidak dikirim (aksi publik
   assert.equal(k.panggilan[0].headers[PINTAR], "ap-northeast-1");
 });
 
-test("KLIEN: TypeError (jaringan/CORS menolak header) -> galat yang SAMA dilempar ulang, header dilepas SEGERA 5 menit, lalu kembali", async () => {
+const DTK = 1000;
+const KEGAGALAN = () => [new TypeError("Failed to fetch"), { status: 500 }, { status: 503 }, Object.assign(new Error("aborted"), { name: "AbortError" })];
+/** Kirim satu panggilan dan telan galatnya (uji ini hanya peduli pada keadaan pemutus). */
+const coba = async (k) => { try { await k.kirim(payload, "t", undefined); } catch (_e) { /* diharapkan utk kegagalan */ } };
+const jalankan = async (k, hasil) => { k.antrean.push(hasil); await coba(k); };
+
+test("PEMUTUS: satu TypeError (galat DB tanpa header CORS saat lonjakan) TIDAK melepas header", async () => {
   const k = buatKlien();
-  const galat = new TypeError("Failed to fetch");
-  k.antrean.push(galat);
-  await assert.rejects(k.kirim(payload, "t", undefined), (e) => e === galat);
-  assert.equal(k.aktif(), false);
+  await jalankan(k, new TypeError("Failed to fetch"));
+  assert.equal(k.aktif(), true);
+  assert.equal(k.gagal(), 1);
+  await k.kirim(payload, "t", undefined);
+  assert.equal(adaWilayah(k.panggilan[1]), true, "panggilan berikutnya tetap bersepetak wilayah");
+  assert.equal(k.gagal(), 0, "keberhasilan mereset runtunan");
+});
+
+test("PEMUTUS: galat sama dilempar ulang apa adanya (objek yang sama), baik TypeError maupun timeout", async () => {
+  const k = buatKlien();
+  const a = new TypeError("Failed to fetch"), b = Object.assign(new Error("aborted"), { name: "AbortError" });
+  k.antrean.push(a); await assert.rejects(k.kirim(payload, "t", undefined), (e) => e === a);
+  k.antrean.push(b); await assert.rejects(k.kirim(payload, "t", undefined), (e) => e === b);
+});
+
+test("PEMUTUS: LONJAKAN serempak (banyak kegagalan cepat dalam hitungan detik, lalu keberhasilan) TIDAK menyalakan pemutus", async () => {
+  const k = buatKlien();
+  const campur = KEGAGALAN();
+  for (let i = 0; i < 12; i++) k.antrean.push(campur[i % campur.length]);
+  for (let i = 0; i < 12; i++) await coba(k);                    // 12 kegagalan pada detik yang sama (jam tidak maju)
+  assert.equal(k.aktif(), true, "12 kegagalan dalam 0 detik: durasi < 30 dtk");
+  await k.kirim(payload, "t", undefined);                        // keberhasilan menyusul
+  assert.equal(k.gagal(), 0);
+  assert.equal(k.aktif(), true);
+});
+
+test("PEMUTUS: lonjakan BERULANG selama 10 menit (tiap 20 dtk: 8 kegagalan cepat lalu keberhasilan) tidak pernah menyala", async () => {
+  const k = buatKlien();
+  const campur = KEGAGALAN();
+  for (let putaran = 0; putaran < 30; putaran++) {
+    for (let i = 0; i < 8; i++) { k.antrean.push(campur[i % campur.length]); await coba(k); k.jam.sekarang += 100; }
+    await k.kirim(payload, "t", undefined);
+    k.jam.sekarang += 20 * DTK;
+  }
+  assert.equal(k.aktif(), true);
+});
+
+test("PEMUTUS: gangguan BERKEPANJANGAN menyala tepat saat kegagalan >= 30 dtk dan >= 5 kali (29,999 dtk belum, 30 dtk menyala)", async () => {
+  const k = buatKlien();
+  for (let i = 0; i < 4; i++) { await jalankan(k, { status: 502 }); k.jam.sekarang += 1 * DTK; }   // t=0,1,2,3 -> 4 kegagalan
+  k.jam.sekarang = 1_000_000 + 29_999;
+  await jalankan(k, { status: 502 });                                                             // kegagalan ke-5 pada t=29,999 dtk
+  assert.equal(k.aktif(), true, "29,999 dtk: belum");
+  k.jam.sekarang = 1_000_000 + 30_000;
+  await jalankan(k, { status: 502 });                                                             // kegagalan ke-6 pada t=30 dtk
+  assert.equal(k.aktif(), false, "30 dtk: menyala");
   assert.match(k.peringatan[0], /dimatikan sementara/);
+});
+
+test("PEMUTUS: gangguan CORS sungguhan (SEMUA panggilan TypeError terus-menerus) tertangkap dalam ±30 dtk; panggilan sesudahnya tanpa header; kembali setelah 5 menit", async () => {
+  const k = buatKlien();
+  let menyalaPada = null, terakhirGagal = null;
+  for (let t = 0; t <= 60; t += 2) {
+    k.jam.sekarang = 1_000_000 + t * DTK;
+    if (!k.aktif()) { menyalaPada = terakhirGagal; break; }     // yang memicu pemutus = kegagalan terakhir sebelum teramati mati
+    terakhirGagal = t;
+    await jalankan(k, new TypeError("Failed to fetch"));
+  }
+  assert.ok(menyalaPada !== null && menyalaPada >= 30 && menyalaPada <= 32, "menyala pada kegagalan di detik " + menyalaPada);
+  const jumlahSebelum = k.panggilan.length;
   await k.kirim(payload, "t", undefined);
-  assert.equal(adaWilayah(k.panggilan[1]), false, "panggilan berikutnya tanpa header");
-  k.jam.sekarang += 5 * 60 * 1000 - 1;
-  await k.kirim(payload, "t", undefined);
-  assert.equal(adaWilayah(k.panggilan[2]), false, "masih dalam jeda (1 ms sebelum habis)");
+  assert.equal(adaWilayah(k.panggilan[jumlahSebelum]), false, "tanpa header setelah pemutus menyala");
+  k.jam.sekarang = 1_000_000 + menyalaPada * DTK + 5 * 60 * DTK - 1;     // jeda dihitung dari kegagalan yang memicu pemutus
+  assert.equal(k.aktif(), false, "1 ms sebelum 5 menit: masih dilepas");
   k.jam.sekarang += 1;
-  await k.kirim(payload, "t", undefined);
-  assert.equal(adaWilayah(k.panggilan[3]), true, "setelah 5 menit kembali menyematkan wilayah");
+  assert.equal(k.aktif(), true, "tepat 5 menit kemudian kembali menyematkan wilayah");
 });
 
-test("KLIEN: 5 respons 5xx BERTURUT-TURUT melepas header; 4 lalu satu keberhasilan lalu 4 lagi TIDAK", async () => {
+test("PEMUTUS: satu keberhasilan di tengah memutus runtunan (4 gagal, sukses, lalu 4 gagal 31 dtk kemudian tidak menyala)", async () => {
   const k = buatKlien();
-  for (let i = 0; i < 4; i++) k.antrean.push({ status: 500 });
-  k.antrean.push({ status: 200 });
-  for (let i = 0; i < 4; i++) k.antrean.push({ status: 503 });
-  for (let i = 0; i < 9; i++) await k.kirim(payload, "t", undefined);
-  assert.equal(k.aktif(), true, "keberhasilan di tengah memutus runtunan");
-  assert.equal(k.gagal(), 4);
-  k.antrean.push({ status: 502 });
+  for (let i = 0; i < 4; i++) await jalankan(k, { status: 500 });
   await k.kirim(payload, "t", undefined);
-  assert.equal(k.aktif(), false, "kegagalan ke-5 berturut-turut");
-  assert.equal(k.gagal(), 0, "penghitung direset saat dimatikan");
-});
-
-test("KLIEN: 502/503/504 dihitung gagal; 400/401/404/413 TIDAK dihitung dan memutus runtunan", async () => {
-  const k = buatKlien();
-  for (const s of [502, 503, 504, 500]) k.antrean.push({ status: s });
-  for (let i = 0; i < 4; i++) await k.kirim(payload, "t", undefined);
-  assert.equal(k.gagal(), 4);
-  k.antrean.push({ status: 413 });
-  await k.kirim(payload, "t", undefined);
-  assert.equal(k.gagal(), 0, "4xx memutus runtunan");
-  for (const s of [400, 401, 404]) { k.antrean.push({ status: s }); await k.kirim(payload, "t", undefined); }
   assert.equal(k.gagal(), 0);
+  k.jam.sekarang += 31 * DTK;
+  for (let i = 0; i < 4; i++) await jalankan(k, { status: 500 });
+  assert.equal(k.gagal(), 4, "runtunan baru dihitung dari awal");
   assert.equal(k.aktif(), true);
 });
 
-test("KLIEN: timeout (AbortError) dihitung dalam runtunan tetapi TIDAK melepas header seketika (beda dengan TypeError)", async () => {
+test("PEMUTUS: kegagalan jarang tetapi terus-menerus (1 per 10 dtk, tanpa keberhasilan) menyala pada kegagalan ke-5 (t=40 dtk)", async () => {
   const k = buatKlien();
-  const abort = Object.assign(new Error("aborted"), { name: "AbortError" });
-  for (let i = 0; i < 4; i++) { k.antrean.push(abort); await assert.rejects(k.kirim(payload, "t", undefined), (e) => e === abort); }
-  assert.equal(k.aktif(), true);
-  assert.equal(k.gagal(), 4);
-  k.antrean.push(abort);
-  await assert.rejects(k.kirim(payload, "t", undefined), (e) => e === abort);
-  assert.equal(k.aktif(), false, "timeout ke-5 berturut-turut");
+  for (let t = 0; t <= 40; t += 10) {
+    k.jam.sekarang = 1_000_000 + t * DTK;
+    await jalankan(k, { status: 503 });
+    if (t < 40) assert.equal(k.aktif(), true, "t=" + t);
+  }
+  assert.equal(k.aktif(), false);
 });
 
-test("KLIEN: saat header dilepas, hasil panggilan TIDAK ikut dicatat (tak memperpanjang jeda atau mengubah penghitung)", async () => {
+test("PEMUTUS: 4xx (400/401/404/413) dihitung BERHASIL (wilayah melayani) dan memutus runtunan; 500/502/503/504 dihitung gagal", async () => {
   const k = buatKlien();
-  k.antrean.push(new TypeError("x"));
-  await assert.rejects(k.kirim(payload, "t", undefined));
-  for (let i = 0; i < 8; i++) { k.antrean.push({ status: 500 }); await k.kirim(payload, "t", undefined); }
-  assert.equal(k.gagal(), 0);
-  k.jam.sekarang += 5 * 60 * 1000;
-  assert.equal(k.aktif(), true, "jeda habis tepat 5 menit sejak pelepasan, tidak diperpanjang");
+  for (const s of [500, 502, 503, 504]) await jalankan(k, { status: s });
+  assert.equal(k.gagal(), 4);
+  for (const s of [413, 400, 401, 404]) { await jalankan(k, { status: s }); assert.equal(k.gagal(), 0, "HTTP " + s); }
+  assert.equal(k.aktif(), true);
+});
+
+test("PEMUTUS: saat header sudah dilepas, hasil panggilan TIDAK dicatat dan jeda tidak diperpanjang", async () => {
+  const k = buatKlien();
+  for (let t = 0; t <= 40; t += 5) { k.jam.sekarang = 1_000_000 + t * DTK; if (!k.aktif()) break; await jalankan(k, { status: 503 }); }
+  assert.equal(k.aktif(), false);
+  const mulaiJeda = k.jam.sekarang;
+  for (let i = 0; i < 8; i++) { k.jam.sekarang += 10 * DTK; await jalankan(k, { status: 500 }); }
+  assert.equal(k.gagal(), 0, "tidak dihitung selama dilepas");
+  k.jam.sekarang = mulaiJeda + 5 * 60 * DTK;
+  assert.equal(k.aktif(), true, "jeda habis tepat 5 menit sejak pelepasan");
 });
 
 // ─────────────────────────────── Perilaku Worker ───────────────────────────────

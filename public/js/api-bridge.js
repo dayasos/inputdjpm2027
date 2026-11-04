@@ -33,17 +33,23 @@ function _getSessionToken() {
 // -> wilayah AS) dan tiap permintaan membuka koneksi database BARU lintas wilayah (±1,1 dtk median; lihat memori project_koneksi_db_diagnosis).
 // Header x-region menjalankan fungsi di Tokyo (terukur dari Medan: ±1,45 dtk -> ±0,35-0,42 dtk). Ini hanya petunjuk rute; tidak mengubah data.
 //
-// PENGAMAN (agar wilayah ini tidak jadi titik gagal tunggal), tanpa pernah mengirim ulang aksi tulis secara otomatis:
-//  * Kegagalan level-jaringan (TypeError: offline, DNS, atau CORS menolak header baru) -> header dilepas SEGERA selama 5 menit.
-//  * 5 respons 5xx / timeout BERTURUT-TURUT tanpa satu pun keberhasilan di antaranya -> header dilepas 5 menit. Satu-dua galat di tengah
-//    lonjakan (galat koneksi database yang sudah ada sebelumnya) tidak memicunya; respons 4xx tidak dihitung gagal.
-//  * Aksi baca yang diulang oleh _fetchAksiDenganTimeout otomatis memakai keadaan terbaru (tanpa header) pada percobaan berikutnya.
+// PEMUTUS (agar wilayah ini tidak jadi titik gagal tunggal) -- sengaja LAMBAT dan berbasis DURASI, bukan jumlah:
+//  Header dilepas 5 menit HANYA bila kegagalan berlangsung TERUS-MENERUS >= 30 dtk tanpa satu pun keberhasilan, dan ada >= 5 kegagalan.
+//  "Gagal" = TypeError, timeout, atau HTTP 5xx; "berhasil" = respons HTTP apa pun < 500 (membuktikan wilayah melayani).
+//  KENAPA tidak seketika pada TypeError/5xx: saat database penuh ("too many clients"), pencarian sesi di index.ts (di luar try/catch) melempar galat
+//  yang dijawab runtime TANPA header CORS, sehingga peramban melaporkannya sebagai TypeError. Itu terjadi pada LONJAKAN serempak (beberapa detik,
+//  selalu diselingi keberhasilan) dan BUKAN masalah wilayah; menyalakan pemutus saat itu justru mengembalikan klien ke Singapura pada beban tertinggi.
+//  Gangguan wilayah/CORS yang sungguhan bertahan lebih lama, sehingga tetap tertangkap (<= ±30 dtk).
+//  Aksi tulis TIDAK pernah dikirim ulang otomatis; yang berubah hanya panggilan berikutnya (aksi baca yang diulang _fetchAksiDenganTimeout
+//  otomatis memakai keadaan terbaru).
 // Nilai harus sama dengan header yang diizinkan CORS di supabase/functions/api/index.ts (dijaga uji cors-wilayah).
 const _WILAYAH_FUNGSI = 'ap-northeast-1';
 const _JEDA_WILAYAH_NONAKTIF_MS = 5 * 60 * 1000;
-const _BATAS_GAGAL_BERUNTUN_WILAYAH = 5;
+const _MIN_GAGAL_WILAYAH = 5;
+const _DURASI_GAGAL_WILAYAH_MS = 30 * 1000;
 let _wilayahNonaktifSampai = 0;
 let _gagalBeruntunWilayah = 0;
+let _awalGagalBeruntunWilayah = 0;
 
 function _wilayahFungsiAktif() {
   return Date.now() >= _wilayahNonaktifSampai;
@@ -52,22 +58,22 @@ function _wilayahFungsiAktif() {
 function _nonaktifkanWilayah(alasan) {
   _wilayahNonaktifSampai = Date.now() + _JEDA_WILAYAH_NONAKTIF_MS;
   _gagalBeruntunWilayah = 0;
+  _awalGagalBeruntunWilayah = 0;
   try { console.warn('[djpm] Penyematan wilayah fungsi dimatikan sementara (5 menit): ' + alasan); } catch (_e) { }
 }
 
-function _tambahGagalBeruntunWilayah(alasan) {
+function _catatGagalWilayah() {
+  const sekarang = Date.now();
+  if (_gagalBeruntunWilayah === 0) _awalGagalBeruntunWilayah = sekarang;
   _gagalBeruntunWilayah += 1;
-  if (_gagalBeruntunWilayah >= _BATAS_GAGAL_BERUNTUN_WILAYAH) _nonaktifkanWilayah(alasan + ' x' + _gagalBeruntunWilayah + ' berturut-turut');
+  if (_gagalBeruntunWilayah >= _MIN_GAGAL_WILAYAH && sekarang - _awalGagalBeruntunWilayah >= _DURASI_GAGAL_WILAYAH_MS) {
+    _nonaktifkanWilayah(_gagalBeruntunWilayah + ' kegagalan selama >= ' + Math.round(_DURASI_GAGAL_WILAYAH_MS / 1000) + ' dtk tanpa keberhasilan');
+  }
 }
 
-function _catatKegagalanWilayah(err) {
-  if (err instanceof TypeError) { _nonaktifkanWilayah('kegagalan jaringan/CORS'); return; }
-  _tambahGagalBeruntunWilayah('timeout/galat');
-}
-
-function _catatHasilWilayah(status) {
-  if (status >= 500) _tambahGagalBeruntunWilayah('HTTP ' + status);
-  else _gagalBeruntunWilayah = 0;
+function _catatBerhasilWilayah() {
+  _gagalBeruntunWilayah = 0;
+  _awalGagalBeruntunWilayah = 0;
 }
 
 
@@ -97,10 +103,13 @@ async function _fetchEdgeDirect(payload, sessionToken, signal) {
       signal,
     });
   } catch (err) {
-    if (pakaiWilayah) _catatKegagalanWilayah(err);
+    if (pakaiWilayah) _catatGagalWilayah();
     throw err;
   }
-  if (pakaiWilayah) _catatHasilWilayah(res.status);
+  if (pakaiWilayah) {
+    if (res.status >= 500) _catatGagalWilayah();
+    else _catatBerhasilWilayah();
+  }
   return res;
 }
 
