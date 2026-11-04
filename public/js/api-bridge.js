@@ -166,6 +166,9 @@ function _tanganiSesiHabis() {
 // transport -- lihat komentar "Mode 3" di supabase/functions/api/index.ts.
 const _AKSI_PUBLIK_LANGSUNG = new Set([
   'loginPengguna',
+  // Daftar NAMA layanan saja (tidak sensitif); dipanggil saat halaman dibuka SEBELUM login. Lewat proxy Worker dulu terpotong 30 dtk (toast "Gagal mengambil data master").
+  // Harus sama dengan AKSI_PUBLIK_TANPA_GERBANG di supabase/functions/api/_shared/gerbangAksi.ts (dijaga uji gerbang-aksi).
+  'getMasterLayanan',
 ]);
 
 // Aksi-aksi yang SELALU lewat proxy Worker (/api/gas) (butuh _secret, tidak bisa via session token)

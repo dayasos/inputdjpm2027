@@ -2,7 +2,7 @@
 import { loginPengguna, logoutPengguna, pulihkanSesi } from "./domains/auth.ts";
 // Cek status penerima untuk warga: hanya lewat jalur _secret (Worker /api/cek-status), BUKAN aksi publik di gerbang.
 import { cekStatusPublik } from "./domains/cekStatusPublik.ts";
-import { ditolakTanpaSecret } from "./_shared/gerbangAksi.ts";
+import { aksiPublikTanpaGerbang, ditolakTanpaSecret } from "./_shared/gerbangAksi.ts";
 import { ambilSesi } from "./_shared/sesi.ts";
 import {
   ambilDaftarRumahIbadahAdmin,
@@ -351,7 +351,9 @@ Deno.serve(async (req: Request) => {
   // username (bruteforce.ts, 5x gagal/15 menit) -- keduanya tetap jalan penuh lewat jalur ini.
   // Sengaja HANYA loginPengguna yg dibuka di sini (bukan pulihkanSesi/logoutPengguna) supaya
   // permukaan perubahan tetap kecil & mudah diaudit.
-  const isAksiPublikTanpaGerbang = action === "loginPengguna";
+  // 2026-11-04: + getMasterLayanan (daftar NAMA layanan saja; dipanggil saat halaman dibuka, SEBELUM login). Sebelumnya lewat proxy Worker yang
+  // memotong di 30 dtk -> toast "Gagal mengambil data master". Daftar aksi publik ada di _shared/gerbangAksi.ts (harus sama dengan api-bridge.js).
+  const isAksiPublikTanpaGerbang = aksiPublikTanpaGerbang(action);
 
   if (!isValidSecret && !isValidSessionHeader && !isAksiPublikTanpaGerbang) {
     return json({

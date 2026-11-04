@@ -113,7 +113,11 @@ test("MIGRASI: nomor berkas unik dan berurutan setelah migrasi terakhir; tidak a
   const daftar = fs.readdirSync(new URL("../../supabase/migrations/", import.meta.url)).filter((x) => x.endsWith(".sql")).sort();
   const mine = daftar.filter((x) => x.includes("cek_alamat_tugas"));
   assert.deepEqual(mine, ["20261031100000_cek_alamat_tugas_gmm.sql"]);
-  assert.equal(daftar.at(-1), mine[0], "migrasi ini yang terbaru");
+  // Berurutan setelah migrasi terakhir yang ada saat fitur ini dibuat (migrasi yang datang sesudahnya boleh ada), dan nomor versi unik.
+  const sebelumnya = daftar.indexOf("20261030100000_templat_alasan.sql");
+  assert.ok(sebelumnya >= 0 && daftar.indexOf(mine[0]) === sebelumnya + 1, "berurutan tepat setelah migrasi templat_alasan");
+  const versi = daftar.map((x) => x.split("_")[0]);
+  assert.equal(new Set(versi).size, versi.length, "nomor versi migrasi unik");
   const sql = baca("supabase/migrations/" + mine[0]).toLowerCase();
   assert.doesNotMatch(sql, /\b(alter|drop)\s+table\s+(if exists\s+)?(public\.)?penerima/);
   assert.doesNotMatch(sql, /\bupdate\s+(public\.)?(penerima|data_detail|akun)\b/);

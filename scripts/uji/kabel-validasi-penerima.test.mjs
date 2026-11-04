@@ -56,8 +56,8 @@ test("input baru oleh UTAMA memakai putuskanKelurahanTugas; cabang UTAMA lama (l
   assert.ok(!wilayah.includes('return tolakBedaKecamatan() ?? { ok: true, kecamatan: kecKirim, kelurahan: kelKirim'));
 });
 
-test("gerbang aksi publik TIDAK berubah: hanya loginPengguna yang dibuka tanpa _secret/sesi", () => {
-  assert.equal(jumlah(indeks, 'const isAksiPublikTanpaGerbang = action === "loginPengguna";'), 1);
+test("gerbang aksi publik: ditentukan HANYA oleh aksiPublikTanpaGerbang (daftar persisnya dijaga uji gerbang-aksi: loginPengguna + getMasterLayanan)", () => {
+  assert.equal(jumlah(indeks, 'const isAksiPublikTanpaGerbang = aksiPublikTanpaGerbang(action);'), 1);
   assert.equal(jumlah(indeks, "isAksiPublikTanpaGerbang"), 2); // definisi + satu pemakaian
 });
 
