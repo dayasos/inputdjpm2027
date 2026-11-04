@@ -34,7 +34,10 @@ export async function loginPengguna(username: string, password: string) {
       if (perluUpgradeHash(akun.password_hash)) {
         try {
           const hashBaru = await buatHashBaru(sandiInput);
-          await sql`update akun set password_hash = ${hashBaru} where id = ${akun.id} and password_hash = ${akun.password_hash}`;
+          // Pemeriksaan putar-balik di runtime yang SAMA: hash baru hanya ditulis bila terbukti bisa diverifikasi kembali (cegah mengunci akun).
+          if (await verifikasiSandi(sandiInput, hashBaru)) {
+            await sql`update akun set password_hash = ${hashBaru} where id = ${akun.id} and password_hash = ${akun.password_hash}`;
+          }
         } catch (_e) { /* tetap login; peningkatan dicoba lagi pada login berikutnya */ }
       }
       const token = await buatSesi({
