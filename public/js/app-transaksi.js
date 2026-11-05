@@ -1138,6 +1138,11 @@ formPembayaran.addEventListener('submit', (e) => {
       : "Lengkapi nama dan alamat tempat tugas terlebih dahulu.", "gagal");
     return;
   }
+  // Alamat Tugas tidak boleh berupa tautan (server menegakkan hal yang sama; plans/plan-alamat-tugas-tautan-gmm.md).
+  if (window.djpmAlamatTugas) {
+    const galatAlamatTugas = window.djpmAlamatTugas.galatInput(inputAlamatTugas.value);
+    if (galatAlamatTugas) { tampilkanToast(galatAlamatTugas, "gagal", { durasi: 7000 }); inputAlamatTugas.focus(); return; }
+  }
   // Wajib ada koordinat lokasi untuk GMM / Guru Sekolah Minggu/Buddha/Hindu sebelum lanjut
   for (const modeKoordinat of Object.keys(KONFIG_KOORDINAT)) {
     const cfgKoordinat = KONFIG_KOORDINAT[modeKoordinat];
@@ -2518,6 +2523,12 @@ function halamanBerikutnya() {
     25: ["Foto Plank"], 26: ["Foto Lokasi Ibadah"], 27: ["Foto Kegiatan"],
     40: ["Unggah Domisili Rumah Ibadah"],
   };
+  // Alamat Tugas (indeks 9) tidak ada di KOLOM_TEKS: terkunci. Kunci hanya terbuka bila alamat TERSIMPAN masih berupa tautan (diperbaiki petugas);
+  // sesudah tersimpan sebagai alamat sah, syaratnya tak terpenuhi lagi sehingga terkunci kembali. Server menegakkan aturan yang sama.
+  const KOLOM_ALAMAT_TUGAS = { label: "Alamat Tugas", type: "text", maks: 100, hint: "Ganti dengan alamat sebenarnya, bukan tautan" };
+  function alamatTugasTerbuka(d) {
+    return !!(window.djpmAlamatTugas && d && window.djpmAlamatTugas.bolehDiperbaiki(d[9]));
+  }
   let nomorBarisAktif = null;
   let dataAktif = null;
   let modeEdit = false;
@@ -3036,11 +3047,17 @@ function halamanBerikutnya() {
     let h = `<div class="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5 mb-4 text-xs text-sky-800 flex items-center gap-2">
       <span>Mode edit aktif. Ubah data yang diperlukan lalu klik <strong>Simpan Perubahan</strong> di bagian bawah.</span>
     </div>`;
+    if (alamatTugasTerbuka(d)) {
+      h += `<div role="note" class="bg-amber-50 border border-amber-300 rounded-xl px-4 py-2.5 mb-4 text-xs text-amber-900 leading-relaxed">
+        <strong>Alamat Tugas masih berupa tautan.</strong> Ganti dengan alamat sebenarnya (jalan, nomor, lingkungan). Tautan Google Maps tidak diisi di sini, melainkan di kolom Koordinat Lokasi.
+        Setelah tersimpan, kolom Alamat Tugas terkunci kembali.
+      </div>`;
+    }
     h += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-3.5">`;
     for (let i = 0; i < 18; i++) {
       const label = ["No. Urut", "Nama Lengkap", "NIK", "Jenis Kelamin", "Tempat Lahir", "Tanggal Lahir", "Alamat Domisili", "Jenis Layanan", "Tempat Tugas", "Alamat Tugas", "Kecamatan", "Kelurahan", "Nama Rekening", "Nomor Rekening", "Kantor Cabang", "No. Kontak", "Status BPJS TK", "Umur"][i];
       const v = d[i] !== undefined ? String(d[i]) : "";
-      const kolDef = KOLOM_TEKS[i];
+      const kolDef = KOLOM_TEKS[i] || (i === 9 && alamatTugasTerbuka(d) ? KOLOM_ALAMAT_TUGAS : null);
       if (!kolDef) {
         h += `<div class="bg-slate-100/70 rounded-xl px-4 py-2.5 border border-slate-200/80 opacity-70">
           <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">${esc(label)}</p>
@@ -3125,7 +3142,9 @@ function halamanBerikutnya() {
   async function simpanEdit() {
     if (!pastikanLogin() || !nomorBarisAktif || !dataAktif) return;
     const teks = {};
-    Object.keys(KOLOM_TEKS).forEach(function (i) {
+    const kunciEdit = Object.keys(KOLOM_TEKS);
+    if (alamatTugasTerbuka(dataAktif)) kunciEdit.push('9');
+    kunciEdit.forEach(function (i) {
       const el = document.getElementById('edit-' + i);
       if (!el) return;
       const peka = i === '31'; // tautan Maps peka huruf besar/kecil: bandingkan apa adanya
@@ -3138,6 +3157,10 @@ function halamanBerikutnya() {
     if (teks[5] !== undefined) {
       const ct = periksaTglLahirLayar(teks[5]);
       if (!ct.ok) { tampilkanToast(ct.pesan, "gagal", { durasi: 6000 }); const e5 = document.getElementById('edit-5'); if (e5) e5.focus(); return; }
+    }
+    if (teks[9] !== undefined && window.djpmAlamatTugas) {
+      const galatAlamat = window.djpmAlamatTugas.galatPengganti(teks[9]);
+      if (galatAlamat) { tampilkanToast(galatAlamat, "gagal", { durasi: 7000 }); const e9 = document.getElementById('edit-9'); if (e9) e9.focus(); return; }
     }
     if (teks[11] !== undefined && !String(teks[11]).trim()) {
       tampilkanToast("Kelurahan wilayah tugas wajib dipilih.", "gagal", { durasi: 6000 });

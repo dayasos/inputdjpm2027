@@ -9,7 +9,8 @@ import {
   statusValid, tempatTugasRumah, transisi, UKURAN_HALAMAN, validasiAlamatBaru, validasiPesan,
 } from "../_shared/cekAlamatInti.ts";
 import type { Aksi, Lingkup, Status } from "../_shared/cekAlamatInti.ts";
-import { editDataPenerima } from "./penerima.ts";
+import { editDataPenerimaInti } from "./penerima.ts";
+import { mengandungTautan } from "../_shared/alamatTugas.ts";
 
 // ---------------------------------------------------------------------------
 // Cek Alamat Tugas GMM (plan: plans/plan-cek-alamat-tugas-gmm.md).
@@ -395,6 +396,13 @@ function wajibMasihRumah(b: Pembaca) {
   }
 }
 
+/** "Sudah benar" tidak boleh dinyatakan untuk alamat yang masih berupa tautan (plans/plan-alamat-tugas-tautan-gmm.md): harus diperbaiki dulu. */
+function wajibBukanTautan(b: Pembaca) {
+  if (mengandungTautan(b.alamat_tugas)) {
+    throw new GalatBisnis("Alamat tugas guru ini masih berupa tautan, sehingga tidak bisa dinyatakan sudah benar. Pilih \"Perbaiki alamat tugas\" dan tulis alamat sebenarnya.");
+  }
+}
+
 /** Jawaban GMM tanpa mengubah data: "SUDAH_BENAR" (wajib dicocokkan dengan berkas) atau "TIDAK_PASTI" (catatan wajib). */
 export function cekAlamatJawab(token: string, cekId: number, jawaban: string, catatan?: string, dicocokkan?: boolean) {
   const j = typeof jawaban === "string" ? jawaban.trim().toUpperCase() : "";
@@ -403,7 +411,7 @@ export function cekAlamatJawab(token: string, cekId: number, jawaban: string, ca
       return Promise.resolve({ sukses: false, pesan: "Centang pernyataan bahwa alamat tugas sudah dicocokkan dengan berkas guru." });
     }
     return jalankanTransisi(token, cekId, "JAWAB_BENAR", {
-      jenis: "JAWAB", isi: catatan, prasyarat: wajibMasihRumah, pesanSukses: "Terjawab: alamat tugas sudah benar.",
+      jenis: "JAWAB", isi: catatan, prasyarat: (b: Pembaca) => { wajibMasihRumah(b); wajibBukanTautan(b); }, pesanSukses: "Terjawab: alamat tugas sudah benar.",
     });
   }
   if (j === "TIDAK_PASTI") {
@@ -470,7 +478,7 @@ export async function cekAlamatPerbaiki(token: string, cekId: number, alamatBaru
       return { sukses: false, pesan: "Alamat tugas yang diisi sama dengan yang tercatat sekarang. Isi alamat tugas yang benar sesuai berkas, atau pilih Sudah Benar." };
     }
     // 2) Ubah data lewat jalur edit yang sudah ada (HANYA kolom Alamat Tugas = indeks 9).
-    const hasilEdit = await editDataPenerima(token, Number(b.penerima_id), { teks: { "9": al.alamat } }) as { sukses?: boolean; pesan?: string };
+    const hasilEdit = await editDataPenerimaInti(token, Number(b.penerima_id), { teks: { "9": al.alamat } }, { dariCekAlamat: true }) as { sukses?: boolean; pesan?: string };
     if (!hasilEdit || hasilEdit.sukses !== true) {
       return { sukses: false, pesan: (hasilEdit && hasilEdit.pesan) || "Alamat tugas gagal diperbaiki." };
     }

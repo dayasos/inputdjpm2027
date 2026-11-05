@@ -2,6 +2,7 @@ import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
 import { ikonRumahIbadah, LAYANAN_BATASI_TEMPAT_TUGAS, rapikanTeks, TAHUN_AKTIF } from "../_shared/config.ts";
 import { tentukanWilayahTugas } from "../_shared/wilayahTugas.ts";
+import { mengandungTautan, PESAN_ALAMAT_TAUTAN } from "../_shared/alamatTugas.ts";
 
 // ---------------------------------------------------------------------------
 // Catatan desain (beda dari Kode.gs, disengaja — lihat rencana migrasi):
@@ -287,6 +288,9 @@ export async function validasiDataBaru(
   } catch (e) {
     return { valid: false, pesan: e instanceof Error ? e.message : String(e) };
   }
+
+  // Alamat Tugas tidak boleh berupa tautan (plans/plan-alamat-tugas-tautan-gmm.md): tolak lebih awal, sebelum pemeriksaan Capil/arsip.
+  if (mengandungTautan(alamatTugasBaru)) return { valid: false, pesan: PESAN_ALAMAT_TAUTAN };
 
   // Layanan kosong dulu pernah jatuh ke cek kuota dan tampil sbg "Kuota layanan  untuk <kec> belum diset"
   // (laporan petugas Labuhandeli 2026-10-21) -- tolak dgn pesan yang menunjuk akar masalahnya.

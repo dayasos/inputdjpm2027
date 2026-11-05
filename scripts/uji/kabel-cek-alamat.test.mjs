@@ -34,7 +34,10 @@ test("SERVER: setiap aksi memeriksa sesi & peran lewat aksesCek()/jalankanTransi
     assert.ok(/aksesCek\(token\)|jalankanTransisi\(/.test(badan), `${a} harus memanggil aksesCek()/jalankanTransisi()`);
   }
   // Satu-satunya jalur tulis ke penerima adalah editDataPenerima dengan indeks 9 (Alamat Tugas) saja.
-  assert.equal([...dom.matchAll(/await editDataPenerima\(/g)].length, 1, "tepat satu pemanggilan editDataPenerima");
+  // Lewat editDataPenerimaInti (opsi internal dariCekAlamat -- tidak dapat diset klien); aksi publik editDataPenerima hanya 3 parameter.
+  assert.equal([...dom.matchAll(/await editDataPenerimaInti\(/g)].length, 1, "tepat satu pemanggilan editDataPenerimaInti");
+  assert.match(dom, /\{ dariCekAlamat: true \}/);
+  assert.doesNotMatch(dom, /await editDataPenerima\(/, "tidak memakai aksi publik yang terkunci");
   assert.match(dom, /teks: \{ "9": al\.alamat \}/);
   assert.doesNotMatch(dom, /\b(update|delete from|insert into)\s+penerima\b/i, "tidak menulis ke penerima langsung");
   assert.doesNotMatch(dom, /\b(update|delete from|insert into)\s+data_detail\b/i);

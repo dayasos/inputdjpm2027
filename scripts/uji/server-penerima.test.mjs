@@ -108,7 +108,7 @@ const edit = async (teks, peran = "UTAMA", token = tokenSeq()) => {
     ? { akun_id: "a1", username: "admin", role: "UTAMA", kecamatan: "", user_id: "ADMIN" }
     : { akun_id: "a2", username: "kec", role: "KECAMATAN", kecamatan: "MEDAN SELAYANG", user_id: "KECAMATAN MEDAN SELAYANG" };
   pasang();
-  return await penerima.editDataPenerima(token, 1, { teks, berkas: {}, idFolderBerkas: "" });
+  return await penerima.editDataPenerimaInti(token, 1, { teks, berkas: {}, idFolderBerkas: "" }, { bolehPindahTempat: true });
 };
 
 for (const peran of ["UTAMA", "KECAMATAN"]) {

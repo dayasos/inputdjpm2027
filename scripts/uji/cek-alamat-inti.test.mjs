@@ -150,3 +150,12 @@ test("selesaiButuhCatatan: hanya saat belum ada jawaban (BELUM, DIKEMBALIKAN); s
   for (const st of STATUS) assert.equal(statusValid(st), true);
   for (const x of ["", "belum", "SELESAI ", null, undefined, 1, "DROP"]) assert.equal(statusValid(x), false, String(x));
 });
+
+test("validasiAlamatBaru: tautan ditolak (alamat tugas tidak boleh berupa URL); alamat bertitik/bernomor tetap sah", () => {
+  for (const x of ["https://maps.app.goo.gl/AbC123", "HTTPS:", "goo.gl/maps/xyz", "JL. A NO 1 WWW.ALAMAT.COM"]) {
+    const h = validasiAlamatBaru(x);
+    assert.equal(h.ok, false, x);
+    assert.match(h.pesan, /tidak boleh berupa tautan/);
+  }
+  for (const x of ["JL. SM RAJA NO.5", "JL. BUNGA ASOKA NO.10 LK.II", "GG. PERSATUAN NO 3"]) assert.equal(validasiAlamatBaru(x).ok, true, x);
+});

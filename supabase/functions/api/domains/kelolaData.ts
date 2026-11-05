@@ -8,6 +8,7 @@ import { hapusObjekStorage, pathStorageDariUrl } from "../_shared/storage.ts";
 import { getMasterLayanan } from "./master.ts";
 import { labelKolom, MAP_IDX_KE_KOLOM_BERKAS, tglDDMMYYYYkeISO } from "./penerima.ts";
 import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
+import { mengandungTautan, PESAN_ALAMAT_TAUTAN } from "../_shared/alamatTugas.ts";
 import { cariRumahIbadah, periksaTempatTugasDariDaftar, pilihRumahIbadahId } from "../_shared/wilayahTugas.ts";
 
 // ---------------------------------------------------------------------------
@@ -358,6 +359,8 @@ export async function adminUbahData(
 
       // ── Validasi ──
       if ("nama" in baru && !baru.nama) return { sukses: false, pesan: "GAGAL: Nama tidak boleh kosong." };
+      // Alamat Tugas tidak boleh diubah menjadi tautan (plans/plan-alamat-tugas-tautan-gmm.md). Hanya nilai yang BERUBAH diperiksa.
+      if ("alamat_tugas" in baru && mengandungTautan(baru.alamat_tugas)) return { sukses: false, pesan: PESAN_ALAMAT_TAUTAN };
       if ("nik" in baru && !/^\d{16}$/.test(baru.nik)) return { sukses: false, pesan: "GAGAL: NIK harus 16 digit angka." };
       if ("nomor_rekening" in baru && baru.nomor_rekening && baru.nomor_rekening.length !== 14) {
         return { sukses: false, pesan: "GAGAL: Nomor rekening harus 14 karakter." };

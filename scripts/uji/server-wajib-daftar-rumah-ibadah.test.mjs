@@ -131,7 +131,7 @@ const edit = async (teks, peran = "UTAMA") => {
     ? { akun_id: "a1", username: "admin", role: "UTAMA", kecamatan: "", user_id: "ADMIN" }
     : { akun_id: "a2", username: "kec", role: "KECAMATAN", kecamatan: "MEDAN SELAYANG", user_id: "KECAMATAN MEDAN SELAYANG" };
   pasang();
-  return await penerima.editDataPenerima(token(), 1, { teks, berkas: {}, idFolderBerkas: "" });
+  return await penerima.editDataPenerimaInti(token(), 1, { teks, berkas: {}, idFolderBerkas: "" }, { bolehPindahTempat: true });
 };
 
 for (const peran of ["UTAMA", "KECAMATAN"]) {
@@ -140,7 +140,9 @@ for (const peran of ["UTAMA", "KECAMATAN"]) {
     for (const teks of [{ 8: "GEREJA KETIKAN BEBAS" }, { 9: "JL LAIN" }, { 8: "GEREJA BARU", 9: "JL BARU" }]) {
       const h = await edit(teks, peran);
       assert.equal(h.sukses, false, `[${peran}] ${JSON.stringify(teks)}`);
-      assert.match(h.pesan, /tidak ada di daftar rumah ibadah/);
+      // Alamat Tugas SAJA kini ditolak lebih awal oleh kunci "hanya bila masih tautan" (plans/plan-alamat-tugas-tautan-gmm.md); kasus lain tetap
+      // ditolak pagar wajib-daftar. Yang dijaga: ketiganya ditolak dan tidak ada penulisan.
+      assert.match(h.pesan, /tidak ada di daftar rumah ibadah|hanya dapat diubah bila isinya masih berupa tautan/);
       assert.equal(penulisan().length, 0);
     }
   });

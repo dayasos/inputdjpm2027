@@ -763,6 +763,10 @@
       var c = window.djpmTanggalLahir.periksa(perubahan.tanggal_lahir);
       if (!c.ok) g.tanggal_lahir = c.pesan;
     }
+    if ('alamat_tugas' in perubahan && window.djpmAlamatTugas) {
+      var cAlamat = window.djpmAlamatTugas.galatInput(perubahan.alamat_tugas);
+      if (cAlamat) g.alamat_tugas = cAlamat;
+    }
     if ('kecamatan' in perubahan || 'kelurahan' in perubahan) {
       var elKel = $('kd-f-kelurahan');
       if (elKel && !String(elKel.value || '').trim()) g.kelurahan = 'Kelurahan wajib dipilih.';

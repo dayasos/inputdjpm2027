@@ -581,6 +581,7 @@
     } else if (jenis === 'perbaiki') {
       var al = (k.nilai.alamat || '').trim();
       if (al.length < 5) galat = 'Alamat tugas yang benar wajib diisi (minimal 5 karakter).';
+      else if (window.djpmAlamatTugas && window.djpmAlamatTugas.galatInput(al)) galat = window.djpmAlamatTugas.PESAN_TAUTAN;
       else if (r && !window.confirm('Alamat tugas akan diganti:\n\nDari: ' + r.alamatTugas + '\nMenjadi: ' + al.toUpperCase() + '\n\nLanjutkan?')) return;
       aksi = 'cekAlamatPerbaiki'; args = [id, al, cat];
     } else if (jenis === 'balas') {

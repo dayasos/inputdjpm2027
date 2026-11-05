@@ -2206,6 +2206,11 @@ function submitManual() {
     return;
   }
 
+  if (window.djpmAlamatTugas) {
+    const galatAlamatManual = window.djpmAlamatTugas.galatInput(alamat);
+    if (galatAlamatManual) { tampilkanToast(galatAlamatManual, "gagal", { durasi: 7000 }); if (manualAlamat) manualAlamat.focus(); return; }
+  }
+
   isiTempatTugas(nama, alamat);
 
   const modalKemenag = document.getElementById('modal-kemenag');

@@ -101,7 +101,7 @@ for (const peran of ["UTAMA", "KECAMATAN"]) {
 }
 
 // ============================== (3) Lihat Data -> Edit ==============================
-const edit = async (teks) => { sesiAktif = SESI.UTAMA; pasang(); return await penerima.editDataPenerima(token(), 1, { teks, berkas: {}, idFolderBerkas: "" }); };
+const edit = async (teks) => { sesiAktif = SESI.UTAMA; pasang(); return await penerima.editDataPenerimaInti(token(), 1, { teks, berkas: {}, idFolderBerkas: "" }, { bolehPindahTempat: true }); };
 
 test("Edit data: pindah ke rumah ibadah terdaftar -> UPDATE menulis rumah_ibadah_id = ID rumah ibadah itu", async () => {
   baris = BARIS();

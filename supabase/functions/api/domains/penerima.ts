@@ -22,6 +22,15 @@ import {
 } from "../_shared/wilayahTugas.ts";
 import { layananWajibKoordinat, normalisasiKoordinat } from "../_shared/koordinat.ts";
 import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
+import {
+  alamatTugasBolehDiperbaiki,
+  mengandungTautan,
+  PESAN_ALAMAT_PANJANG,
+  PESAN_ALAMAT_TAUTAN,
+  PESAN_ALAMAT_TERKUNCI,
+  PESAN_TEMPAT_TERKUNCI,
+  periksaAlamatPengganti,
+} from "../_shared/alamatTugas.ts";
 
 // ---------------------------------------------------------------------------
 // Penanda PENGINPUT di Lihat Data (rencana akun MUI, 2026-10-20): data hasil input akun MUI diberi tanda
@@ -730,6 +739,9 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
     if (!nama || nik.length !== 16 || nomorRekening.length !== 14 || !layanan || !kecamatan) {
       return { sukses: false, pesan: "GAGAL: Data wajib tidak lengkap atau format NIK/Rekening salah." };
     }
+    // Alamat Tugas tidak boleh berupa tautan (plans/plan-alamat-tugas-tautan-gmm.md); tautan Maps milik kolom Koordinat Lokasi.
+    if (alamatTugas.length > 1000) return { sukses: false, pesan: PESAN_ALAMAT_PANJANG };   // kolom isian maks 100; batas ini hanya pengaman biaya pemeriksaan
+    if (mengandungTautan(alamatTugas)) return { sukses: false, pesan: PESAN_ALAMAT_TAUTAN };
 
     // Koordinat lokasi (plans/plan-koordinat-lokasi-pintar.md): untuk layanan Guru WAJIB koordinat/tautan Maps yang sah. Server menjadi
     // penentu terakhir (layar bisa dilewati / halaman lama masih mengirim teks bebas); nilai disimpan dalam bentuk ternormalisasi.
@@ -943,14 +955,31 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
 //   Frontend mengirim link baru setelah upload terpisah ke GAS microservice.
 // - Hak akses edit menggunakan lolosAksesBarisLihatData (pengerasan RBAC konsisten).
 // ---------------------------------------------------------------------------
-export async function editDataPenerima(
+type DataEdit = {
+  teks?: Record<string, string>;
+  berkas?: Record<string, string>; // idx → URL Drive baru (bukan base64)
+  idFolderBerkas?: string; // folder Drive baru dari uploadSemuaBerkasKeDrive, kalau baris belum punya
+};
+
+/**
+ * Aksi publik (dipetakan di index.ts). Tepat 3 parameter: argumen tambahan dari klien diabaikan, sehingga opsi internal
+ * (editDataPenerimaInti) TIDAK dapat diset dari luar.
+ */
+export function editDataPenerima(token: string, nomorBarisAsli: number, editData: DataEdit) {
+  return editDataPenerimaInti(token, nomorBarisAsli, editData, {});
+}
+
+/**
+ * Inti edit. `dariCekAlamat`: dipanggil HANYA oleh cekAlamatPerbaiki (alur admin GMM yang sah mengganti alamat tugas RUMAH);
+ * jalur itu dikecualikan dari kunci "Alamat Tugas hanya bisa diubah bila masih tautan", tetapi tautan tetap ditolak.
+ * `bolehPindahTempat`: izin internal memindahkan Tempat Tugas lewat jalur ini (bersama alamatnya). TIDAK dipakai produksi -- Tempat Tugas
+ * terkunci di Edit Data (layar dan server); ada agar pagar perpindahan tempat (wajib-daftar, wilayah, keunikan, penautan rumah ibadah) tetap teruji.
+ */
+export async function editDataPenerimaInti(
   token: string,
   nomorBarisAsli: number,
-  editData: {
-    teks?: Record<string, string>;
-    berkas?: Record<string, string>; // idx → URL Drive baru (bukan base64)
-    idFolderBerkas?: string; // folder Drive baru dari uploadSemuaBerkasKeDrive, kalau baris belum punya
-  },
+  editData: DataEdit,
+  opsi: { dariCekAlamat?: boolean; bolehPindahTempat?: boolean },
 ) {
   let sesi;
   try {
@@ -1005,6 +1034,34 @@ export async function editDataPenerima(
 
     const teks = editData.teks || {};
     const berkas = editData.berkas || {};
+
+    // ── Alamat Tugas (plans/plan-alamat-tugas-tautan-gmm.md) ──
+    // (1) Nilai baru yang berupa tautan SELALU ditolak. (2) Di luar alur Cek Alamat, kolom ini hanya boleh diubah bila alamat TERSIMPAN masih
+    // berupa tautan (petugas memperbaikinya); begitu diperbaiki, kolom terkunci lagi dengan sendirinya. Kunci ini sebelumnya hanya ada di layar.
+    // Perubahan hanya dihitung bila nilainya berbeda; mengedit kolom lain pada data beralamat-tautan tidak terhalang.
+    // Tempat Tugas terkunci di Edit Data (di layar sudah abu-abu; kini server menegakkannya juga). Perubahan hanya lewat Kelola Data (Admin Utama).
+    if (teks[8] !== undefined && !opsi.bolehPindahTempat &&
+        String(teks[8] ?? "").trim().toUpperCase() !== String(rowLama.tempat_tugas ?? "").trim().toUpperCase()) {
+      return { sukses: false, pesan: PESAN_TEMPAT_TERKUNCI };
+    }
+    // Kunci (2) berlaku untuk perubahan Alamat Tugas yang berdiri sendiri (tempat tugas tetap).
+    let alamatDiperbaiki = false;
+    if (teks[9] !== undefined) {
+      if (String(teks[9] ?? "").length > 1000) return { sukses: false, pesan: PESAN_ALAMAT_PANJANG };   // pengaman biaya pemeriksaan
+      const alamatBaruKirim = String(teks[9] ?? "").trim().toUpperCase();
+      const alamatLamaTersimpan = String(rowLama.alamat_tugas ?? "").trim();
+      const tempatDipindah = !!opsi.bolehPindahTempat && teks[8] !== undefined &&
+        String(teks[8] ?? "").trim().toUpperCase() !== String(rowLama.tempat_tugas ?? "").trim().toUpperCase();
+      if (alamatBaruKirim !== alamatLamaTersimpan.toUpperCase()) {
+        if (mengandungTautan(alamatBaruKirim)) return { sukses: false, pesan: PESAN_ALAMAT_TAUTAN };
+        if (!opsi.dariCekAlamat && !tempatDipindah) {
+          if (!alamatTugasBolehDiperbaiki(alamatLamaTersimpan)) return { sukses: false, pesan: PESAN_ALAMAT_TERKUNCI };
+          const cekPengganti = periksaAlamatPengganti(alamatBaruKirim);
+          if (!cekPengganti.ok) return { sukses: false, pesan: cekPengganti.pesan };
+          alamatDiperbaiki = true;
+        }
+      }
+    }
 
     // ── Validasi duplikat bila NIK/rekening/tempat-tugas berubah (port Kode.gs baris 2656-2687) ──
     const nikBaruEdit = teks[2] !== undefined ? String(teks[2]).trim() : (rowLama.nik || "").toString().trim();
@@ -1202,7 +1259,8 @@ export async function editDataPenerima(
     // Plan wajib lapor perbaikan (2026-10-22): user (bukan Admin Utama) mengganti berkas pada data Berkas Tidak Lengkap ->
     // catat waktunya di server supaya Admin Utama tahu walau user menutup tab sebelum menekan "Laporkan Sudah Diperbaiki".
     // Status dibaca dari baris yang sudah dimuat di atas (tanpa query baru). Perubahan teks saja TIDAK memicu.
-    if ((berkasBerganti > 0 || koordinatDiubah) && peranSesi !== "UTAMA" && rowLama.status_verifikasi === "Berkas Tidak Lengkap") {
+    // Perbaikan Alamat Tugas (yang semula tautan) juga memicu, seperti perubahan koordinat.
+    if ((berkasBerganti > 0 || koordinatDiubah || alamatDiperbaiki) && peranSesi !== "UTAMA" && rowLama.status_verifikasi === "Berkas Tidak Lengkap") {
       setValues["tanggal_berkas_diubah"] = new Date().toISOString();
     }
 
@@ -1263,7 +1321,7 @@ export async function editDataPenerima(
       }
     }
 
-    return { sukses: true, pesan: `Data berhasil diperbarui (${riwayat.length} kolom diubah).`, berkasDiubah: berkasBerganti + (koordinatDiubah ? 1 : 0) };
+    return { sukses: true, pesan: `Data berhasil diperbarui (${riwayat.length} kolom diubah).`, berkasDiubah: berkasBerganti + (koordinatDiubah ? 1 : 0) + (alamatDiperbaiki ? 1 : 0) };
   } catch (e) {
     return { sukses: false, pesan: "Gagal mengedit data: " + String(e) };
   }

@@ -2030,6 +2030,12 @@ function jalankanCekTempatTugas() {
 }
 inputTempatTugas.addEventListener('blur', jalankanCekTempatTugas);
 inputAlamatTugas.addEventListener('blur', jalankanCekTempatTugas);
+// Alamat Tugas tidak boleh berupa tautan: beri tahu segera (penegakan tetap di submit dan server).
+inputAlamatTugas.addEventListener('blur', function () {
+  if (window.djpmAlamatTugas && window.djpmAlamatTugas.mengandungTautan(inputAlamatTugas.value)) {
+    tampilkanToast(window.djpmAlamatTugas.PESAN_TAUTAN, 'gagal', { durasi: 7000 });
+  }
+});
 
 function perbaruiTampilanKuotaInput(res, kec, lay) {
   const badge = document.getElementById('badge-kuota-input-realtime');

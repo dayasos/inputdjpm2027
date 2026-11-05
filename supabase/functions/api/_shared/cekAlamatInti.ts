@@ -1,6 +1,8 @@
 // Logika MURNI fitur Cek Alamat Tugas GMM (tanpa database; plan: plans/plan-cek-alamat-tugas-gmm.md).
 // Dipisah dari domains/cekAlamatTugas.ts agar alur status, validasi, dan lingkup akses bisa diuji tuntas di Node.
 
+import { mengandungTautan, PESAN_ALAMAT_TAUTAN } from "./alamatTugas.ts";
+
 export const LAYANAN_GMM = "GURU MAGHRIB MENGAJI";
 
 export const STATUS = ["BELUM", "SUDAH_BENAR", "DIPERBAIKI", "TIDAK_PASTI", "DIKEMBALIKAN", "SELESAI"] as const;
@@ -67,6 +69,7 @@ export function validasiAlamatBaru(masukan: unknown): Hasil<{ alamat: string }> 
   // deno-lint-ignore no-control-regex
   if (/[\u0000-\u001f\u007f]/.test(alamat)) return { ok: false, pesan: "Alamat tugas memuat karakter yang tidak diizinkan." };
   if (!/[A-Z]/.test(alamat)) return { ok: false, pesan: "Alamat tugas harus memuat nama jalan atau lingkungan." };
+  if (mengandungTautan(alamat)) return { ok: false, pesan: PESAN_ALAMAT_TAUTAN };
   return { ok: true, alamat };
 }
 

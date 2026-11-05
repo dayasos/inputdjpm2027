@@ -37,7 +37,7 @@ function pasang() {
 const token = (() => { let n = 0; return () => "token-sd-" + (++n); })();
 const edit = async (teks, berkas = {}, peran = "UTAMA") => {
   sesiAktif = SESI[peran]; gagalDetail = false; pasang();
-  return await penerima.editDataPenerima(token(), 1, { teks, berkas, idFolderBerkas: "" });
+  return await penerima.editDataPenerimaInti(token(), 1, { teks, berkas, idFolderBerkas: "" }, { bolehPindahTempat: true });
 };
 const tulis = (tabel) => db().panggilan.filter((p) => p.teks.startsWith("UNSAFE update " + tabel + " set"));
 const kolomDari = (teks) => [...teks.matchAll(/(\w+) = \$\d+/g)].map((m) => m[1]);

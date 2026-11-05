@@ -424,6 +424,10 @@ test("PERBAIKI: masukan buruk ditolak tanpa mengubah apa pun (sama dengan sekara
   ditolak(await D.cekAlamatPerbaiki(TOKEN.labuhan, id, "JL"), /terlalu pendek/);
   ditolak(await D.cekAlamatPerbaiki(TOKEN.labuhan, id, "A".repeat(101)), /terlalu panjang/);
   ditolak(await D.cekAlamatPerbaiki(TOKEN.labuhan, id, "12345-678"), /nama jalan/);
+  // Alamat Tugas tidak boleh berupa tautan (plans/plan-alamat-tugas-tautan-gmm.md): jalur ini pernah meloloskan tautan Maps.
+  for (const t of ["https://maps.app.goo.gl/AbC123", "HTTPS:", "JL. A NO 1 WWW.ALAMAT.COM", "goo.gl/maps/xyz"]) {
+    ditolak(await D.cekAlamatPerbaiki(TOKEN.labuhan, id, t), /tidak boleh berupa tautan/, t);
+  }
   ditolak(await D.cekAlamatPerbaiki(TOKEN.labuhan, id, "JL\u0000 BARU"), /tidak diizinkan/);
   ditolak(await D.cekAlamatPerbaiki(TOKEN.labuhan, id, null), /wajib diisi/);
   ditolak(await D.cekAlamatPerbaiki(TOKEN.labuhan, id, 12345), /wajib diisi/);
@@ -559,5 +563,16 @@ test("KETAHANAN: sebelum migrasi diterapkan (tabel belum ada) semua aksi gagal D
     assert.equal(r.sukses, false);
     assert.equal(typeof r.pesan, "string");
   }
+  await db.close();
+});
+
+test("JAWAB: \"sudah benar\" DITOLAK bila alamat tugas masih berupa tautan; \"belum pasti\" tetap boleh; setelah diperbaiki \"sudah benar\" tidak diperlukan lagi", opsi, async () => {
+  const db = await baru();
+  await q(`update penerima set alamat_tugas = 'HTTPS://MAPS.APP.GOO.GL/ABC123' where id = 2`);
+  const id = await cekIdDari(2);
+  ditolak(await D.cekAlamatJawab(TOKEN.labuhan, id, "SUDAH_BENAR", "cocok", true), /masih berupa tautan/);
+  assert.equal((await q("select status from cek_alamat_tugas where id = $1", [id]))[0].status, "BELUM", "status tidak berubah");
+  const r = await D.cekAlamatJawab(TOKEN.labuhan, id, "TIDAK_PASTI", "belum ketemu berkasnya");
+  assert.equal(r.sukses, true, JSON.stringify(r));
   await db.close();
 });
