@@ -66,18 +66,6 @@ import {
   urutkanTemplatAlasan,
 } from "./domains/templatAlasan.ts";
 import {
-  cekAlamatBalas,
-  cekAlamatBuka,
-  cekAlamatDaftar,
-  cekAlamatJawab,
-  cekAlamatKembalikan,
-  cekAlamatLencana,
-  cekAlamatPerbaiki,
-  cekAlamatRingkasan,
-  cekAlamatSelesai,
-  cekAlamatUtas,
-} from "./domains/cekAlamatTugas.ts";
-import {
   cekBatasWaktuVerifikasi,
   getDaftarBerkasTidakLengkapUntukWA,
   laporkanPerbaikanBerkas,
@@ -184,17 +172,6 @@ const ALLOWED: Record<string, Handler> = {
   ubahAktifTemplatAlasan,
   hapusTemplatAlasan,
   urutkanTemplatAlasan,
-  // Cek Alamat Tugas GMM (UTAMA <-> akun Guru Maghrib Mengaji; hak akses dicek di domains/cekAlamatTugas.ts)
-  cekAlamatLencana,
-  cekAlamatRingkasan,
-  cekAlamatDaftar,
-  cekAlamatUtas,
-  cekAlamatBuka,
-  cekAlamatJawab,
-  cekAlamatPerbaiki,
-  cekAlamatBalas,
-  cekAlamatKembalikan,
-  cekAlamatSelesai,
   verifikasiSatuData,
   laporkanPerbaikanBerkas,
   tandaiSudahDiperbaiki,

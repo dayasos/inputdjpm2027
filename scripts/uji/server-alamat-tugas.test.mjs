@@ -176,29 +176,22 @@ test("EDIT (izin internal bolehPindahTempat, hanya untuk uji pagar perpindahan):
 test("KABEL: izin bolehPindahTempat TIDAK dipakai kode produksi (hanya uji); Tempat Tugas tetap lewat Kelola Data untuk Admin Utama", async () => {
   const fs = await import("node:fs");
   const baca = (p) => fs.readFileSync(new URL("../../" + p, import.meta.url), "utf8");
-  for (const p of ["supabase/functions/api/domains/cekAlamatTugas.ts", "supabase/functions/api/domains/kelolaData.ts", "supabase/functions/api/index.ts"]) {
+  for (const p of ["supabase/functions/api/domains/kelolaData.ts", "supabase/functions/api/index.ts"]) {
     assert.doesNotMatch(baca(p), /bolehPindahTempat/, p);
   }
   assert.match(baca("supabase/functions/api/domains/kelolaData.ts"), /tempat_tugas: \{ label: "Tempat Tugas"/, "Kelola Data tetap bisa mengubah Tempat Tugas");
 });
 
-test("EDIT: argumen ke-4 dari klien diabaikan (opsi internal tidak dapat dipalsukan) -- alamat sah di data beralamat sah tetap terkunci", async () => {
+test("EDIT: argumen ke-4 dari klien diabaikan (opsi internal tidak dapat dipalsukan) -- Tempat Tugas dan alamat sah tetap terkunci", async () => {
   baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5" });
   sesiAktif = SESI.UTAMA; pasang();
-  const h = await penerima.editDataPenerima(token(), 1, { teks: { 9: "JL LAIN NO 9" } }, { dariCekAlamat: true });
+  let h = await penerima.editDataPenerima(token(), 1, { teks: { 9: "JL LAIN NO 9" } }, { bolehPindahTempat: true });
   assert.equal(h.sukses, false);
   assert.equal(h.pesan, PESAN_ALAMAT_TERKUNCI);
-});
-
-test("EDIT (jalur internal Cek Alamat): alamat sah boleh menggantikan alamat sah, tautan tetap ditolak", async () => {
-  baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5" });
-  sesiAktif = SESI.UTAMA; pasang();
-  let h = await penerima.editDataPenerimaInti(token(), 1, { teks: { 9: "JL LAIN NO 9" } }, { dariCekAlamat: true });
-  assert.equal(h.sukses, true, JSON.stringify(h));
   pasang();
-  h = await penerima.editDataPenerimaInti(token(), 1, { teks: { 9: URL_PETA } }, { dariCekAlamat: true });
+  h = await penerima.editDataPenerima(token(), 1, { teks: { 8: "TEMPAT LAIN" } }, { bolehPindahTempat: true });
   assert.equal(h.sukses, false);
-  assert.equal(h.pesan, PESAN_ALAMAT_TAUTAN);
+  assert.equal(h.pesan, PESAN_TEMPAT_TERKUNCI);
   assert.equal(tulis("penerima").length, 0);
 });
 

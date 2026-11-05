@@ -98,7 +98,7 @@ test("PESAN: menyebut tautan, alamat sebenarnya, dan kolom Koordinat Lokasi; pes
 });
 
 // ───────────────────────────── Kabel: aturan benar-benar terpasang di semua jalur tulis ─────────────────────────────
-test("KABEL SERVER: input baru, edit Detail, Kelola Data, validasi pra-simpan, dan perbaikan Cek Alamat memakai aturan bersama", () => {
+test("KABEL SERVER: input baru, edit Detail, Kelola Data, dan validasi pra-simpan memakai aturan bersama", () => {
   const pen = baca("supabase/functions/api/domains/penerima.ts");
   assert.match(pen, /import \{[^}]*mengandungTautan[^}]*\} from "\.\.\/_shared\/alamatTugas\.ts"/s);
   // input baru: sesudah pemeriksaan data wajib dan SEBELUM wilayah tugas/insert
@@ -117,28 +117,25 @@ test("KABEL SERVER: input baru, edit Detail, Kelola Data, validasi pra-simpan, d
   assert.match(kd, /"alamat_tugas" in baru && mengandungTautan\(baru\.alamat_tugas\)/);
   const val = baca("supabase/functions/api/domains/validasi.ts");
   assert.match(val, /if \(mengandungTautan\(alamatTugasBaru\)\) return \{ valid: false, pesan: PESAN_ALAMAT_TAUTAN \}/);
-  const inti = baca("supabase/functions/api/_shared/cekAlamatInti.ts");
-  assert.match(inti, /if \(mengandungTautan\(alamat\)\) return \{ ok: false, pesan: PESAN_ALAMAT_TAUTAN \}/);
 });
 
-test("KABEL SERVER: opsi internal dariCekAlamat tidak dapat dijangkau klien (aksi terdaftar = pembungkus, tanpa parameter ke-4)", () => {
+test("KABEL SERVER: opsi internal tidak dapat dijangkau klien (aksi terdaftar = pembungkus, tanpa parameter ke-4)", () => {
   const idx = baca("supabase/functions/api/index.ts");
   assert.doesNotMatch(idx, /editDataPenerimaInti/, "inti tidak diekspos sebagai aksi");
   const pen = baca("supabase/functions/api/domains/penerima.ts");
   const m = /export function editDataPenerima\(([^)]*)\)/.exec(pen);
   assert.ok(m && m[1].split(",").length === 3, "pembungkus publik tepat 3 parameter");
-  const cek = baca("supabase/functions/api/domains/cekAlamatTugas.ts");
-  assert.equal([...cek.matchAll(/dariCekAlamat: true/g)].length, 1, "hanya Cek Alamat yang memakai opsi internal");
+  assert.doesNotMatch(pen, /dariCekAlamat/, "alur Cek Alamat sudah dihapus; tidak ada pengecualian kunci");
 });
 
-test("KABEL LAYAR: skrip dimuat, versi sinkron, dan dipakai di input baru / popup manual / Detail > Edit / Kelola Data / Cek Alamat", () => {
+test("KABEL LAYAR: skrip dimuat, versi sinkron, dan dipakai di input baru / popup manual / Detail > Edit / Kelola Data", () => {
   const html = baca("index.html");
   const iAT = html.indexOf('src="/js/alamat-tugas.js?v=');
   assert.ok(iAT > 0, "alamat-tugas.js dimuat");
   assert.ok(iAT < html.indexOf('src="/js/app-transaksi.js'), "dimuat sebelum app-transaksi.js");
   const ver = (n) => new RegExp('src="/js/' + n.replace(".", "\\.") + '\\?v=(\\d+)"').exec(html)[1];
   const v = ver("alamat-tugas.js");
-  for (const n of ["app-core.js", "app-transaksi.js", "app-admin.js", "app-kelola-data.js", "app-pesan-periode.js"]) assert.equal(ver(n), v, n + " dinaikkan bersama");
+  for (const n of ["app-core.js", "app-transaksi.js", "app-admin.js", "app-kelola-data.js"]) assert.equal(ver(n), v, n + " dinaikkan bersama");
   const tr = baca("public/js/app-transaksi.js");
   assert.match(tr, /window\.djpmAlamatTugas\.galatInput\(inputAlamatTugas\.value\)/, "submit input baru");
   assert.match(tr, /const kolDef = KOLOM_TEKS\[i\] \|\| \(i === 9 && alamatTugasTerbuka\(d\) \? KOLOM_ALAMAT_TUGAS : null\);/, "kolom 9 terbuka bersyarat");
@@ -150,7 +147,6 @@ test("KABEL LAYAR: skrip dimuat, versi sinkron, dan dipakai di input baru / popu
   assert.match(baca("public/js/app-core.js"), /window\.djpmAlamatTugas\.mengandungTautan\(inputAlamatTugas\.value\)/);
   assert.match(baca("public/js/app-admin.js"), /window\.djpmAlamatTugas\.galatInput\(alamat\)/);
   assert.match(baca("public/js/app-kelola-data.js"), /'alamat_tugas' in perubahan && window\.djpmAlamatTugas/);
-  assert.match(baca("public/js/app-cek-alamat.js"), /window\.djpmAlamatTugas\.galatInput\(al\)\) galat = window\.djpmAlamatTugas\.PESAN_TAUTAN/);
 });
 
 // ───────────────────────────── Teks sangat panjang: biaya linear + tautan di posisi mana pun tetap terdeteksi ─────────────────────────────

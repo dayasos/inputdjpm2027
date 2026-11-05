@@ -71,7 +71,7 @@ export function alamatTugasBolehDiperbaiki(alamatTersimpan: unknown): boolean {
   return mengandungTautan(alamatTersimpan);
 }
 
-/** Batas panjang alamat pengganti: sama dengan kolom isian (maxlength 100) dan Cek Alamat (MAKS_ALAMAT). */
+/** Batas panjang alamat pengganti: sama dengan kolom isian (maxlength 100). */
 export const MAKS_ALAMAT_PENGGANTI = 100;
 export const PESAN_ALAMAT_PANJANG = "GAGAL: Alamat Tugas terlalu panjang (maksimal " + MAKS_ALAMAT_PENGGANTI + " karakter).";
 

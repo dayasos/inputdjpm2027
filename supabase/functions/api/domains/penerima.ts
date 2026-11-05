@@ -970,8 +970,7 @@ export function editDataPenerima(token: string, nomorBarisAsli: number, editData
 }
 
 /**
- * Inti edit. `dariCekAlamat`: dipanggil HANYA oleh cekAlamatPerbaiki (alur admin GMM yang sah mengganti alamat tugas RUMAH);
- * jalur itu dikecualikan dari kunci "Alamat Tugas hanya bisa diubah bila masih tautan", tetapi tautan tetap ditolak.
+ * Inti edit.
  * `bolehPindahTempat`: izin internal memindahkan Tempat Tugas lewat jalur ini (bersama alamatnya). TIDAK dipakai produksi -- Tempat Tugas
  * terkunci di Edit Data (layar dan server); ada agar pagar perpindahan tempat (wajib-daftar, wilayah, keunikan, penautan rumah ibadah) tetap teruji.
  */
@@ -979,7 +978,7 @@ export async function editDataPenerimaInti(
   token: string,
   nomorBarisAsli: number,
   editData: DataEdit,
-  opsi: { dariCekAlamat?: boolean; bolehPindahTempat?: boolean },
+  opsi: { bolehPindahTempat?: boolean },
 ) {
   let sesi;
   try {
@@ -1036,7 +1035,7 @@ export async function editDataPenerimaInti(
     const berkas = editData.berkas || {};
 
     // ── Alamat Tugas (plans/plan-alamat-tugas-tautan-gmm.md) ──
-    // (1) Nilai baru yang berupa tautan SELALU ditolak. (2) Di luar alur Cek Alamat, kolom ini hanya boleh diubah bila alamat TERSIMPAN masih
+    // (1) Nilai baru yang berupa tautan SELALU ditolak. (2) Kolom ini hanya boleh diubah bila alamat TERSIMPAN masih
     // berupa tautan (petugas memperbaikinya); begitu diperbaiki, kolom terkunci lagi dengan sendirinya. Kunci ini sebelumnya hanya ada di layar.
     // Perubahan hanya dihitung bila nilainya berbeda; mengedit kolom lain pada data beralamat-tautan tidak terhalang.
     // Tempat Tugas terkunci di Edit Data (di layar sudah abu-abu; kini server menegakkannya juga). Perubahan hanya lewat Kelola Data (Admin Utama).
@@ -1054,7 +1053,7 @@ export async function editDataPenerimaInti(
         String(teks[8] ?? "").trim().toUpperCase() !== String(rowLama.tempat_tugas ?? "").trim().toUpperCase();
       if (alamatBaruKirim !== alamatLamaTersimpan.toUpperCase()) {
         if (mengandungTautan(alamatBaruKirim)) return { sukses: false, pesan: PESAN_ALAMAT_TAUTAN };
-        if (!opsi.dariCekAlamat && !tempatDipindah) {
+        if (!tempatDipindah) {
           if (!alamatTugasBolehDiperbaiki(alamatLamaTersimpan)) return { sukses: false, pesan: PESAN_ALAMAT_TERKUNCI };
           const cekPengganti = periksaAlamatPengganti(alamatBaruKirim);
           if (!cekPengganti.ok) return { sukses: false, pesan: cekPengganti.pesan };

@@ -86,7 +86,7 @@
   <!-- Tailwind di-compile saat build (npm run build:css), BUKAN Play CDN -- CDN itu
        eksplisit tidak direkomendasikan untuk production oleh Tailwind sendiri: JIT-compile
        ulang di browser tiap render + 1 request blocking ke CDN pihak ketiga. -->
-  <link rel="stylesheet" href="/css/tailwind.css?v=20271063">
+  <link rel="stylesheet" href="/css/tailwind.css?v=20271065">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -238,7 +238,7 @@
        -- jangan hapus defer dari salah satu tanpa menambahkannya ke semua, lihat urutan sama
        di penutup body. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-  <script src="/js/api-bridge.js?v=20271061" defer></script>
+  <script src="/js/api-bridge.js?v=20271065" defer></script>
 </head>
 
 <body class="bg-slate-100 min-h-screen flex flex-col overflow-x-hidden">
@@ -3563,7 +3563,7 @@
   <script src="/js/app-kelola-user.js?v=20271017" defer></script>
   <script src="/js/app-kelola-ibadah.js?v=20271044" defer></script>
   <!-- app-pesan-periode.js memuat skrip khusus peran secara malas dgn versi (?v=) yang sama: UTAMA = jadwal & pesan, laporan PDF, penanda MUI, verifikasi massal per layanan, Cek Rumah Ibadah, Capaian Input (+ PDF, dimuat saat Unduh diklik); MUI = penanda MUI; peran lain tidak memuat apa pun -->
-  <script src="/js/app-pesan-periode.js?v=20271064" defer></script>
+  <script src="/js/app-pesan-periode.js?v=20271065" defer></script>
   <script src="/js/modal-a11y.js?v=20271008" defer></script>
 
 </body>

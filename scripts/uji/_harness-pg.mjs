@@ -1,5 +1,5 @@
 // Harness uji: menjalankan modul Edge Function (kode Deno ASLI) di Node di atas Postgres SUNGGUHAN (PGlite, WebAssembly) -- bukan database tiruan --
-// sehingga SQL, transaksi, batasan, dan trigger ikut teruji. Dipakai oleh server-cek-alamat-tugas.test.mjs.
+// sehingga SQL, transaksi, batasan, dan trigger ikut teruji. Dipakai oleh server-progres-kuota-banding.test.mjs.
 // PGlite BUKAN dependensi repo. Sediakan sendiri:   npm install --no-save @electric-sql/pglite@0.3.14
 // atau set PGLITE_DIR ke folder yang memuatnya (node_modules/@electric-sql/pglite). Tanpa PGlite, uji yang memerlukannya dilewati.
 // Modul yang ditiru (stub): setelan.ts (izin input; dapat ditutup lewat globalThis.__ujiIzin), validasi.ts, master.ts, gasDrive.ts, storage.ts,
