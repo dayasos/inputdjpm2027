@@ -315,6 +315,8 @@ export interface FilterRumahIbadahAdmin {
   cari?: string;
   jenis?: string;
   kecamatan?: string;
+  // Opsional (Kelola Data > Pilih Rumah Ibadah): batasi ke satu kelurahan.
+  kelurahan?: string;
   statusKlasifikasi?: "PERLU_KLASIFIKASI" | "SELESAI";
   page?: number;
   limit?: number;
@@ -337,6 +339,7 @@ export async function ambilDaftarRumahIbadahAdmin(
   const cari = String(params?.cari || "").trim();
   const jenis = String(params?.jenis || "").trim().toUpperCase();
   const kecamatan = String(params?.kecamatan || "").trim().toUpperCase();
+  const kelurahan = String(params?.kelurahan || "").trim().toUpperCase();
   const statusKlasifikasi = String(params?.statusKlasifikasi || "").trim().toUpperCase();
   const page = Math.max(1, Number(params?.page || 1));
   const limit = Math.min(100, Math.max(5, Number(params?.limit || 25)));
@@ -362,6 +365,7 @@ export async function ambilDaftarRumahIbadahAdmin(
       from rumah_ibadah
       where 1=1
         ${kecamatan ? sql`and upper(kecamatan) = ${kecamatan}` : sql``}
+        ${kelurahan ? sql`and upper(kelurahan) = ${kelurahan}` : sql``}
         ${statusKlasifikasi === "PERLU_KLASIFIKASI" ? sql`and jenis = ${JENIS_LEGACY_GABUNGAN}` : sql``}
         ${statusKlasifikasi === "SELESAI" ? sql`and jenis in ('MASJID', 'MUSHOLLA', 'GEREJA', 'GEREJA_KATOLIK', 'VIHARA', 'KLENTENG', 'KUIL')` : sql``}
         ${cari ? sql`and (nama ilike ${cariPattern} or alamat ilike ${cariPattern} or kelurahan ilike ${cariPattern})` : sql``}
@@ -400,6 +404,7 @@ export async function ambilDaftarRumahIbadahAdmin(
         where 1=1
           ${sqlJenis}
           ${kecamatan ? sql`and upper(kecamatan) = ${kecamatan}` : sql``}
+          ${kelurahan ? sql`and upper(kelurahan) = ${kelurahan}` : sql``}
           ${statusKlasifikasi === "PERLU_KLASIFIKASI" ? sql`and jenis = ${JENIS_LEGACY_GABUNGAN}` : sql``}
           ${statusKlasifikasi === "SELESAI" ? sql`and jenis in ('MASJID', 'MUSHOLLA', 'GEREJA', 'GEREJA_KATOLIK', 'VIHARA', 'KLENTENG', 'KUIL')` : sql``}
           ${cari ? sql`and (nama ilike ${cariPattern} or alamat ilike ${cariPattern} or kelurahan ilike ${cariPattern})` : sql``}
@@ -413,6 +418,7 @@ export async function ambilDaftarRumahIbadahAdmin(
       where 1=1
         ${sqlJenis}
         ${kecamatan ? sql`and upper(kecamatan) = ${kecamatan}` : sql``}
+        ${kelurahan ? sql`and upper(kelurahan) = ${kelurahan}` : sql``}
         ${statusKlasifikasi === "PERLU_KLASIFIKASI" ? sql`and jenis = ${JENIS_LEGACY_GABUNGAN}` : sql``}
         ${statusKlasifikasi === "SELESAI" ? sql`and jenis in ('MASJID', 'MUSHOLLA', 'GEREJA', 'GEREJA_KATOLIK', 'VIHARA', 'KLENTENG', 'KUIL')` : sql``}
         ${cari ? sql`and (nama ilike ${cariPattern} or alamat ilike ${cariPattern} or kelurahan ilike ${cariPattern})` : sql``}

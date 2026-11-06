@@ -9,7 +9,13 @@ import { getMasterLayanan } from "./master.ts";
 import { labelKolom, MAP_IDX_KE_KOLOM_BERKAS, tglDDMMYYYYkeISO } from "./penerima.ts";
 import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
 import { mengandungTautan, PESAN_ALAMAT_TAUTAN } from "../_shared/alamatTugas.ts";
-import { cariRumahIbadah, periksaTempatTugasDariDaftar, pilihRumahIbadahId } from "../_shared/wilayahTugas.ts";
+import { periksaNikBolehDipakai } from "../_shared/cekNik.ts";
+import {
+  cariRumahIbadah, layananWajibRumahIbadah, periksaTempatTugasDariDaftar, periksaWilayahRumahIbadah, pilihRumahIbadahId,
+} from "../_shared/wilayahTugas.ts";
+
+// Kolom yang bila berubah memicu pemeriksaan "wilayah rumah ibadah = wilayah penerima" (layanan wajib-daftar).
+const WILAYAH_ATAU_TEMPAT_BERUBAH = ["tempat_tugas", "alamat_tugas", "layanan", "kecamatan", "kelurahan"];
 
 // ---------------------------------------------------------------------------
 // KELOLA DATA & BERKAS -- CRUD penuh khusus Admin Utama (role "UTAMA") atas seluruh data
@@ -266,23 +272,34 @@ export async function adminDetailData(token: string, id: number, tahun: number) 
 // UBAH
 // ---------------------------------------------------------------------------
 const KOLOM_EDIT: Record<string, { label: string; huruf: boolean; maks: number }> = {
-  nama: { label: "Nama Lengkap", huruf: true, maks: 150 },
+  // Panjang maksimum disamakan dengan formulir input (index.html: maxlength 100; kontak 13). Dulu 150/500/200 sehingga
+  // permintaan langsung ke server bisa menyimpan nilai yang tidak mungkin diketik di formulir input.
+  nama: { label: "Nama Lengkap", huruf: true, maks: 100 },
   nik: { label: "NIK", huruf: false, maks: 16 },
   jenis_kelamin: { label: "Jenis Kelamin", huruf: true, maks: 20 },
   tempat_lahir: { label: "Tempat Lahir", huruf: true, maks: 100 },
   tanggal_lahir: { label: "Tanggal Lahir", huruf: false, maks: 10 },
-  alamat: { label: "Alamat Domisili", huruf: true, maks: 500 },
+  alamat: { label: "Alamat Domisili", huruf: true, maks: 100 },
   layanan: { label: "Layanan", huruf: true, maks: 100 },
-  tempat_tugas: { label: "Tempat Tugas", huruf: true, maks: 200 },
-  alamat_tugas: { label: "Alamat Tugas", huruf: true, maks: 500 },
+  tempat_tugas: { label: "Tempat Tugas", huruf: true, maks: 100 },
+  alamat_tugas: { label: "Alamat Tugas", huruf: true, maks: 100 },
   kecamatan: { label: "Kecamatan", huruf: true, maks: 60 },
   kelurahan: { label: "Kelurahan", huruf: true, maks: 60 },
-  nama_rekening: { label: "Nama Rekening", huruf: true, maks: 150 },
+  nama_rekening: { label: "Nama Rekening", huruf: true, maks: 100 },
   nomor_rekening: { label: "Nomor Rekening", huruf: false, maks: 14 },
-  kantor_cabang: { label: "Kantor Cabang", huruf: true, maks: 150 },
-  no_kontak: { label: "No. Kontak", huruf: false, maks: 20 },
+  kantor_cabang: { label: "Kantor Cabang", huruf: true, maks: 100 },
+  no_kontak: { label: "No. Kontak", huruf: false, maks: 13 },
   status_bpjs_tk: { label: "Status BPJS", huruf: true, maks: 10 },
 };
+
+// Kolom yang WAJIB terisi di formulir input (atribut `required`); Kelola Data tidak boleh mengosongkannya.
+// (nama, NIK, tanggal lahir, layanan, kecamatan, kelurahan punya pemeriksaan tersendiri di bawah.)
+const WAJIB_DIISI = [
+  "jenis_kelamin", "tempat_lahir", "alamat", "tempat_tugas", "alamat_tugas", "nama_rekening", "nomor_rekening",
+  "kantor_cabang", "no_kontak", "status_bpjs_tk",
+];
+const POLA_KONTAK = /^08\d{8,11}$/; // sama dengan formulir input: diawali 08, hanya angka, panjang 10-13
+const POLA_REKENING = /^\d{14}$/;
 
 function isoDariRow(v: unknown): string {
   if (v instanceof Date) return v.toISOString().slice(0, 10);
@@ -319,6 +336,19 @@ export async function adminUbahData(
     // Referensi dibaca SEBELUM transaksi (pool 1 koneksi -- lihat catatan di atas berkas).
     const master = kunci.includes("layanan") ? await getMasterLayanan() : null;
     const layananSah = master ? new Set([...master.kecamatan, ...master.kemenag].map((v) => v.toUpperCase())) : null;
+
+    // NIK yang BERUBAH harus lolos pemeriksaan yang sama dengan formulir input: bukan domisili luar Kota Medan (Capil) dan bukan NIK
+    // arsip tahun lalu berstatus selain AKTIF (mis. HASIL MONEV). Dikerjakan SEBELUM transaksi (memakai pool `sql`, lihat catatan berkas).
+    if (kunci.includes("nik")) {
+      const nikKirim = str(masuk.nik);
+      if (/^\d{16}$/.test(nikKirim)) {
+        const nikLama = await sql`select nik from penerima where id = ${idNum} and tahun = ${th} limit 1`;
+        if (nikLama.length > 0 && str(nikLama[0].nik) !== nikKirim) {
+          const cekNik = await periksaNikBolehDipakai(nikKirim);
+          if (!cekNik.ok) return { sukses: false, pesan: cekNik.pesan };
+        }
+      }
+    }
 
     // deno-lint-ignore no-explicit-any
     const hasil = await sql.begin(async (trx: any) => {
@@ -362,10 +392,21 @@ export async function adminUbahData(
       // Alamat Tugas tidak boleh diubah menjadi tautan (plans/plan-alamat-tugas-tautan-gmm.md). Hanya nilai yang BERUBAH diperiksa.
       if ("alamat_tugas" in baru && mengandungTautan(baru.alamat_tugas)) return { sukses: false, pesan: PESAN_ALAMAT_TAUTAN };
       if ("nik" in baru && !/^\d{16}$/.test(baru.nik)) return { sukses: false, pesan: "GAGAL: NIK harus 16 digit angka." };
-      if ("nomor_rekening" in baru && baru.nomor_rekening && baru.nomor_rekening.length !== 14) {
-        return { sukses: false, pesan: "GAGAL: Nomor rekening harus 14 karakter." };
+      // Aturan isian disamakan dengan formulir input (plans/plan-pilih-rumah-ibadah-kelola-data.md, audit konsistensi 2026-11-06):
+      // kolom wajib tak boleh dikosongkan, rekening 14 digit angka, kontak 08xxxxxxxx (10-13 digit), jenis kelamin dan BPJS pilihan baku.
+      for (const k of WAJIB_DIISI) {
+        if (k in baru && !baru[k]) return { sukses: false, pesan: `GAGAL: ${KOLOM_EDIT[k].label} wajib diisi.` };
       }
-      if ("status_bpjs_tk" in baru && baru.status_bpjs_tk && !["YA", "TIDAK"].includes(baru.status_bpjs_tk)) {
+      if ("nomor_rekening" in baru && !POLA_REKENING.test(baru.nomor_rekening)) {
+        return { sukses: false, pesan: "GAGAL: Nomor rekening harus 14 digit angka." };
+      }
+      if ("no_kontak" in baru && !POLA_KONTAK.test(baru.no_kontak)) {
+        return { sukses: false, pesan: "GAGAL: Nomor kontak tidak valid. Harus diawali 08, tanpa spasi/simbol, dan panjang 10-13 digit." };
+      }
+      if ("jenis_kelamin" in baru && !["LAKI-LAKI", "PEREMPUAN"].includes(baru.jenis_kelamin)) {
+        return { sukses: false, pesan: "GAGAL: Jenis kelamin harus LAKI-LAKI atau PEREMPUAN." };
+      }
+      if ("status_bpjs_tk" in baru && !["YA", "TIDAK"].includes(baru.status_bpjs_tk)) {
         return { sukses: false, pesan: "GAGAL: Status BPJS harus YA atau TIDAK." };
       }
       if ("layanan" in baru && (!baru.layanan || !layananSah?.has(baru.layanan))) {
@@ -408,6 +449,14 @@ export async function adminUbahData(
         // jalan pintas "ubah layanan" (mis. Bilal Jenazah -> Nazir Masjid dengan tempat ketikan bebas). Memakai trx (pool kecil).
         const cekDaftar = await periksaTempatTugasDariDaftar(layananEff, eff("tempat_tugas"), eff("alamat_tugas"), trx);
         if (!cekDaftar.ok) return { sukses: false, pesan: cekDaftar.pesan };
+      }
+      // Wilayah rumah ibadah harus sama dengan wilayah tugas penerima (plans/plan-pilih-rumah-ibadah-kelola-data.md, W1-W3):
+      // diperiksa bila tempat/alamat/layanan ATAU kecamatan/kelurahan berubah, memakai nilai akhir (setelah perubahan).
+      if (WILAYAH_ATAU_TEMPAT_BERUBAH.some((k) => k in baru)) {
+        const cekWilayah = await periksaWilayahRumahIbadah(
+          layananEff, eff("tempat_tugas"), eff("alamat_tugas"), eff("kecamatan"), eff("kelurahan"), trx,
+        );
+        if (!cekWilayah.ok) return { sukses: false, pesan: cekWilayah.pesan };
       }
       if (
         ("tempat_tugas" in baru || "alamat_tugas" in baru || "layanan" in baru) &&
@@ -452,7 +501,12 @@ export async function adminUbahData(
       }
       // Tautan rumah ibadah (plans/plan-penautan-rumah-ibadah-id.md) ikut diperbarui hanya bila tempat/alamat/layanan berubah;
       // null bila hasil akhirnya bukan rumah ibadah terdaftar. Memakai trx (pool kecil, lihat catatan di atas berkas).
-      if ("tempat_tugas" in baru || "alamat_tugas" in baru || "layanan" in baru) {
+      // Ubah kecamatan/kelurahan pada layanan wajib-daftar juga menautkan ulang: bila nama + alamat kembar di dua wilayah, ID harus
+      // yang sesuai wilayah baru (pilihRumahIbadahId mempersempit dengan kecamatan + kelurahan).
+      if (
+        "tempat_tugas" in baru || "alamat_tugas" in baru || "layanan" in baru ||
+        (layananWajibRumahIbadah(layananEff) && ("kecamatan" in baru || "kelurahan" in baru))
+      ) {
         setValues["rumah_ibadah_id"] = pilihRumahIbadahId(
           await cariRumahIbadah(eff("tempat_tugas"), eff("alamat_tugas"), trx), eff("kecamatan"), eff("kelurahan"),
         );

@@ -11,6 +11,7 @@ import {
   resolveInstansiPengguna,
   subFilterGsmDari,
 } from "../_shared/akses.ts";
+import { periksaNikBolehDipakai } from "../_shared/cekNik.ts";
 import { periksaIzinInput } from "./setelan.ts";
 import { cekKuotaTersedia } from "./validasi.ts";
 import {
@@ -739,6 +740,12 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
     if (!nama || nik.length !== 16 || nomorRekening.length !== 14 || !layanan || !kecamatan) {
       return { sukses: false, pesan: "GAGAL: Data wajib tidak lengkap atau format NIK/Rekening salah." };
     }
+    // NIK harus lolos pemeriksaan yang sama dengan validasiDataBaru (Capil luar Kota Medan dan arsip tahun lalu berstatus selain AKTIF,
+    // mis. HASIL MONEV). Dulu hanya dijaga layar + validasiDataBaru sehingga permintaan langsung ke server bisa melewatinya.
+    {
+      const cekNik = await periksaNikBolehDipakai(nik);
+      if (!cekNik.ok) return { sukses: false, pesan: cekNik.pesan };
+    }
     // Alamat Tugas tidak boleh berupa tautan (plans/plan-alamat-tugas-tautan-gmm.md); tautan Maps milik kolom Koordinat Lokasi.
     if (alamatTugas.length > 1000) return { sukses: false, pesan: PESAN_ALAMAT_PANJANG };   // kolom isian maks 100; batas ini hanya pengaman biaya pemeriksaan
     if (mengandungTautan(alamatTugas)) return { sukses: false, pesan: PESAN_ALAMAT_TAUTAN };
@@ -1082,6 +1089,9 @@ export async function editDataPenerimaInti(
       if (cekNik.length > 0) {
         return { sukses: false, pesan: "GAGAL: NIK " + nikBaruEdit + " sudah terdaftar." };
       }
+      // NIK baru juga harus lolos pemeriksaan Capil + arsip tahun lalu (sama dengan input baru dan Kelola Data).
+      const cekNikArsip = await periksaNikBolehDipakai(nikBaruEdit);
+      if (!cekNikArsip.ok) return { sukses: false, pesan: cekNikArsip.pesan };
     }
     if (rekBerubah && rekBaruEdit) {
       const cekRek = await sql`

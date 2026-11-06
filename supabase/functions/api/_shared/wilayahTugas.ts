@@ -133,6 +133,36 @@ export async function periksaTempatTugasDariDaftar(
   };
 }
 
+/**
+ * Kelola Data (plans/plan-pilih-rumah-ibadah-kelola-data.md, keputusan user 2026-11-06): untuk layanan wajib-daftar, rumah ibadah
+ * (nama + alamat) harus berada di KECAMATAN dan KELURAHAN yang sama dengan wilayah tugas penerima. Dipanggil hanya bila tempat/alamat/
+ * layanan/kecamatan/kelurahan berubah pada edit. Rumah ibadah yang tidak ditemukan di daftar TIDAK ditolak di sini (itu urusan
+ * `periksaTempatTugasDariDaftar`, yang hanya berlaku bila tempat/alamat/layanan berubah; data lama dibiarkan bila yang diubah wilayahnya saja).
+ * Nama + alamat kembar di wilayah berbeda: cukup salah satunya cocok.
+ */
+export async function periksaWilayahRumahIbadah(
+  layanan: string,
+  tempatTugas: string,
+  alamatTugas: string,
+  kecamatan: string,
+  kelurahan: string,
+  q: any = sql,
+): Promise<{ ok: true } | { ok: false; pesan: string }> {
+  if (!layananWajibRumahIbadah(layanan)) return { ok: true };
+  const lokasi = await cariRumahIbadah(tempatTugas, alamatTugas, q);
+  if (lokasi.length === 0) return { ok: true };
+  const kec = rapikanTeks(kecamatan);
+  const kel = rapikanTeks(kelurahan);
+  if (lokasi.some((l) => l.kecamatan === kec && l.kelurahan === kel)) return { ok: true };
+  const l = lokasi[0];
+  return {
+    ok: false,
+    pesan: "GAGAL: " + rapikanTeks(tempatTugas) + " tercatat di Kec. " + l.kecamatan + ", Kel. " + l.kelurahan +
+      ", sedangkan wilayah penerima adalah Kec. " + kec + ", Kel. " + kel + ". Pilih rumah ibadah di wilayah yang sama, " +
+      "atau ubah Kecamatan/Kelurahan penerima terlebih dahulu.",
+  };
+}
+
 export async function kelurahanAdaDiKecamatan(kecamatan: string, kelurahan: string): Promise<boolean> {
   const kec = rapikanTeks(kecamatan);
   const kel = rapikanTeks(kelurahan);

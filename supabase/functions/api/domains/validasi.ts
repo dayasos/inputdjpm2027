@@ -3,6 +3,7 @@ import { wajibSesi } from "../_shared/sesi.ts";
 import { ikonRumahIbadah, LAYANAN_BATASI_TEMPAT_TUGAS, rapikanTeks, TAHUN_AKTIF } from "../_shared/config.ts";
 import { tentukanWilayahTugas } from "../_shared/wilayahTugas.ts";
 import { mengandungTautan, PESAN_ALAMAT_TAUTAN } from "../_shared/alamatTugas.ts";
+import { cekDomisiliCapil, cekStatusTahunLalu } from "../_shared/cekNik.ts";
 
 // ---------------------------------------------------------------------------
 // Catatan desain (beda dari Kode.gs, disengaja — lihat rencana migrasi):
@@ -14,67 +15,7 @@ import { mengandungTautan, PESAN_ALAMAT_TAUTAN } from "../_shared/alamatTugas.ts
 // cache lama). Jadi getIndeksTerdaftar_/invalidateIndeksTerdaftar_ SENGAJA tidak diporting.
 // ---------------------------------------------------------------------------
 
-// Port dari cekDomisiliCapil_() — tanpa parameter token (pemanggil di sini sudah memvalidasi sesi
-// di level luar; pengecekan sesi kedua di Kode.gs bersifat redundan/tidak mengubah perilaku).
-async function cekDomisiliCapil(nik: string) {
-  try {
-    const nikTarget = String(nik || "").trim();
-    if (!nikTarget) return { ditemukan: false as const };
-
-    const rows = await sql`
-      select nama, nik, status, alamat_domisili, kab_kota_domisili
-      from capil
-      where nik = ${nikTarget}
-      limit 1
-    `;
-    if (rows.length === 0) return { ditemukan: false as const };
-
-    const r = rows[0];
-    return {
-      ditemukan: true as const,
-      nama: (r.nama || "").toString().trim(),
-      nik: nikTarget,
-      status: (r.status || "").toString().trim(),
-      alamatDomisili: (r.alamat_domisili || "").toString().trim(),
-      kabKotaDomisili: (r.kab_kota_domisili || "").toString().trim(),
-    };
-  } catch (_e) {
-    // Jika error, JANGAN blokir input — sama seperti Kode.gs.
-    return { ditemukan: false as const };
-  }
-}
-
-// Port dari cekStatusTahunLalu_() — cek ke SEMUA tahun selain TAHUN_AKTIF sekaligus (satu query
-// yang di-prune otomatis ke partisi relevan oleh Postgres), bukan loop per-sheet seperti GAS.
-// Kalau NIK muncul di lebih dari satu tahun lampau, ambil yang tahunnya paling baru (order by tahun desc).
-async function cekStatusTahunLalu(nik: string) {
-  try {
-    const nikTarget = String(nik || "").trim();
-    if (!nikTarget) return { ditemukan: false as const };
-
-    const rows = await sql`
-      select tahun, nama, layanan, status_verifikasi
-      from penerima
-      where nik = ${nikTarget} and tahun <> ${TAHUN_AKTIF}
-      order by tahun desc
-      limit 1
-    `;
-    if (rows.length === 0) return { ditemukan: false as const };
-
-    const r = rows[0];
-    const status = (r.status_verifikasi || "").toString().trim().toUpperCase();
-    return {
-      ditemukan: true as const,
-      status,
-      aktif: status === "AKTIF",
-      nama: (r.nama || "").toString().trim(),
-      layanan: (r.layanan || "").toString().trim().toUpperCase(),
-      tahun: String(r.tahun),
-    };
-  } catch (_e) {
-    return { ditemukan: false as const };
-  }
-}
+// cekDomisiliCapil / cekStatusTahunLalu dipindah ke _shared/cekNik.ts (dipakai bersama Kelola Data).
 
 // Port 1:1 dari cekKuotaTersedia() — tetap diekspos sebagai action tersendiri untuk paritas
 // dengan daftar ALLOWED lama, meski index.html saat ini hanya memakainya lewat cekKuotaRealtime.

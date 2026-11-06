@@ -23,7 +23,7 @@
     { k: 'nama_rekening', d: 'namaRekening', l: 'Nama Rekening', maks: 100 },
     { k: 'nomor_rekening', d: 'nomorRekening', l: 'Nomor Rekening (14 digit)', mentah: true, maks: 14, mode: 'numeric' },
     { k: 'kantor_cabang', d: 'kantorCabang', l: 'Kantor Cabang', maks: 100 },
-    { k: 'no_kontak', d: 'noKontak', l: 'No. Kontak', mentah: true, maks: 20, mode: 'tel' },
+    { k: 'no_kontak', d: 'noKontak', l: 'No. Kontak', mentah: true, maks: 13, mode: 'tel' },
     { k: 'status_bpjs_tk', d: 'statusBpjs', l: 'Status BPJS TK', pilih: ['YA', 'TIDAK'] }
   ];
 
@@ -34,6 +34,13 @@
   var KELAS_LABEL_FILTER = 'block text-xs font-medium text-slate-600 mb-1';
   var KELAS_FILTER = KELAS_INPUT;
   var KELAS_TOMBOL_TEPI = 'bg-white hover:bg-slate-50 active:scale-95 border border-slate-300 text-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold transition shadow-sm flex items-center gap-1.5 shrink-0';
+  // Kolom yang wajib terisi di formulir input; Kelola Data tidak boleh mengosongkannya (nama, NIK, tanggal lahir, layanan, kecamatan,
+  // kelurahan punya pemeriksaan sendiri). Sama dengan WAJIB_DIISI di kelolaData.ts.
+  var WAJIB_ISI = ['nama', 'jenis_kelamin', 'tempat_lahir', 'alamat', 'tempat_tugas', 'alamat_tugas', 'nama_rekening', 'nomor_rekening', 'kantor_cabang', 'no_kontak', 'status_bpjs_tk'];
+  function labelPendek(k) {
+    for (var i = 0; i < FIELD.length; i++) if (FIELD[i].k === k) return FIELD[i].l.replace(/\s*\(.*\)\s*$/, '');
+    return k;
+  }
   var TOTAL_JENIS_BERKAS = 12;
   var KOLOM_TABEL = 10; // termasuk kolom centang (disembunyikan untuk tahun arsip)
 
@@ -290,10 +297,16 @@
       if (e.target === md) tutupDetail();
     });
     md.addEventListener('click', aksiModalDetail);
+    // Kolom Tempat/Alamat Tugas yang terkunci (layanan wajib rumah ibadah) dibuka lewat pop-up bila diklik.
+    md.addEventListener('click', function (e) {
+      var t = e.target;
+      if (t && (t.id === 'kd-f-tempat_tugas' || t.id === 'kd-f-alamat_tugas') && t.readOnly) bukaPilihRI();
+    });
     md.addEventListener('input', tandaiPerubahan);
     md.addEventListener('change', function (e) {
       var t = e.target;
       if (t && t.id === 'kd-f-kecamatan') isiKelurahan(t.value, '');
+      if (t && t.id === 'kd-f-layanan') pasangPilihRI();
       if (t && t.id === 'kd-berkas-semua') { pilihSemuaBerkas(t.checked); return; }
       if (t && t.hasAttribute && t.hasAttribute('data-kd-berkas')) {
         var ib = Number(t.getAttribute('data-kd-berkas')), bb = cariBerkas(ib);
@@ -691,6 +704,7 @@
       isiLayanan(d.layanan);
       isiKecamatan(d.kecamatan);
       isiKelurahan(d.kecamatan, d.kelurahan);
+      pasangPilihRI();
     }
   }
 
@@ -741,6 +755,55 @@
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Pilih Rumah Ibadah (plans/plan-pilih-rumah-ibadah-kelola-data.md). Untuk layanan yang wajib rumah ibadah terdaftar, Tempat Tugas +
+  // Alamat Tugas tidak diketik: hanya diisi lewat pop-up (app-pilih-rumah-ibadah.js, dimuat malas untuk UTAMA) yang dibatasi ke kecamatan
+  // dan kelurahan penerima serta jenis rumah ibadah sesuai layanan. Bila modulnya belum/gagal dimuat, kolom tetap isian teks biasa
+  // (server tetap menolak yang tidak cocok daftar atau beda wilayah).
+  // ---------------------------------------------------------------------------
+  function pilihRIAktif() {
+    return !!(D.data && D.bolehUbah && window.djpmPilihRI && window.djpmPilihRI.layananWajib(nilaiEl('kd-f-layanan')));
+  }
+
+  function pasangPilihRI() {
+    var elT = $('kd-f-tempat_tugas'), elA = $('kd-f-alamat_tugas');
+    if (!elT || !elA) return;
+    var aktif = pilihRIAktif();
+    [elT, elA].forEach(function (el) {
+      el.readOnly = aktif;
+      // Warna abu-abu lewat gaya langsung (kelas bg-slate-100 kalah dari bg-white pada KELAS_INPUT) agar kolom terkunci tampak berbeda.
+      el.style.backgroundColor = aktif ? '#f1f5f9' : '';
+      el.style.cursor = aktif ? 'pointer' : '';
+      if (aktif) el.setAttribute('placeholder', 'Klik untuk memilih rumah ibadah'); else el.removeAttribute('placeholder');
+    });
+    var tombol = $('kd-btn-pilih-ri');
+    if (aktif && !tombol) {
+      elT.insertAdjacentHTML('afterend', '<button type="button" id="kd-btn-pilih-ri" data-kd="pilih-ri" class="mt-2 ' + KELAS_TOMBOL_TEPI + '">Pilih Rumah Ibadah</button>');
+    } else if (!aktif && tombol) {
+      tombol.parentNode.removeChild(tombol);
+    }
+  }
+
+  function bukaPilihRI() {
+    if (!pilihRIAktif()) return;
+    var pesan = window.djpmPilihRI.buka({
+      layanan: nilaiEl('kd-f-layanan'),
+      kecamatan: nilaiEl('kd-f-kecamatan'),
+      kelurahan: nilaiEl('kd-f-kelurahan'),
+      tempat: nilaiEl('kd-f-tempat_tugas'),
+      alamat: nilaiEl('kd-f-alamat_tugas'),
+      pemicu: $('kd-btn-pilih-ri'),
+      onPilih: function (ri) {
+        var elT = $('kd-f-tempat_tugas'), elA = $('kd-f-alamat_tugas');
+        if (!elT || !elA) return;
+        elT.value = ri.nama || '';
+        elA.value = ri.alamat || '';
+        tandaiPerubahan();
+      }
+    });
+    if (pesan) toast(pesan, 'peringatan', 6000);
+  }
+
   function ambilPerubahan() {
     var out = {};
     if (!D.data || !D.bolehUbah) return out;
@@ -763,7 +826,15 @@
       var c = window.djpmTanggalLahir.periksa(perubahan.tanggal_lahir);
       if (!c.ok) g.tanggal_lahir = c.pesan;
     }
-    if ('alamat_tugas' in perubahan && window.djpmAlamatTugas) {
+    // Aturan isian disamakan dengan formulir input (kolom wajib, NIK 16 digit, rekening 14 digit, kontak 08xxxxxxxx 10-13 digit);
+    // penegak utama tetap server (kelolaData.ts).
+    WAJIB_ISI.forEach(function (k) {
+      if (k in perubahan && !perubahan[k]) g[k] = labelPendek(k) + ' wajib diisi.';
+    });
+    if ('nik' in perubahan && !/^[0-9]{16}$/.test(perubahan.nik)) g.nik = 'NIK harus 16 digit angka.';
+    if ('nomor_rekening' in perubahan && perubahan.nomor_rekening && !/^[0-9]{14}$/.test(perubahan.nomor_rekening)) g.nomor_rekening = 'Nomor rekening harus 14 digit angka.';
+    if ('no_kontak' in perubahan && perubahan.no_kontak && !/^08[0-9]{8,11}$/.test(perubahan.no_kontak)) g.no_kontak = 'Harus diawali 08, tanpa spasi/simbol, panjang 10-13 digit.';
+    if ('alamat_tugas' in perubahan && window.djpmAlamatTugas && !g.alamat_tugas) {
       var cAlamat = window.djpmAlamatTugas.galatInput(perubahan.alamat_tugas);
       if (cAlamat) g.alamat_tugas = cAlamat;
     }
@@ -1405,6 +1476,7 @@
         if (inp) inp.click();
         break;
       }
+      case 'pilih-ri': bukaPilihRI(); break;
       case 'hapus-berkas': hapusBerkas(Number(b.getAttribute('data-idx'))); break;
       case 'hapus-berkas-terpilih': bukaMassalBerkas(); break;
       case 'hapus-data':
