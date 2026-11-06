@@ -1,6 +1,6 @@
 # Plan: Pilih Rumah Ibadah (dropdown/pop-up) di Kelola Data + tolak bila beda wilayah
 
-> Versi **2** (2026-11-06) · Status: **SELESAI DI LOKAL (cabang `feat/pilih-rumah-ibadah-kelola-data`), BELUM commit/push/deploy.** User menjawab "perluas dan mulai": W3 diperluas (pemeriksaan wilayah juga saat kecamatan/kelurahan diubah); W2, W4, W5 memakai usulan bawaan. Atas permintaan user, Kelola Data juga DISAMAKAN dengan seluruh aturan formulir input (lihat §12 Realisasi).
+> Versi **2** (2026-11-06) · Status: **LIVE 2026-11-06** (commit a16c25b; fungsi `api` v113 di-deploy dulu, lalu frontend lewat push ke main). Sisa: user uji klik akun UTAMA, pantau log. User menjawab "perluas dan mulai": W3 diperluas (pemeriksaan wilayah juga saat kecamatan/kelurahan diubah); W2, W4, W5 memakai usulan bawaan. Atas permintaan user, Kelola Data juga DISAMAKAN dengan seluruh aturan formulir input (lihat §12 Realisasi).
 >
 > Permintaan user: Tempat Tugas dan Alamat Tugas di Kelola Data (Detail > Edit) sekarang diketik manual dan sering ditolak "harus sama persis dengan daftar". User minta pilihan dari daftar yang menyesuaikan **kecamatan, kelurahan, dan jenis rumah ibadah**. Keputusan user: **tolak bila wilayah rumah ibadah berbeda dari wilayah penerima.**
 >
