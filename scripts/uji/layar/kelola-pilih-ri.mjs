@@ -69,7 +69,8 @@ async function js(ekspresi) {
   if (m.result.exceptionDetails) throw new Error("JS galat: " + JSON.stringify(m.result.exceptionDetails).slice(0, 400));
   return m.result.result.value;
 }
-async function tungguSampai(ekspresi, label, maks = 60) { for (let i = 0; i < maks; i++) { if (await js(ekspresi)) return true; await tidur(250); } throw new Error("Timeout menunggu: " + label); }
+// Galat saat membaca (mis. elemen belum ada karena halaman belum selesai dimuat) dianggap "belum siap", bukan kegagalan uji.
+async function tungguSampai(ekspresi, label, maks = 60) { for (let i = 0; i < maks; i++) { if (await js(ekspresi).catch(() => false)) return true; await tidur(250); } throw new Error("Timeout menunggu: " + label); }
 let gagal = 0;
 function cek(nama, kondisi, rinci = "") { console.log((kondisi ? "LULUS  " : "GAGAL  ") + nama + (kondisi ? "" : "  -> " + rinci)); if (!kondisi) gagal++; }
 const set = (k, v) => js(`(()=>{const e=document.getElementById('kd-f-${k}'); e.value=${JSON.stringify(v)}; e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true})); return true})()`);
@@ -101,7 +102,8 @@ try {
   let k = await state();
   cek("IMAM MASJID: tombol Pilih Rumah Ibadah ada; Tempat & Alamat Tugas hanya-baca; Simpan nonaktif", k.tombol && k.tRO && k.aRO && k.simpanNonaktif, JSON.stringify(k));
 
-  const warna = (i) => js(`getComputedStyle(document.getElementById('kd-f-${i}')).backgroundColor`);
+  // Transisi CSS dimatikan sebelum membaca: Chrome tanpa layar tidak selalu memajukan transisi, sehingga nilai di tengah animasi membuat uji tidak stabil.
+  const warna = (i) => js(`(() => { const e = document.getElementById('kd-f-${i}'); e.style.transition = 'none'; void e.offsetWidth; return getComputedStyle(e).backgroundColor; })()`);
   cek("kolom terkunci tampak abu-abu (berbeda dari kolom yang bisa diketik)", (await warna("tempat_tugas")) === "rgb(241, 245, 249)" && (await warna("alamat_tugas")) === "rgb(241, 245, 249)" && (await warna("nama")) !== "rgb(241, 245, 249)", (await warna("tempat_tugas")) + " / " + (await warna("nama")));
   await kirim("Page.captureScreenshot", { format: "png" }).then((x) => fs.writeFileSync(OUT + "/djpm_pri_form.png", Buffer.from(x.result.data, "base64")));
   await klik("#kd-btn-pilih-ri");

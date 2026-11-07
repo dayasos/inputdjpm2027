@@ -556,7 +556,9 @@
   // memengaruhi yang lain, dan masing-masing dicoba lagi pada pemicu berikutnya.
   var SKRIP_PER_PERAN = {
     UTAMA: ['/js/app-jadwal-pesan.js', '/js/app-laporan-progres.js', '/js/app-capaian-input.js', '/js/app-penanda-mui.js', '/js/app-verifikasi-massal.js', '/js/app-cek-rumah-ibadah.js', '/js/app-templat-alasan.js', '/js/app-pilih-rumah-ibadah.js'],
-    MUI: ['/js/app-penanda-mui.js']
+    MUI: ['/js/app-penanda-mui.js'],
+    // Pengingat koordinat lokasi (plans/plan-pengingat-koordinat-gmm.md): hanya akun Guru Maghrib Mengaji.
+    'GURU MAGHRIB MENGAJI': ['/js/app-pengingat-koordinat-gmm.js']
   };
   var skripAdminDimuat = {};
   function muatSkripAdmin() {
