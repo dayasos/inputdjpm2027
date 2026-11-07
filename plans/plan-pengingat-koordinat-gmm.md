@@ -1,6 +1,6 @@
 # Rencana: Pengingat Koordinat Lokasi untuk Petugas Guru Maghrib Mengaji (GMM)
 
-> Versi **2** (2026-11-07) · Status: **SELESAI DI LOKAL (cabang `feat/pengingat-koordinat-gmm`), BELUM commit/push.** User menjawab "setuju" (K1-K4 memakai usulan bawaan: "dapat berdampak", banner ikut gulir, gerak sedang yang bisa dijeda, UTAMA tidak melihat). Tidak ada perubahan data, server, atau CSS.
+> Versi **3** (2026-11-08) · Status: **LIVE sejak 2026-11-08 (commit a12dce3)**; perubahan **banner menempel saat digulir** (permintaan user 2026-11-08) selesai di lokal pada cabang `feat/banner-lengket-gmm`, belum commit/push. User menjawab "setuju" (K1-K4 memakai usulan bawaan: "dapat berdampak", banner ikut gulir, gerak sedang yang bisa dijeda, UTAMA tidak melihat). Tidak ada perubahan data, server, atau CSS.
 >
 > Keputusan user 2026-11-07: dari empat pilihan penanganan koordinat, user memilih **pilihan 1 (imbauan saja)**, yaitu tidak mengubah status data apa pun. Imbauan disampaikan lewat (a) pesan di formulir input dan (b) **banner berjalan permanen** untuk data yang sudah diinput.
 >
@@ -184,3 +184,10 @@ Frontend saja: `git revert` satu commit. Tidak ada migrasi, tidak ada perubahan 
 - **Uji sesudah perbaikan:** unit 6/6; layar Chrome 41 pemeriksaan (termasuk cakupan jalur pada 1366/1920/2560 px di 6 fase siklus, ubah ukuran jendela 7 kali saat berjalan, kembali dari mode kurangi gerakan, dipasang saat tak terukur), stabil 6 putaran berturut-turut; 17 mutan perusakan tertangkap (3 mutan sempat lolos -> celah uji ditutup -> tertangkap); regresi 13 suite + 4 uji layar lain hijau; `vite build` OK.
 - **Tidak teruji:** Chrome lama (<111) sungguhan (hanya Chrome terbaru); pembaca layar; HP nyata.
 - **Belum:** commit/push (menunggu perintah user), uji klik user dengan satu akun GMM nyata.
+
+## 14. Perubahan 2026-11-08: banner MENEMPEL saat halaman digulir (permintaan user)
+
+- **Perilaku:** banner tetap terlihat tepat di bawah header yang menempel (K2 berubah dari "ikut gulir" menjadi "menempel"). Caranya `position:sticky` dengan `top` diisi skrip sesuai tinggi header (header bisa 1 baris di desktop dan beberapa baris di HP), z-index 45 (di atas konten, di bawah header 50 dan semua pop-up >=100), menyelip 1 px di bawah header agar tidak ada celah pembulatan. Tinggi header diikuti lewat `ResizeObserver` (border-box) + pemeriksaan berkala 2 dtk + resize + huruf selesai dimuat.
+- **Temuan uji:** `ResizeObserver` bawaan hanya mengamati ukuran ISI sehingga perubahan tinggi header lewat padding tidak terdeteksi (banner tertinggal hingga 2 dtk); diperbaiki dengan `box: border-box`.
+- **Uji:** layar Chrome 48 pemeriksaan (digulir 0/600/maks pada 1100 px dan 360 px: banner tepat di bawah header, di atas konten, header di atas banner; header +60 px lalu kembali), stabil 3 putaran; 5 mutan tertangkap (sticky dihapus, z-index di atas header, top tak disesuaikan, pengamat hanya isi, celah 1 px); regresi hijau. `?v=` app-pesan-periode dinaikkan ke 20271068 agar peramban mengambil modul baru.
+- **Catatan:** di HP header yang menempel sudah memakai sekitar 245 px (layar 360 px); banner menambah sekitar 31 px. Pada mode "kurangi gerakan" teks terlipat beberapa baris sehingga banner lebih tinggi.

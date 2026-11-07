@@ -93,6 +93,20 @@ const cakupanJalur = async (daftarFase) => {
   return hasil;
 };
 // Bermasalah bila ada ruang kosong di kiri/kanan jendela, ATAU jumlah salinan tidak sama dengan yang seharusnya (tak menyusut/tak menyesuaikan).
+// Banner harus MENEMPEL tepat di bawah header saat halaman digulir: tidak tertimpa header, tidak tertimpa konten, tanpa celah.
+const posisiLengket = (gulir) => js(`(async () => {
+  window.scrollTo(0, ${gulir}); await new Promise((r) => setTimeout(r, 350));
+  const b = document.getElementById('pk-banner'), h = document.querySelector('header');
+  const rb = b.getBoundingClientRect(), rh = h.getBoundingClientRect();
+  const titikBanner = document.elementFromPoint(rb.left + rb.width / 2, rb.top + rb.height / 2);
+  // Titik di tepi kiri-bawah header (tepat di sambungan dengan banner), bukan di tengah: toast "Instal Aplikasi" melayang di tengah atas.
+  // y = bawah header - 0,5 px: baris piksel yang BERTUMPUK dengan banner (banner sengaja menyelip 1 px di bawah header); header harus menang.
+  const titikHeader = document.elementFromPoint(rh.left + 10, rh.bottom - 0.5);
+  return { gulir: Math.round(window.scrollY), tinggiHalaman: document.documentElement.scrollHeight, atasBanner: Math.round(rb.top), bawahHeader: Math.round(rh.bottom),
+    selisih: Math.round(rb.top - rh.bottom), tinggiBanner: Math.round(rb.height), bannerTerlihat: rb.bottom > 0 && rb.top < innerHeight,
+    bannerDiAtasKonten: !!(titikBanner && titikBanner.closest('#pk-banner')), headerDiAtasBanner: !!(titikHeader && titikHeader.closest('header')), top: b.style.top };
+})()`);
+const lengketBaik = (p) => p.bannerTerlihat && p.bannerDiAtasKonten && p.headerDiAtasBanner && p.selisih >= -1 && p.selisih <= 1;
 const adaRuangKosong = (hasil) => hasil.some((r) => r.kananKosong > 1 || r.kiriKosong > 1 || r.salinan !== r.seharusnya);
 
 try {
@@ -147,6 +161,22 @@ try {
   await js("document.getElementById('pk-kotak-formulir').remove(); true");
   await tungguSampai("!!document.getElementById('pk-kotak-formulir')", "kotak dipulihkan setelah terhapus (mis. formulir direset)", 20);
   cek("Kotak yang terhapus (mis. pengaturan ulang formulir) dipulihkan otomatis", true);
+
+  // banner menempel saat halaman digulir (permintaan user 2026-11-08)
+  for (const gulir of [0, 600, 5000]) {
+    const p = await posisiLengket(gulir);
+    cek(`Digulir ke ${gulir}px (posisi nyata ${p.gulir}px dari tinggi halaman ${p.tinggiHalaman}px): banner menempel tepat di bawah header, tidak tertimpa/menimpa`,
+      lengketBaik(p) && (gulir === 0 || p.gulir > 100), JSON.stringify(p));
+  }
+  await js(`(() => { document.querySelector('header').style.paddingBottom = '60px'; return true; })()`);
+  await tidur(500);
+  const pTinggi = await posisiLengket(600);
+  cek("Tinggi header berubah (+60 px): banner ikut turun dan tetap menempel tepat di bawahnya", lengketBaik(pTinggi), JSON.stringify(pTinggi));
+  await js(`(() => { document.querySelector('header').style.paddingBottom = ''; return true; })()`);
+  await tidur(500);
+  const pKembali = await posisiLengket(600);
+  cek("Tinggi header kembali: banner ikut naik dan tetap menempel", lengketBaik(pKembali), JSON.stringify(pKembali));
+  await js('window.scrollTo(0, 0); true');
 
   // jeda saat ditunjuk
   await js('window.scrollTo(0, 0); true'); await tidur(200);
@@ -228,6 +258,12 @@ try {
   const hp = await js(`(() => ({ gulirHorizontal: document.documentElement.scrollWidth > window.innerWidth + 1, lebarHalaman: document.documentElement.scrollWidth, lebarJendela: window.innerWidth, headerBawah: Math.round(document.querySelector('header').getBoundingClientRect().bottom), banyakTombolTerkena: (() => { const t = document.getElementById('tab-rekap').getBoundingClientRect(); const e = document.elementFromPoint(t.left + t.width / 2, t.top + t.height / 2); return e && e.closest('#tab-rekap') ? 'tab' : (e ? e.tagName + '#' + e.id : 'null'); })() }))()`);
   cek("HP 360 px: tidak ada gulir horizontal, banner satu baris (<= 40 px), tidak menimpa header", !hp.gulirHorizontal && b.tinggi <= 40 && b.atas >= 0, JSON.stringify({ hp, b: { tinggi: b.tinggi, atas: b.atas } }));
   await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(`${OUT}/djpm_pk_banner_hp.png`, Buffer.from(s.result.data, "base64")));
+  for (const gulir of [600, 5000]) {
+    const p = await posisiLengket(gulir);
+    cek(`HP 360 px, digulir ke ${gulir}px (posisi nyata ${p.gulir}px): banner menempel tepat di bawah header`, lengketBaik(p) && p.gulir > 100, JSON.stringify(p));
+    if (gulir === 600) await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(`${OUT}/djpm_pk_banner_hp_gulir.png`, Buffer.from(s.result.data, "base64")));
+  }
+  await js('window.scrollTo(0, 0); true');
 
   // ============================ PERAN LAIN ============================
   for (const lain of ["UTAMA", "KECAMATAN", "MUI", "IMAM MASJID", "GURU SEKOLAH MINGGU"]) {

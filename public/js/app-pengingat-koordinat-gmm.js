@@ -62,7 +62,9 @@
   // Gaya
   // ---------------------------------------------------------------------------------------------
   var CSS =
-    '.pk-banner{display:flex;align-items:center;gap:8px;background:#fffbeb;border-bottom:1px solid #fcd34d;color:#78350f;' +
+    // Menempel tepat di bawah header (yang juga menempel, z-50) saat halaman digulir; "top" diisi skrip sesuai tinggi header.
+    // z-index 45: di atas konten halaman, di bawah header (50) dan semua jendela/pop-up (>= 100).
+    '.pk-banner{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:45;background:#fffbeb;border-bottom:1px solid #fcd34d;color:#78350f;' +
     'padding:6px 12px;font-size:12px;line-height:1.4;font-weight:600}' +
     '.pk-banner:focus-visible{outline:2px solid #d97706;outline-offset:-2px}' +
     '.pk-ikon{flex:none;width:18px;height:18px;color:#d97706}' +
@@ -94,6 +96,7 @@
   // Banner berjalan permanen
   // ---------------------------------------------------------------------------------------------
   var timerLepasSentuh = null;
+  var pengamatHeader = null;
 
   /**
    * Susun jumlah salinan teks dan ukur geseran/durasi. Jalur harus selalu MENUTUPI seluruh lebar jendela di setiap fase gerak:
@@ -126,6 +129,19 @@
     b.style.setProperty('--pk-durasi', detik + 's');
   }
 
+  /**
+   * Letakkan banner tepat di bawah header yang menempel. Tinggi header berubah-ubah (layar sempit melipatnya jadi beberapa baris,
+   * lencana status muncul/hilang), jadi diukur ulang. Dikurangi 1 px agar tidak ada celah tipis akibat pembulatan: banner (z-45)
+   * boleh menyelip di bawah header (z-50) sebanyak 1 px.
+   */
+  function selarasTinggiHeader() {
+    var b = dok.getElementById(ID_BANNER);
+    var header = dok.querySelector('header');
+    if (!b || !header) return;
+    var atas = Math.max(0, Math.ceil(header.getBoundingClientRect().height) - 1);
+    if (b.style.top !== atas + 'px') b.style.top = atas + 'px';
+  }
+
   function pasangBanner() {
     if (dok.getElementById(ID_BANNER)) return;
     var header = dok.querySelector('header');
@@ -147,7 +163,18 @@
     b.addEventListener('touchend', lepas, { passive: true });
     b.addEventListener('touchcancel', lepas, { passive: true });
     header.parentNode.insertBefore(b, header.nextSibling);
+    selarasTinggiHeader();
     susunSalinan();
+    // Header berubah tinggi (lencana status, lipatan baris, huruf selesai dimuat): banner mengikuti seketika.
+    // Pengamat dibuat SEKALI untuk seumur halaman (banner bisa dipasang ulang berkali-kali saat akun berganti).
+    if (!pengamatHeader && typeof akar.ResizeObserver === 'function') {
+      // border-box: tinggi header bisa berubah lewat padding/border tanpa mengubah ukuran isinya (bawaan pengamat hanya isi). Peramban yang
+      // belum mengenal opsi ini memakai bawaan; selebihnya pemeriksaan berkala 2 detik tetap menyusul.
+      try {
+        pengamatHeader = new akar.ResizeObserver(selarasTinggiHeader);
+        try { pengamatHeader.observe(header, { box: 'border-box' }); } catch (_e2) { pengamatHeader.observe(header); }
+      } catch (_e) { pengamatHeader = null; }
+    }
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -185,6 +212,7 @@
     if (perluDipasang(pengguna)) {
       pasangGaya();
       pasangBanner();
+      selarasTinggiHeader();
       susunSalinan();       // murah: hanya mengubah isi bila lebar layar berubah (putar layar, zoom, ubah ukuran jendela)
       pasangKotak();
     } else {
@@ -210,8 +238,8 @@
   // Pengaman: keluar-masuk akun tanpa muat ulang, atau elemen yang terhapus oleh pengaturan ulang formulir.
   setInterval(function () { try { selaraskan(); } catch (_e) { /* abaikan */ } }, PERIKSA_BERKALA_MS);
   var timerUkur = null;
-  akar.addEventListener('resize', function () { clearTimeout(timerUkur); timerUkur = setTimeout(susunSalinan, 250); });
-  if (dok.fonts && dok.fonts.ready) dok.fonts.ready.then(susunSalinan);
+  akar.addEventListener('resize', function () { selarasTinggiHeader(); clearTimeout(timerUkur); timerUkur = setTimeout(susunSalinan, 250); });
+  if (dok.fonts && dok.fonts.ready) dok.fonts.ready.then(function () { selarasTinggiHeader(); susunSalinan(); });
 
   selaraskan();
   return api;
