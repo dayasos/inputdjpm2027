@@ -26,6 +26,11 @@
   var ISI_FORMULIR = 'Koordinat dipakai Tim Monitoring untuk menemukan lokasi guru. Koordinat yang salah atau hanya perkiraan membuat guru ' +
     'dianggap tidak ditemukan saat monitoring dan dapat berdampak pada pembayaran Dana Jasa yang bersangkutan.';
   var PESAN_BANNER = 'Cek dan Pastikan kembali Koordinat terhadap data yang SUDAH diinput adalah BENAR dan menunjukkan alamat tugas Guru Maghrib Mengaji.';
+  // Penyebaran informasi Cek Status ke guru (permintaan user 2026-11-08): petugas diminta memberi tahu guru. Kalimat PESAN_BANNER di atas
+  // TIDAK diubah (sudah disetujui user); tambahan ini dirangkai sesudahnya.
+  var ALAMAT_CEK_STATUS = 'djpmkotamedan.web.id/cek-status';
+  var INFO_FORMULIR = 'Informasikan kepada guru bahwa titik lokasinya dapat diperiksa sendiri di halaman Cek Status:';
+  var TEKS_BANNER = PESAN_BANNER + ' Informasikan kepada guru bahwa titik lokasi dapat diperiksa sendiri di halaman Cek Status: ' + ALAMAT_CEK_STATUS;
 
   var ID_BANNER = 'pk-banner';
   var ID_KOTAK = 'pk-kotak-formulir';
@@ -50,6 +55,9 @@
     JUDUL_FORMULIR: JUDUL_FORMULIR,
     ISI_FORMULIR: ISI_FORMULIR,
     PESAN_BANNER: PESAN_BANNER,
+    TEKS_BANNER: TEKS_BANNER,
+    INFO_FORMULIR: INFO_FORMULIR,
+    ALAMAT_CEK_STATUS: ALAMAT_CEK_STATUS,
     peranSasaran: peranSasaran,
     perluDipasang: perluDipasang,
     selaraskan: function () { /* diganti di browser */ }
@@ -82,7 +90,9 @@
     '.pk-teks{display:block;padding-right:0}.pk-teks + .pk-teks{display:none}}' +
     '.pk-kotak{margin-bottom:10px;padding:8px 10px;border:1px solid #f59e0b;border-left-width:4px;background:#fef3c7;color:#78350f;' +
     'border-radius:8px;font-size:12px;line-height:1.45}' +
-    '.pk-kotak strong{font-weight:800}';
+    '.pk-kotak strong{font-weight:800}' +
+    '.pk-info{display:block;margin-top:6px}' +
+    '.pk-kotak a{color:#92400e;font-weight:700;text-decoration:underline;display:inline-block;max-width:100%;overflow-wrap:anywhere}';
 
   function pasangGaya() {
     if (dok.getElementById(ID_GAYA)) return;
@@ -120,7 +130,7 @@
         var salinan = dok.createElement('span');
         salinan.className = 'pk-teks';
         salinan.setAttribute('aria-hidden', 'true');    // hanya salinan pertama yang dibaca pembaca layar
-        salinan.textContent = PESAN_BANNER;
+        salinan.textContent = TEKS_BANNER;
         jalur.appendChild(salinan);
       }
     }
@@ -156,7 +166,7 @@
       '<svg class="pk-ikon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
       '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>' +
       '<div class="pk-jendela"><div class="pk-jalur"><span class="pk-teks"></span></div></div>';
-    b.querySelector('.pk-teks').textContent = PESAN_BANNER;   // salinan tambahan untuk gerak tanpa putus disusun oleh susunSalinan()
+    b.querySelector('.pk-teks').textContent = TEKS_BANNER;   // salinan tambahan untuk gerak tanpa putus disusun oleh susunSalinan()
     // Layar sentuh: sentuhan menghentikan gerak sebentar (":hover" tidak andal di HP).
     b.addEventListener('touchstart', function () { clearTimeout(timerLepasSentuh); b.classList.add('pk-jeda'); }, { passive: true });
     var lepas = function () { clearTimeout(timerLepasSentuh); timerLepasSentuh = setTimeout(function () { b.classList.remove('pk-jeda'); }, 2500); };
@@ -192,6 +202,17 @@
     judul.textContent = JUDUL_FORMULIR;
     k.appendChild(judul);
     k.appendChild(dok.createTextNode(' ' + ISI_FORMULIR));
+    // Ajakan memberi tahu guru + tautan ke halaman Cek Status (tab baru; halaman itu terpisah dari aplikasi petugas).
+    var info = dok.createElement('span');
+    info.className = 'pk-info';
+    info.appendChild(dok.createTextNode(INFO_FORMULIR + ' '));
+    var tautan = dok.createElement('a');
+    tautan.href = '/cek-status';
+    tautan.target = '_blank';
+    tautan.rel = 'noopener noreferrer';
+    tautan.textContent = ALAMAT_CEK_STATUS;
+    info.appendChild(tautan);
+    k.appendChild(info);
     wadah.insertBefore(k, wadah.firstChild);
   }
 

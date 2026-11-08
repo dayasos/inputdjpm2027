@@ -16,6 +16,15 @@ test("Teks banner berjalan persis kalimat yang disetujui user (2026-11-07)", () 
   );
 });
 
+test("Banner: kalimat yang disetujui TIDAK berubah, informasi Cek Status hanya ditambahkan sesudahnya", () => {
+  assert.equal(
+    pk.TEKS_BANNER,
+    pk.PESAN_BANNER + " Informasikan kepada guru bahwa titik lokasi dapat diperiksa sendiri di halaman Cek Status: djpmkotamedan.web.id/cek-status",
+  );
+  assert.equal(pk.ALAMAT_CEK_STATUS, "djpmkotamedan.web.id/cek-status");
+  assert.equal(pk.INFO_FORMULIR, "Informasikan kepada guru bahwa titik lokasinya dapat diperiksa sendiri di halaman Cek Status:");
+});
+
 test("Teks kotak formulir sesuai persetujuan (K1: 'dapat berdampak'), judul dan isi terpisah", () => {
   assert.equal(pk.JUDUL_FORMULIR, "PENTING: Koordinat Lokasi.");
   assert.equal(
@@ -52,7 +61,7 @@ test("Pemuat per peran: skrip dimuat hanya untuk GMM (peran lain tidak mengunduh
   assert.doesNotMatch(utama, /pengingat-koordinat-gmm/);
   assert.doesNotMatch(/MUI: \[[^\]]*\]/.exec(pemuat)[0], /pengingat-koordinat-gmm/);
   const html = fs.readFileSync("index.html", "utf8");
-  assert.match(html, /app-pesan-periode\.js\?v=20271068/);
+  assert.match(html, /app-pesan-periode\.js\?v=20271069/);
 });
 
 test("Pembungkus hak akses tidak merusak kebiasaan pembungkus lain: nama berkas tidak mengubah aksi server/DB (hanya tampilan)", () => {

@@ -191,3 +191,11 @@ Frontend saja: `git revert` satu commit. Tidak ada migrasi, tidak ada perubahan 
 - **Temuan uji:** `ResizeObserver` bawaan hanya mengamati ukuran ISI sehingga perubahan tinggi header lewat padding tidak terdeteksi (banner tertinggal hingga 2 dtk); diperbaiki dengan `box: border-box`.
 - **Uji:** layar Chrome 48 pemeriksaan (digulir 0/600/maks pada 1100 px dan 360 px: banner tepat di bawah header, di atas konten, header di atas banner; header +60 px lalu kembali), stabil 3 putaran; 5 mutan tertangkap (sticky dihapus, z-index di atas header, top tak disesuaikan, pengamat hanya isi, celah 1 px); regresi hijau. `?v=` app-pesan-periode dinaikkan ke 20271068 agar peramban mengambil modul baru.
 - **Catatan:** di HP header yang menempel sudah memakai sekitar 245 px (layar 360 px); banner menambah sekitar 31 px. Pada mode "kurangi gerakan" teks terlipat beberapa baris sehingga banner lebih tinggi.
+
+## 15. Perubahan 2026-11-08: informasi Cek Status untuk guru (permintaan user)
+
+- **Banner:** kalimat yang disetujui user TIDAK diubah; ditambahkan sesudahnya " Informasikan kepada guru bahwa titik lokasi dapat diperiksa sendiri di halaman Cek Status: djpmkotamedan.web.id/cek-status" (konstanta `TEKS_BANNER`; `PESAN_BANNER` tetap utuh dan diuji).
+- **Kotak formulir foto plank:** baris tambahan "Informasikan kepada guru bahwa titik lokasinya dapat diperiksa sendiri di halaman Cek Status:" + tautan `/cek-status` (tab baru, `noopener noreferrer`).
+- `app-pesan-periode.js?v=` dinaikkan ke 20271069. Uji: Node 7, layar penuh lulus, 8 mutan tertangkap, regresi cek-status hijau.
+- **Bahan sebar (di luar repo, folder `Input 2027\laporan\sebar-cek-status-gmm\`):** `poster-cek-status-gmm.pdf` (1 halaman A4) + `.html`, `qr-cek-status.png/.svg` (QR ke https://djpmkotamedan.web.id/cek-status, koreksi galat H, terbaca ulang oleh pembaca QR), `pesan-whatsapp.txt`.
+- Tinjauan visual menemukan tautan kotak terpotong di tengah kata (break-all); diganti inline-block + overflow-wrap:anywhere, ditambah uji 'satu baris utuh' (mutan break-all tertangkap).

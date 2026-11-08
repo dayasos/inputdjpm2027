@@ -17,6 +17,8 @@ const tidur = (ms) => new Promise((r) => setTimeout(r, ms));
 let ws, id = 0; const tunggu = new Map(); const galatJs = []; const berkasDimuat = [];
 
 const PESAN_BANNER = "Cek dan Pastikan kembali Koordinat terhadap data yang SUDAH diinput adalah BENAR dan menunjukkan alamat tugas Guru Maghrib Mengaji.";
+const TEKS_BANNER = PESAN_BANNER + " Informasikan kepada guru bahwa titik lokasi dapat diperiksa sendiri di halaman Cek Status: djpmkotamedan.web.id/cek-status";
+const INFO_FORMULIR = "Informasikan kepada guru bahwa titik lokasinya dapat diperiksa sendiri di halaman Cek Status: djpmkotamedan.web.id/cek-status";
 const JUDUL = "PENTING: Koordinat Lokasi.";
 const ISI = "Koordinat dipakai Tim Monitoring untuk menemukan lokasi guru. Koordinat yang salah atau hanya perkiraan membuat guru dianggap tidak ditemukan saat monitoring dan dapat berdampak pada pembayaran Dana Jasa yang bersangkutan.";
 
@@ -119,7 +121,8 @@ try {
   await tungguSampai("!!document.getElementById('pk-banner')", "banner muncul untuk GMM", 40);
   let b = await banner();
   cek("GMM: banner muncul tepat di bawah header (elemen sebelumnya = HEADER)", b && b.tampil && b.sebelumnya === "HEADER", JSON.stringify(b));
-  cek("GMM: teks banner persis kalimat yang disetujui", b.teks === PESAN_BANNER, b.teks);
+  cek("GMM: teks banner = kalimat yang disetujui + informasi Cek Status", b.teks === TEKS_BANNER, b.teks);
+  cek("GMM: kalimat yang disetujui tetap utuh di awal banner", b.teks.startsWith(PESAN_BANNER), b.teks);
   cek("GMM: banner permanen = tanpa tombol/tautan penutup, role=note", b.tombol === 0 && b.role === "note", JSON.stringify(b));
   cek("GMM: teks bergerak (animasi pk-geser berjalan), durasi terukur 14-60 detik, ada salinan untuk gerak tanpa putus", b.anim === "pk-geser" && b.main === "running" && /^(1[4-9]|[2-5]\d|60)s$/.test(b.durasi) && b.salinan >= 2, JSON.stringify(b));
   cek("GMM: skrip pengingat diunduh untuk peran GMM", berkasDimuat.some((u) => /app-pengingat-koordinat-gmm\.js/.test(u)));
@@ -145,7 +148,10 @@ try {
   await js("(() => { for (const id of ['modal-kemenag', 'modal-ri']) { const m = document.getElementById(id); if (m) m.classList.add('hidden'); } return true; })()");
   const kotak = () => js(`(() => { const k = document.getElementById('pk-kotak-formulir'); const w = document.getElementById('wrapper-foto-plank'); if (!k) return { ada: false, wadahTampil: w && !w.classList.contains('hidden') }; const r = k.getBoundingClientRect(); return { ada: true, tampil: r.height > 0, judul: k.querySelector('strong').textContent, teks: k.textContent, pertama: w.firstElementChild === k, jumlah: document.querySelectorAll('#pk-kotak-formulir').length, wadahTampil: !w.classList.contains('hidden'), meluber: k.scrollWidth > k.clientWidth + 1 }; })()`);
   let k = await kotak();
-  cek("GMM: kotak 'PENTING: Koordinat Lokasi' tampil di bagian foto plank (elemen pertama), teks persis", k.ada && k.tampil && k.pertama && k.judul === JUDUL && k.teks === JUDUL + " " + ISI, JSON.stringify(k));
+  cek("GMM: kotak 'PENTING: Koordinat Lokasi' tampil di bagian foto plank (elemen pertama), teks persis", k.ada && k.tampil && k.pertama && k.judul === JUDUL && k.teks === JUDUL + " " + ISI + INFO_FORMULIR, JSON.stringify(k));
+  const tautanKotak = await js(`(() => { const a = document.querySelectorAll('#pk-kotak-formulir a'); const x = a[0]; return { jumlah: a.length, href: x ? x.getAttribute('href') : null, target: x ? x.target : null, rel: x ? x.rel : null, teks: x ? x.textContent : null, satuBaris: x ? (() => { const r = x.getBoundingClientRect(); const lh = parseFloat(getComputedStyle(x).lineHeight) || parseFloat(getComputedStyle(x).fontSize) * 1.45; return r.height > 0 && r.height <= lh * 1.5; })() : false }; })()`);
+  cek("GMM: tautan di kotak tidak terpotong di tengah kata (satu baris utuh)", tautanKotak.satuBaris === true, JSON.stringify(tautanKotak));
+  cek("GMM: kotak memuat tepat 1 tautan ke /cek-status (tab baru, noopener noreferrer)", tautanKotak.jumlah === 1 && tautanKotak.href === "/cek-status" && tautanKotak.target === "_blank" && /noopener/.test(tautanKotak.rel) && /noreferrer/.test(tautanKotak.rel) && tautanKotak.teks === "djpmkotamedan.web.id/cek-status", JSON.stringify(tautanKotak));
   await kirim("Page.captureScreenshot", { format: "png", captureBeyondViewport: true }).then((s) => fs.writeFileSync(`${OUT}/djpm_pk_formulir_desktop.png`, Buffer.from(s.result.data, "base64")));
   await js(`(() => { const sel = document.getElementById('input-layanan'); if (![...sel.options].some(o => o.value === 'IMAM MASJID')) { const o = document.createElement('option'); o.value = 'IMAM MASJID'; o.textContent = 'IMAM MASJID'; sel.appendChild(o); } sel.value = 'IMAM MASJID'; sel.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
   await tidur(400);
