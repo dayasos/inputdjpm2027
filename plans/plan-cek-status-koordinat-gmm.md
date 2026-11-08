@@ -145,3 +145,9 @@ Kolom tambahan bersifat opsional: mengembalikan `pilihKolomPublik`, Worker, dan 
 **Syarat deploy (T5):** fungsi `api` (v113 -> berikutnya) DAN Worker/halaman harus tayang; bila hanya frontend tayang, tombol tidak muncul (aman); bila hanya server tayang, Worker lama membuang kolom (aman). Tidak ada migrasi.
 
 **Tinjauan ulang (2026-11-08, permintaan user):** seluruh diff dibaca ulang; 7 bentuk tautan nyata (termasuk `maps.google.com?q=` tanpa garis miring, `goo.gl/maps/...`, dan satu `www.google.co.id/maps/dir/...`) dijalankan lewat fungsi server DAN Worker: semua lolos dan hasil keduanya sama; bentuk nyata ini ditambahkan ke uji (12 uji tetap hijau). Catatan `google.co.id`: domain negara resmi Google; hanya 1 data memakainya, berupa tautan RUTE (`/maps/dir/...` dari satu titik asal ke Masjid Taqwa Istiqlal), bukan penanda lokasi, sehingga yang terbuka bagi guru adalah petunjuk rute; domain negara Google lain (mis. `google.com.sg`) sengaja tidak diizinkan -> tombol tidak muncul dan guru melihat pesan "belum dapat ditampilkan" + peringatan.
+
+## 12. Perubahan teks 2026-11-08 (permintaan user, setelah go-live 6954f6e)
+
+- Peringatan diperpanjang: "...ke alamat tugas Guru Maghrib Mengaji, **sehingga pembayaran berisiko dihentikan**." (kalimat user: "yang beresiko akan dihentikannya pembayaran"; dirapikan: ejaan baku "berisiko", susunan kalimat tidak ambigu.)
+- **Ajakan klik tombol** di atas tombol (hanya bila tombol ada): "Klik tombol di bawah ini untuk melihat titik lokasi Anda di Google Maps, lalu pastikan sudah sesuai dengan tempat tugas Anda." Urutan kotak: ajakan -> tombol -> peringatan.
+- Uji: Node 12/12, layar 22/22 di 360 px dan 1280 px; 4 mutan tertangkap. Hanya halaman yang berubah (tanpa server/Worker).

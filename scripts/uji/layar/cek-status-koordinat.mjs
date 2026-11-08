@@ -76,13 +76,15 @@ const ringkas = () => js(`(() => {
   const h = document.getElementById('isi-hasil'); const peta = h.querySelector('.peta'); const a = h.querySelector('a');
   const w = h.querySelector('.peringatan'); const r = a ? a.getBoundingClientRect() : null;
   return { peta: !!peta, jumlahTautan: h.querySelectorAll('a').length, href: a ? a.getAttribute('href') : null, teksTombol: a ? a.textContent : null,
-    target: a ? a.target : null, rel: a ? a.rel : null, peringatan: w ? w.textContent : null, role: w ? w.getAttribute('role') : null,
+    target: a ? a.target : null, rel: a ? a.rel : null, peringatan: w ? w.textContent : null, ajakan: (h.querySelector('.ajakan') || {}).textContent || null,
+    urutan: peta ? Array.from(peta.children).map((e) => e.tagName + '.' + e.className).join(' > ') : null, role: w ? w.getAttribute('role') : null,
     teksSemua: h.innerText, adaGambar: h.querySelectorAll('img,iframe,svg,canvas,input,textarea,button').length,
     tombolDalamLayar: r ? (r.left >= 0 && r.right <= document.documentElement.clientWidth && r.width >= 44 && r.height >= 40) : null,
     gulirMendatar: document.documentElement.scrollWidth > document.documentElement.clientWidth };
 })()`);
 
-const PERINGATAN = "Perhatikan apakah titik sudah sesuai. Jika belum sesuai, segera hubungi KUA masing-masing, karena kesalahan titik akan berdampak pada tidak ditemukannya alamat tugas ketika Tim Monitoring melakukan Monitoring dan Evaluasi ke alamat tugas Guru Maghrib Mengaji.";
+const PERINGATAN = "Perhatikan apakah titik sudah sesuai. Jika belum sesuai, segera hubungi KUA masing-masing, karena kesalahan titik akan berdampak pada tidak ditemukannya alamat tugas ketika Tim Monitoring melakukan Monitoring dan Evaluasi ke alamat tugas Guru Maghrib Mengaji, sehingga pembayaran berisiko dihentikan.";
+const AJAKAN = "Klik tombol di bawah ini untuk melihat titik lokasi Anda di Google Maps, lalu pastikan sudah sesuai dengan tempat tugas Anda.";
 
 try {
   await sambung();
@@ -101,6 +103,8 @@ try {
   cek("(1) tab baru + noopener noreferrer", r.target === "_blank" && /noopener/.test(r.rel) && /noreferrer/.test(r.rel), r.target + " " + r.rel);
   cek("(1) peringatan persis kalimat yang disepakati", r.peringatan === PERINGATAN, r.peringatan);
   cek("(1) peringatan berperan 'note'", r.role === "note");
+  cek("(1) ajakan klik tombol tampil persis", r.ajakan === AJAKAN, r.ajakan);
+  cek("(1) urutan: ajakan, tombol, lalu peringatan", r.urutan === "P.ajakan > A.tombol > P.peringatan", r.urutan);
   cek("(1) tidak ada angka koordinat di layar", !/3\.5952|98\.6722|maps\?q|google\.com/i.test(r.teksSemua), r.teksSemua);
   cek("(1) tidak ada gambar/iframe/kanvas/kolom isian/tombol lain di hasil", r.adaGambar === 0, String(r.adaGambar));
   cek("(1) tombol di dalam layar, cukup besar disentuh", r.tombolDalamLayar === true);
@@ -116,7 +120,7 @@ try {
   // 2. GMM Proses Verifikasi tanpa tautan: pesan K4 + peringatan, tanpa tombol
   await periksaNik("2222222222222222");
   r = await ringkas();
-  cek("(2) tanpa tautan: tidak ada tombol, ada pesan 'belum dapat ditampilkan' + peringatan", r.peta && r.jumlahTautan === 0 && /Titik koordinat belum dapat ditampilkan\./.test(r.teksSemua) && r.peringatan === PERINGATAN, JSON.stringify(r));
+  cek("(2) tanpa tautan: tidak ada tombol, ada pesan 'belum dapat ditampilkan' + peringatan", r.peta && r.jumlahTautan === 0 && r.ajakan === null && /Titik koordinat belum dapat ditampilkan\./.test(r.teksSemua) && r.peringatan === PERINGATAN, JSON.stringify(r));
   await js(`document.getElementById('hapus').click()`);
 
   // 3. GMM Tidak Memenuhi Syarat: tanpa kotak peta sama sekali
@@ -134,7 +138,7 @@ try {
   // 5. Tautan jahat lolos ke halaman: tidak jadi tombol
   await periksaNik("5555555555555555");
   r = await ringkas();
-  cek("(5) tautan 'javascript:' TIDAK menjadi tombol (pesan 'belum dapat ditampilkan' + peringatan)", r.jumlahTautan === 0 && /belum dapat ditampilkan/.test(r.teksSemua) && r.peringatan === PERINGATAN, JSON.stringify(r));
+  cek("(5) tautan 'javascript:' TIDAK menjadi tombol (pesan 'belum dapat ditampilkan' + peringatan)", r.jumlahTautan === 0 && r.ajakan === null && /belum dapat ditampilkan/.test(r.teksSemua) && r.peringatan === PERINGATAN, JSON.stringify(r));
   await js(`document.getElementById('hapus').click()`);
 
   // 6. Hasil tidak masuk URL/penyimpanan

@@ -175,6 +175,9 @@ test("Halaman: hanya tombol buka-peta + peringatan; tanpa angka koordinat, peta 
   assert.match(html, /Buka titik di Google Maps/);
   assert.match(html, /Perhatikan apakah titik sudah sesuai\./);
   assert.match(html, /hubungi KUA masing-masing/);
+  assert.match(html, /Guru Maghrib Mengaji, sehingga pembayaran berisiko dihentikan\./);
+  assert.match(html, /Klik tombol di bawah ini untuk melihat titik lokasi Anda di Google Maps/);
+  assert.doesNotMatch(html, /beresiko/i, "ejaan baku: berisiko");
   assert.match(html, /a\.rel = 'noopener noreferrer'/);
   assert.match(html, /a\.target = '_blank'/);
   assert.doesNotMatch(html, /<iframe|createElement\('(img|iframe)'\)|navigator\.clipboard|window\.open|innerHTML/i, "tidak ada peta tertanam/salin/innerHTML");

@@ -73,6 +73,7 @@
     a.tombol{text-decoration:none;text-align:center;margin-top:12px}
     a.tombol:focus-visible{outline:3px solid #93c5fd;outline-offset:1px}
     .peta{margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0}
+    .ajakan{margin:0;font-weight:600;font-size:.95rem;color:#1e293b}
     .peringatan{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px;color:#78350f;font-size:.92rem;margin:12px 0 0}
     .kaki{font-size:.8rem;color:#475569;margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0}
     .privasi{font-size:.78rem;color:#64748b;margin-top:14px;text-align:center}
@@ -162,7 +163,8 @@
     // Khusus Guru Maghrib Mengaji (plans/plan-cek-status-koordinat-gmm.md). Server hanya mengirim tautanPeta bila layak; halaman TIDAK
     // menampilkan angka koordinat, peta tertanam, atau aksi lain selain membuka peta di tab baru.
     var LAYANAN_PETA = 'GURU MAGHRIB MENGAJI', STATUS_TANPA_PETA = 'Tidak Memenuhi Syarat';
-    var PERINGATAN_PETA = 'Perhatikan apakah titik sudah sesuai. Jika belum sesuai, segera hubungi KUA masing-masing, karena kesalahan titik akan berdampak pada tidak ditemukannya alamat tugas ketika Tim Monitoring melakukan Monitoring dan Evaluasi ke alamat tugas Guru Maghrib Mengaji.';
+    var PERINGATAN_PETA = 'Perhatikan apakah titik sudah sesuai. Jika belum sesuai, segera hubungi KUA masing-masing, karena kesalahan titik akan berdampak pada tidak ditemukannya alamat tugas ketika Tim Monitoring melakukan Monitoring dan Evaluasi ke alamat tugas Guru Maghrib Mengaji, sehingga pembayaran berisiko dihentikan.';
+    var AJAKAN_PETA = 'Klik tombol di bawah ini untuk melihat titik lokasi Anda di Google Maps, lalu pastikan sudah sesuai dengan tempat tugas Anda.';
     var PETA_TAK_ADA = 'Titik koordinat belum dapat ditampilkan.';
     var KAKI = 'Status ini bukan jaminan pencairan. Informasi ini hanya untuk pemilik NIK; jangan bagikan hasil ini kepada orang lain.';
 
@@ -231,6 +233,7 @@
       var kotak = document.createElement('div'); kotak.className = 'peta';
       var ada = typeof d.tautanPeta === 'string' && /^https:\/\//i.test(d.tautanPeta);
       if (ada) {
+        var aj = document.createElement('p'); aj.className = 'ajakan'; aj.textContent = AJAKAN_PETA; kotak.appendChild(aj);
         var a = document.createElement('a'); a.className = 'tombol';
         a.textContent = 'Buka titik di Google Maps';
         a.href = d.tautanPeta; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.referrerPolicy = 'no-referrer';
