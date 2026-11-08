@@ -18,6 +18,7 @@
     "uji:sandi": "node --test scripts/uji/sandi.test.mjs scripts/uji/server-login-sandi.test.mjs",
     "uji:rekom-mui-petugas": "node --test scripts/uji/server-rekom-mui-petugas.test.mjs",
     "uji:progres-kuota": "node --test scripts/uji/server-progres-kuota-banding.test.mjs scripts/uji/layar-progres-kuota-banding.test.mjs",
+    "uji:cek-status-koordinat": "node --test scripts/uji/cek-status-koordinat.test.mjs",
     "uji:cek-status-seo": "node --test scripts/uji/cek-status-seo.test.mjs",
     "uji:cek-status-tanggal": "node --test scripts/uji/cek-status-tanggal.test.mjs",
     "uji:cover": "node --test scripts/uji/cover-kelurahan.test.mjs",

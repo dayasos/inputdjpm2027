@@ -111,15 +111,49 @@ async function verifikasiTurnstile(env, token, ip, hostname, ambil) {
   }
 }
 
-/** Satu-satunya bentuk sukses yang keluar: tepat 5 kolom, dipetakan eksplisit. */
+
+// SALINAN aturan supabase/functions/api/_shared/tautanPeta.ts (plans/plan-cek-status-koordinat-gmm.md). Pertahanan berlapis:
+// server sudah memeriksa, Worker memeriksa ULANG karena inilah gerbang publik. Kesamaan dijaga uji kesesuaian
+// (scripts/uji/cek-status-koordinat.test.mjs). Ubah keduanya bersama-sama.
+const LAYANAN_PETA = 'GURU MAGHRIB MENGAJI';
+const STATUS_TANPA_PETA = 'Tidak Memenuhi Syarat';
+const MAKS_PANJANG_TAUTAN = 1000;
+
+export function tautanPetaAman(nilai) {
+  if (typeof nilai !== 'string') return null;
+  const mentah = nilai.trim();
+  if (mentah.length === 0 || mentah.length > MAKS_PANJANG_TAUTAN) return null;
+  if (!/^https:\/\//i.test(mentah)) return null;
+  if (/[\s\u0000-\u001f\u007f\\]/.test(mentah)) return null;
+  let u;
+  try { u = new URL(mentah); } catch (_e) { return null; }
+  if (u.protocol !== 'https:') return null;
+  if (u.username !== '' || u.password !== '' || u.port !== '') return null;
+  const host = u.hostname;
+  const jalur = u.pathname;
+  let ok = false;
+  if (host === 'www.google.com' || host === 'google.com' || host === 'www.google.co.id' || host === 'google.co.id') ok = jalur === '/maps' || jalur.startsWith('/maps/');
+  else if (host === 'maps.google.com') ok = jalur === '/' || jalur === '/maps' || jalur.startsWith('/maps/');
+  else if (host === 'maps.app.goo.gl') ok = jalur.length > 1;
+  else if (host === 'goo.gl') ok = jalur.startsWith('/maps/');
+  return ok ? u.href : null;
+}
+
+/** Satu-satunya bentuk sukses yang keluar: 5 kolom dipetakan eksplisit (+ tautanPeta bersyarat: hanya GMM, bukan TMS, lolos pemeriksaan). */
 function pilihData(d) {
-  return {
+  const data = {
     nama: String(d.nama ?? ''),
     layanan: String(d.layanan ?? ''),
     kecamatan: String(d.kecamatan ?? ''),
     kelurahan: String(d.kelurahan ?? ''),
     status: String(d.status ?? ''),
   };
+  const gmm = typeof d.layanan === 'string' && d.layanan.trim().replace(/\s+/g, ' ').toUpperCase() === LAYANAN_PETA;
+  if (gmm && data.status !== STATUS_TANPA_PETA) {
+    const tautan = tautanPetaAman(d.tautanPeta);
+    if (tautan !== null) data.tautanPeta = tautan;
+  }
+  return data;
 }
 
 async function proses(request, env, deps) {

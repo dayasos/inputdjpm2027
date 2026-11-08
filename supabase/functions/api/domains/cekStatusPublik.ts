@@ -46,10 +46,10 @@ const depsDb: Omit<DepsCek, "pepper"> = {
     await sql`delete from public.cek_status_percobaan where kunci = ${kunci}`;
   },
 
-  // Satu kueri yang mencocokkan NIK dan tanggal lahir sekaligus. Hanya kolom yang dibutuhkan yang dibaca.
+  // Satu kueri yang mencocokkan NIK dan tanggal lahir sekaligus. Hanya kolom yang dibutuhkan yang dibaca (link_koordinat_lokasi hanya dipakai untuk layanan GMM; lihat pilihKolomPublik).
   async cariPenerima(nik: string, tglLahir: string, tahun: number): Promise<BarisPenerima | null> {
     const rows = await sql`
-      select nama, layanan, kecamatan, kelurahan, status_verifikasi
+      select nama, layanan, kecamatan, kelurahan, status_verifikasi, link_koordinat_lokasi
       from public.penerima
       where tahun = ${tahun} and nik = ${nik} and tanggal_lahir = ${tglLahir}::date
       limit 1

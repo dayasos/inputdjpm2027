@@ -70,6 +70,10 @@
     .lencana.merah{background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5}
     .lencana.abu{background:#e2e8f0;color:#1e293b;border:1px solid #cbd5e1}
     .penjelas{margin:8px 0 0;font-size:.92rem;color:#334155}
+    a.tombol{text-decoration:none;text-align:center;margin-top:12px}
+    a.tombol:focus-visible{outline:3px solid #93c5fd;outline-offset:1px}
+    .peta{margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0}
+    .peringatan{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px;color:#78350f;font-size:.92rem;margin:12px 0 0}
     .kaki{font-size:.8rem;color:#475569;margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0}
     .privasi{font-size:.78rem;color:#64748b;margin-top:14px;text-align:center}
     footer{text-align:center;margin:22px 0 8px;line-height:1.25}
@@ -155,6 +159,11 @@
       'Tidak Memenuhi Syarat': { kelas: 'merah', ikon: '\u2716 ', teks: 'Data Anda dinyatakan belum memenuhi syarat. Hubungi petugas Kemenag/Kecamatan/Kelurahan Anda untuk informasi lebih lanjut.' },
       'Berkas Tidak Lengkap': { kelas: 'merah', ikon: '⚠ ', teks: 'Berkas Anda belum lengkap. Hubungi petugas Kemenag/Kecamatan/Kelurahan Anda untuk melengkapinya.' }
     };
+    // Khusus Guru Maghrib Mengaji (plans/plan-cek-status-koordinat-gmm.md). Server hanya mengirim tautanPeta bila layak; halaman TIDAK
+    // menampilkan angka koordinat, peta tertanam, atau aksi lain selain membuka peta di tab baru.
+    var LAYANAN_PETA = 'GURU MAGHRIB MENGAJI', STATUS_TANPA_PETA = 'Tidak Memenuhi Syarat';
+    var PERINGATAN_PETA = 'Perhatikan apakah titik sudah sesuai. Jika belum sesuai, segera hubungi KUA masing-masing, karena kesalahan titik akan berdampak pada tidak ditemukannya alamat tugas ketika Tim Monitoring melakukan Monitoring dan Evaluasi ke alamat tugas Guru Maghrib Mengaji.';
+    var PETA_TAK_ADA = 'Titik koordinat belum dapat ditampilkan.';
     var KAKI = 'Status ini bukan jaminan pencairan. Informasi ini hanya untuk pemilik NIK; jangan bagikan hasil ini kepada orang lain.';
 
     var $ = function (id) { return document.getElementById(id); };
@@ -216,6 +225,26 @@
       var dd = document.createElement('dd'); dd.textContent = nilai;
       dl.appendChild(dt); dl.appendChild(dd);
     }
+    function tambahkanPeta(d) {
+      var gmm = typeof d.layanan === 'string' && d.layanan.trim().replace(/\s+/g, ' ').toUpperCase() === LAYANAN_PETA;
+      if (!gmm || d.status === STATUS_TANPA_PETA) return;
+      var kotak = document.createElement('div'); kotak.className = 'peta';
+      var ada = typeof d.tautanPeta === 'string' && /^https:\/\//i.test(d.tautanPeta);
+      if (ada) {
+        var a = document.createElement('a'); a.className = 'tombol';
+        a.textContent = 'Buka titik di Google Maps';
+        a.href = d.tautanPeta; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.referrerPolicy = 'no-referrer';
+        kotak.appendChild(a);
+      } else {
+        var t = document.createElement('p'); t.className = 'penjelas'; t.textContent = PETA_TAK_ADA; kotak.appendChild(t);
+      }
+      var w = document.createElement('p'); w.className = 'peringatan'; w.setAttribute('role', 'note');
+      var tebal = document.createElement('strong'); tebal.textContent = 'Perhatikan apakah titik sudah sesuai.';
+      w.appendChild(tebal); w.appendChild(document.createTextNode(PERINGATAN_PETA.slice('Perhatikan apakah titik sudah sesuai.'.length)));
+      kotak.appendChild(w);
+      isiHasil.appendChild(kotak);
+    }
+
     function tampilkanData(d) {
       isiHasil.textContent = '';
       var dl = document.createElement('dl');
@@ -230,6 +259,7 @@
       dd.appendChild(l); dl.appendChild(dd);
       isiHasil.appendChild(dl);
       var p = document.createElement('p'); p.className = 'penjelas'; p.textContent = info.teks; isiHasil.appendChild(p);
+      tambahkanPeta(d);
       var k = document.createElement('p'); k.className = 'kaki'; k.textContent = KAKI; isiHasil.appendChild(k);
     }
 

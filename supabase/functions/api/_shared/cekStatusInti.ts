@@ -8,8 +8,12 @@
 //  1. NIK tidak ada DAN tanggal lahir salah memberi hasil IDENTIK ({sukses:false,kode:'TIDAK_TERDATA'}), dengan jalur
 //     kode yang sama -- supaya keberadaan suatu NIK tidak bisa ditebak.
 //  2. Penguncian dihitung per HASH NIK untuk semua NIK (ada atau tidak) -- NIK mentah tidak pernah disimpan.
-//  3. Yang keluar hanya 5 kolom (nama, layanan, kecamatan, kelurahan, status), dipetakan eksplisit di sini.
+//  3. Yang keluar hanya 5 kolom (nama, layanan, kecamatan, kelurahan, status), dipetakan eksplisit di sini; satu-satunya
+//     tambahan adalah `tautanPeta`, hanya untuk layanan Guru Maghrib Mengaji yang tidak berstatus Tidak Memenuhi Syarat
+//     dan hanya bila lolos tautanPetaAman() (plans/plan-cek-status-koordinat-gmm.md).
 //  4. Saklar mati (atau tak terbaca) = ditolak, sebelum menyentuh data penerima.
+
+import { samaDenganLayananPeta, STATUS_TANPA_PETA, tautanPetaAman } from "./tautanPeta.ts";
 
 export const BATAS_GAGAL = 5;                  // percobaan per NIK (hash) dalam satu jendela; ke-6 dst. ditolak
 export const JENDELA_DETIK = 15 * 60;          // panjang jendela tetap, dihitung sejak percobaan pertama
@@ -23,6 +27,8 @@ export interface DataPublik {
   kecamatan: string;
   kelurahan: string;
   status: string;
+  /** Tautan peta Google yang aman; ADA hanya untuk Guru Maghrib Mengaji (bukan Tidak Memenuhi Syarat). Selain itu kolom ini tidak ada. */
+  tautanPeta?: string;
 }
 
 export type HasilCek = { sukses: true; data: DataPublik } | { sukses: false; kode: KodeGagal };
@@ -88,15 +94,20 @@ function teks(v: unknown): string {
   return v == null ? "" : String(v);
 }
 
-/** Pemetaan EKSPLISIT 5 kolom -- kolom lain di baris (jika ada) tidak ikut keluar. */
+/** Pemetaan EKSPLISIT 5 kolom (+ tautanPeta bersyarat) -- kolom lain di baris (jika ada) tidak ikut keluar. */
 export function pilihKolomPublik(baris: BarisPenerima): DataPublik {
-  return {
+  const data: DataPublik = {
     nama: teks(baris.nama),
     layanan: teks(baris.layanan),
     kecamatan: teks(baris.kecamatan),
     kelurahan: teks(baris.kelurahan),
     status: teks(baris.status_verifikasi),
   };
+  if (samaDenganLayananPeta(baris.layanan) && teks(baris.status_verifikasi) !== STATUS_TANPA_PETA) {
+    const tautan = tautanPetaAman(baris.link_koordinat_lokasi);
+    if (tautan !== null) data.tautanPeta = tautan;
+  }
+  return data;
 }
 
 export async function prosesCekStatus(deps: DepsCek, nik: unknown, tanggalLahir: unknown): Promise<HasilCek> {
