@@ -2525,9 +2525,9 @@ function halamanBerikutnya() {
   };
   // Alamat Tugas (indeks 9) tidak ada di KOLOM_TEKS: terkunci. Kunci hanya terbuka bila alamat TERSIMPAN masih berupa tautan (diperbaiki petugas);
   // sesudah tersimpan sebagai alamat sah, syaratnya tak terpenuhi lagi sehingga terkunci kembali. Server menegakkan aturan yang sama.
-  const KOLOM_ALAMAT_TUGAS = { label: "Alamat Tugas", type: "text", maks: 100, hint: "Ganti dengan alamat sebenarnya, bukan tautan" };
+  const KOLOM_ALAMAT_TUGAS = { label: "Alamat Tugas", type: "text", maks: 100, hint: "Tulis alamat sebenarnya (jalan, nomor, lingkungan), bukan tautan" };
   function alamatTugasTerbuka(d) {
-    return !!(window.djpmAlamatTugas && d && window.djpmAlamatTugas.bolehDiperbaiki(d[9]));
+    return !!(window.djpmAlamatTugas && d && window.djpmAlamatTugas.terbuka(d[9], d[7], d[8], dataPengguna.role));
   }
   let nomorBarisAktif = null;
   let dataAktif = null;
@@ -3047,7 +3047,7 @@ function halamanBerikutnya() {
     let h = `<div class="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5 mb-4 text-xs text-sky-800 flex items-center gap-2">
       <span>Mode edit aktif. Ubah data yang diperlukan lalu klik <strong>Simpan Perubahan</strong> di bagian bawah.</span>
     </div>`;
-    if (alamatTugasTerbuka(d)) {
+    if (window.djpmAlamatTugas && window.djpmAlamatTugas.bolehDiperbaiki(d[9])) {
       h += `<div role="note" class="bg-amber-50 border border-amber-300 rounded-xl px-4 py-2.5 mb-4 text-xs text-amber-900 leading-relaxed">
         <strong>Alamat Tugas masih berupa tautan.</strong> Ganti dengan alamat sebenarnya (jalan, nomor, lingkungan). Tautan Google Maps tidak diisi di sini, melainkan di kolom Koordinat Lokasi.
         Setelah tersimpan, kolom Alamat Tugas terkunci kembali.

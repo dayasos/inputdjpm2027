@@ -16,7 +16,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const akarRepo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 const STUB_MODUL = {
-  "setelan.ts": "export const periksaIzinInput = async () => ({ izin: true });",
+  // Bawaan: izin selalu diberikan. Uji dapat memasang globalThis.__izinInputUji(sesi, konteks) untuk meniru periode input DITUTUP.
+  "setelan.ts": "export const periksaIzinInput = async (...a) => (globalThis.__izinInputUji ? globalThis.__izinInputUji(...a) : { izin: true });",
   "validasi.ts": "export const cekKuotaTersedia = async () => ({ tersedia: true });",
   "master.ts": "export const getMasterLayanan = async () => ({ kecamatan: ['IMAM MASJID', 'PENGURUS GEREJA', 'BILAL JENAZAH'], kemenag: ['GURU MAGHRIB MENGAJI', 'GURU SEKOLAH MINGGU'] });",
   "gasDrive.ts": "export const panggilGasAdmin = async () => ({});",

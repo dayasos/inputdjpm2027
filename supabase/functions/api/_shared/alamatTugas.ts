@@ -71,6 +71,27 @@ export function alamatTugasBolehDiperbaiki(alamatTersimpan: unknown): boolean {
   return mengandungTautan(alamatTersimpan);
 }
 
+/**
+ * SEMENTARA (sampai masa input 2027 selesai; permintaan user 2026-11-10, plans/plan-alamat-gmm-rumah-sementara.md):
+ * akun petugas Guru Maghrib Mengaji boleh mengubah Alamat Tugas data Guru Maghrib Mengaji yang bertempat tugas RUMAH
+ * (alamat rumah memang isian bebas, tidak terikat daftar rumah ibadah). Peran lain dan tempat tugas lain tetap terkunci.
+ * Berakhir sendiri saat periode input ditutup (akun GMM yang ditutup ditolak lebih dulu oleh periksaIzinInput).
+ * SALINAN KLIEN: public/js/alamat-tugas.js (alamatRumahGmmTerbuka) -- dijaga scripts/uji/alamat-tugas.test.mjs.
+ */
+export const PERAN_ALAMAT_RUMAH_GMM = "GURU MAGHRIB MENGAJI";
+export const LAYANAN_ALAMAT_RUMAH_GMM = "GURU MAGHRIB MENGAJI";
+export const TEMPAT_ALAMAT_RUMAH_GMM = "RUMAH";
+
+function rapiHuruf(v: unknown): string {
+  return String(v == null ? "" : v).replace(/\s+/g, " ").trim().toUpperCase();
+}
+
+export function alamatRumahGmmTerbuka(layanan: unknown, tempatTugas: unknown, peran: unknown): boolean {
+  return rapiHuruf(peran) === PERAN_ALAMAT_RUMAH_GMM &&
+    rapiHuruf(layanan) === LAYANAN_ALAMAT_RUMAH_GMM &&
+    rapiHuruf(tempatTugas) === TEMPAT_ALAMAT_RUMAH_GMM;
+}
+
 /** Batas panjang alamat pengganti: sama dengan kolom isian (maxlength 100). */
 export const MAKS_ALAMAT_PENGGANTI = 100;
 export const PESAN_ALAMAT_PANJANG = "GAGAL: Alamat Tugas terlalu panjang (maksimal " + MAKS_ALAMAT_PENGGANTI + " karakter).";

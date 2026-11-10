@@ -88,8 +88,9 @@ for (const peran of PERAN) {
     }
   });
 
-  test(`[${peran}] EDIT: alamat tersimpan SAH -> terkunci (ubah Alamat Tugas saja ditolak), tanpa menulis`, async () => {
-    baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5" });
+  // Tempat tugas MASJID (bukan RUMAH): tetap terkunci untuk semua peran. Kasus RUMAH + akun GMM dibuka SEMENTARA (uji terpisah di bawah).
+  test(`[${peran}] EDIT: alamat tersimpan SAH (tempat tugas bukan RUMAH) -> terkunci (ubah Alamat Tugas saja ditolak), tanpa menulis`, async () => {
+    baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5", tempat_tugas: "MASJID X" });
     for (const baru of ["JL LAIN NO 9", "JL. MARELAN RAYA NO 6", ""]) {
       const h = await edit({ 9: baru }, peran);
       assert.equal(h.sukses, false, baru);
@@ -98,11 +99,11 @@ for (const peran of PERAN) {
     }
   });
 
-  test(`[${peran}] EDIT: siklus lengkap -- tautan diperbaiki sekali, lalu kolom TERKUNCI kembali (tersimpan = alamat sah)`, async () => {
-    baris = BARIS();
+  test(`[${peran}] EDIT: siklus lengkap -- tautan diperbaiki sekali, lalu kolom TERKUNCI kembali (tersimpan = alamat sah; tempat tugas bukan RUMAH)`, async () => {
+    baris = BARIS({ tempat_tugas: "MASJID X" });
     let h = await edit({ 9: "JL. MARELAN RAYA NO 5" }, peran);
     assert.equal(h.sukses, true, JSON.stringify(h));
-    baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5", tanggal_berkas_diubah: new Date() });   // keadaan sesudah tersimpan
+    baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5", tanggal_berkas_diubah: new Date(), tempat_tugas: "MASJID X" });   // keadaan sesudah tersimpan
     h = await edit({ 9: "JL. SALAH KETIK NO 5" }, peran);
     assert.equal(h.sukses, false);
     assert.equal(h.pesan, PESAN_ALAMAT_TERKUNCI);
@@ -160,6 +161,101 @@ for (const peran of PERAN) {
     assert.ok(!kolomDari(tulis("penerima")[0].teks).includes("tempat_tugas"));
   });
 }
+
+// ───────── SEMENTARA sampai masa input selesai: akun GMM boleh mengubah Alamat Tugas data GMM bertempat tugas RUMAH ─────────
+// (plans/plan-alamat-gmm-rumah-sementara.md). Peran lain dan tempat tugas lain tetap terkunci seperti semula.
+test("RUMAH GMM: akun GMM boleh mengubah Alamat Tugas yang tersimpan SAH; tersimpan ke penerima + data_detail + riwayat; status tidak berubah", async () => {
+  for (const status of ["Memenuhi Syarat", "Proses Verifikasi", "Berkas Tidak Lengkap"]) {
+    baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5", status_verifikasi: status });
+    const h = await edit({ 9: "jl. marelan raya no 6 lingkungan 3" }, "GMM");
+    assert.equal(h.sukses, true, status + " " + JSON.stringify(h));
+    const p = tulis("penerima"), d = tulis("data_detail");
+    assert.equal(p.length, 1);
+    assert.ok(p[0].nilai.includes("JL. MARELAN RAYA NO 6 LINGKUNGAN 3"), "disimpan HURUF BESAR");
+    assert.equal(d.length, 1, "data_detail ikut disinkronkan");
+    assert.ok(!kolomDari(p[0].teks).includes("status_verifikasi"), "status TIDAK diubah (naik maupun turun) -- " + status);
+    assert.ok(!kolomDari(p[0].teks).includes("tanggal_berkas_diubah"), "perubahan alamat rumah biasa TIDAK memicu wajib-lapor perbaikan");
+    assert.equal(h.berkasDiubah, 0);
+    assert.equal(riwayat().length, 1);
+    assert.ok(riwayat()[0].nilai.includes("Alamat Tugas") && riwayat()[0].nilai.includes("JL. MARELAN RAYA NO 5"));
+  }
+});
+
+test("RUMAH GMM: alamat baru tetap diperiksa (tautan, kosong, pendek, tanpa huruf, > 100) dan tidak boleh dikosongkan", async () => {
+  baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5" });
+  for (const [baru, pesan] of [["https://goo.gl/maps/x", PESAN_ALAMAT_TAUTAN], ["www.rumah.com", PESAN_ALAMAT_TAUTAN], ["", PESAN_ALAMAT_KOSONG], ["JL A", PESAN_ALAMAT_KOSONG], ["12345", PESAN_ALAMAT_KOSONG], ["A".repeat(101), PESAN_ALAMAT_PANJANG]]) {
+    const h = await edit({ 9: baru }, "GMM");
+    assert.equal(h.sukses, false, JSON.stringify(baru));
+    assert.equal(h.pesan, pesan, JSON.stringify(baru));
+    assert.equal(tulis("penerima").length, 0);
+  }
+});
+
+test("RUMAH GMM: Tempat Tugas tetap terkunci walau alamat dibuka (diubah bersama alamat ditolak)", async () => {
+  baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5" });
+  const h = await edit({ 8: "MASJID BARU", 9: "JL. BARU NO 7" }, "GMM");
+  assert.equal(h.sukses, false);
+  assert.equal(h.pesan, PESAN_TEMPAT_TERKUNCI);
+  assert.equal(tulis("penerima").length, 0);
+});
+
+test("RUMAH GMM: TIDAK berlaku untuk Admin Utama (tetap terkunci di Detail > Edit, seperti semula)", async () => {
+  baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5" });
+  const h = await edit({ 9: "JL. LAIN NO 9" }, "UTAMA");
+  assert.equal(h.sukses, false);
+  assert.equal(h.pesan, PESAN_ALAMAT_TERKUNCI);
+  assert.equal(tulis("penerima").length, 0);
+});
+
+test("RUMAH GMM: tempat tugas BUKAN rumah (masjid, lainnya) tetap terkunci untuk akun GMM", async () => {
+  for (const tempat of ["MASJID AL IKHLAS", "LAINNYA", "RUMAHKU", "RUMAH IBADAH X"]) {
+    baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5", tempat_tugas: tempat });
+    const h = await edit({ 9: "JL. LAIN NO 9" }, "GMM");
+    assert.equal(h.sukses, false, tempat);
+    assert.equal(h.pesan, PESAN_ALAMAT_TERKUNCI, tempat);
+    assert.equal(tulis("penerima").length, 0, tempat);
+  }
+});
+
+test("RUMAH GMM: tempat tugas 'rumah' beda huruf/spasi tetap dianggap RUMAH (data lama)", async () => {
+  baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5", tempat_tugas: "  rumah " });
+  const h = await edit({ 9: "JL. LAIN NO 9" }, "GMM");
+  assert.equal(h.sukses, true, JSON.stringify(h));
+});
+
+test("RUMAH GMM: PERIODE INPUT DITUTUP -> edit akun GMM ditolak lebih dulu (pelonggaran berakhir sendiri), tanpa menulis", async () => {
+  baris = BARIS({ alamat_tugas: "JL. MARELAN RAYA NO 5" });
+  globalThis.__izinInputUji = () => ({ izin: false, respons: { sukses: false, pesan: "PERIODE DITUTUP (uji)" } });
+  try {
+    const h = await edit({ 9: "JL. LAIN NO 9" }, "GMM");
+    assert.equal(h.sukses, false);
+    assert.equal(h.pesan, "PERIODE DITUTUP (uji)");
+    assert.equal(tulis("penerima").length, 0);
+  } finally {
+    delete globalThis.__izinInputUji;
+  }
+  const h2 = await edit({ 9: "JL. LAIN NO 9" }, "GMM");   // dibuka lagi: berlaku lagi
+  assert.equal(h2.sukses, true, JSON.stringify(h2));
+});
+
+test("RUMAH GMM: perbaikan TAUTAN pada data rumah GMM tetap memicu wajib-lapor untuk non-UTAMA (perilaku lama utuh)", async () => {
+  baris = BARIS({ alamat_tugas: URL_PETA, status_verifikasi: "Berkas Tidak Lengkap" });
+  const h = await edit({ 9: "JL. MARELAN RAYA NO 5" }, "GMM");
+  assert.equal(h.sukses, true, JSON.stringify(h));
+  assert.ok(kolomDari(tulis("penerima")[0].teks).includes("tanggal_berkas_diubah"));
+  assert.equal(h.berkasDiubah, 1);
+});
+
+test("RUMAH GMM: izin ini tidak membuka Kelola Data maupun jalur lain (kabel: hanya satu pemakaian di penerima.ts)", async () => {
+  const fs = await import("node:fs");
+  const baca = (p) => fs.readFileSync(new URL("../../" + p, import.meta.url), "utf8");
+  for (const p of ["supabase/functions/api/domains/kelolaData.ts", "supabase/functions/api/domains/validasi.ts", "supabase/functions/api/index.ts"]) {
+    assert.doesNotMatch(baca(p), /alamatRumahGmmTerbuka/, p);
+  }
+  const pen = baca("supabase/functions/api/domains/penerima.ts");
+  assert.equal((pen.match(/alamatRumahGmmTerbuka\(/g) || []).length, 1, "satu panggilan");
+  assert.ok(pen.indexOf('periksaIzinInput(sesi, "edit"') < pen.indexOf("alamatRumahGmmTerbuka("), "gerbang periode input diperiksa SEBELUM pelonggaran");
+});
 
 test("EDIT (izin internal bolehPindahTempat, hanya untuk uji pagar perpindahan): pindah tempat bersama alamat diproses pagar lama; tautan tetap ditolak", async () => {
   const inti = async (teks) => { sesiAktif = SESI.UTAMA; pasang(); return await penerima.editDataPenerimaInti(token(), 1, { teks }, { bolehPindahTempat: true }); };

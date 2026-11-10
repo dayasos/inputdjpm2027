@@ -55,6 +55,22 @@
     return mengandungTautan(alamatTersimpan);
   }
 
+  /**
+   * SEMENTARA (sampai masa input 2027 selesai): akun Guru Maghrib Mengaji boleh mengubah Alamat Tugas data GMM yang bertempat tugas RUMAH.
+   * SALINAN IDENTIK dari alamatRumahGmmTerbuka() di supabase/functions/api/_shared/alamatTugas.ts. Server tetap penentu.
+   */
+  function rapiHuruf(v) { return String(v == null ? '' : v).replace(/\s+/g, ' ').replace(/^ | $/g, '').toUpperCase(); }
+  function alamatRumahGmmTerbuka(layanan, tempatTugas, peran) {
+    return rapiHuruf(peran) === 'GURU MAGHRIB MENGAJI' &&
+      rapiHuruf(layanan) === 'GURU MAGHRIB MENGAJI' &&
+      rapiHuruf(tempatTugas) === 'RUMAH';
+  }
+
+  /** Kolom Alamat Tugas terbuka bila alamat tersimpan masih tautan ATAU (sementara) kasus rumah GMM di atas. */
+  function terbuka(alamatTersimpan, layanan, tempatTugas, peran) {
+    return bolehDiperbaiki(alamatTersimpan) || alamatRumahGmmTerbuka(layanan, tempatTugas, peran);
+  }
+
   /** '' = sah; selain itu pesan galat. Untuk alamat pengganti (perbaikan): bukan tautan, tidak kosong, >= 5 karakter, memuat huruf. */
   function galatPengganti(nilai) {
     if (mengandungTautan(nilai)) return PESAN_TAUTAN;
@@ -79,6 +95,8 @@
     normalkan: normalkan,
     mengandungTautan: mengandungTautan,
     bolehDiperbaiki: bolehDiperbaiki,
+    alamatRumahGmmTerbuka: alamatRumahGmmTerbuka,
+    terbuka: terbuka,
     galatPengganti: galatPengganti,
     galatInput: galatInput
   };

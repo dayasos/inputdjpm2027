@@ -24,6 +24,7 @@ import {
 import { layananWajibKoordinat, normalisasiKoordinat } from "../_shared/koordinat.ts";
 import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
 import {
+  alamatRumahGmmTerbuka,
   alamatTugasBolehDiperbaiki,
   mengandungTautan,
   PESAN_ALAMAT_PANJANG,
@@ -1052,6 +1053,9 @@ export async function editDataPenerimaInti(
     }
     // Kunci (2) berlaku untuk perubahan Alamat Tugas yang berdiri sendiri (tempat tugas tetap).
     let alamatDiperbaiki = false;
+    // SEMENTARA sampai masa input selesai (plans/plan-alamat-gmm-rumah-sementara.md): akun GMM boleh mengubah Alamat Tugas data GMM bertempat tugas RUMAH.
+    // Berakhir sendiri: akun GMM yang periodenya ditutup sudah ditolak di periksaIzinInput (di atas) sebelum sampai ke sini.
+    const bukaRumahGmm = alamatRumahGmmTerbuka(rowLama.layanan, rowLama.tempat_tugas, sesi.role);
     if (teks[9] !== undefined) {
       if (String(teks[9] ?? "").length > 1000) return { sukses: false, pesan: PESAN_ALAMAT_PANJANG };   // pengaman biaya pemeriksaan
       const alamatBaruKirim = String(teks[9] ?? "").trim().toUpperCase();
@@ -1061,10 +1065,12 @@ export async function editDataPenerimaInti(
       if (alamatBaruKirim !== alamatLamaTersimpan.toUpperCase()) {
         if (mengandungTautan(alamatBaruKirim)) return { sukses: false, pesan: PESAN_ALAMAT_TAUTAN };
         if (!tempatDipindah) {
-          if (!alamatTugasBolehDiperbaiki(alamatLamaTersimpan)) return { sukses: false, pesan: PESAN_ALAMAT_TERKUNCI };
+          const karenaTautan = alamatTugasBolehDiperbaiki(alamatLamaTersimpan);
+          if (!karenaTautan && !bukaRumahGmm) return { sukses: false, pesan: PESAN_ALAMAT_TERKUNCI };
           const cekPengganti = periksaAlamatPengganti(alamatBaruKirim);
           if (!cekPengganti.ok) return { sukses: false, pesan: cekPengganti.pesan };
-          alamatDiperbaiki = true;
+          // Hanya perbaikan tautan yang memicu wajib-lapor; perubahan alamat rumah GMM biasa tidak.
+          alamatDiperbaiki = karenaTautan;
         }
       }
     }

@@ -91,6 +91,28 @@ test("KUNCI: kolom hanya terbuka bila alamat TERSIMPAN berupa tautan; alamat sah
   }
 });
 
+test("SEMENTARA (rumah GMM): server = layar; hanya peran GMM + layanan GMM + tempat RUMAH; peran/layanan/tempat lain tidak", () => {
+  const GMM = "GURU MAGHRIB MENGAJI";
+  const ya = [[GMM, "RUMAH", GMM], ["guru maghrib mengaji", " rumah ", "  Guru  Maghrib Mengaji "], [GMM, "Rumah", GMM]];
+  for (const [lay, tmp, peran] of ya) {
+    assert.equal(S.alamatRumahGmmTerbuka(lay, tmp, peran), true, JSON.stringify([lay, tmp, peran]));
+    assert.equal(K.alamatRumahGmmTerbuka(lay, tmp, peran), true, "layar " + JSON.stringify([lay, tmp, peran]));
+    assert.equal(K.terbuka("JL SAH NO 1", lay, tmp, peran), true);
+  }
+  const tidak = [
+    [GMM, "RUMAH", "UTAMA"], [GMM, "RUMAH", "KECAMATAN"], [GMM, "RUMAH", "MUI"], [GMM, "RUMAH", "IMAM MASJID"], [GMM, "RUMAH", ""], [GMM, "RUMAH", null],
+    ["IMAM MASJID", "RUMAH", GMM], ["USTADZ", "RUMAH", GMM], [GMM, "MASJID AL IKHLAS", GMM], [GMM, "LAINNYA", GMM], [GMM, "RUMAHKU", GMM], [GMM, "", GMM], [GMM, null, GMM], [null, "RUMAH", GMM],
+  ];
+  for (const [lay, tmp, peran] of tidak) {
+    assert.equal(S.alamatRumahGmmTerbuka(lay, tmp, peran), false, JSON.stringify([lay, tmp, peran]));
+    assert.equal(K.alamatRumahGmmTerbuka(lay, tmp, peran), false, "layar " + JSON.stringify([lay, tmp, peran]));
+    assert.equal(K.terbuka("JL SAH NO 1", lay, tmp, peran), false, "alamat sah + kasus lain tetap terkunci");
+  }
+  // Tautan tetap membuka kolom untuk semua peran/tempat (perilaku lama utuh).
+  assert.equal(K.terbuka("HTTPS://MAPS.APP.GOO.GL/X", "IMAM MASJID", "MASJID", "UTAMA"), true);
+  assert.equal(S.alamatTugasBolehDiperbaiki("JL SAH NO 1"), false, "aturan lama tidak berubah");
+});
+
 test("PESAN: menyebut tautan, alamat sebenarnya, dan kolom Koordinat Lokasi; pesan terkunci menyebut syaratnya", () => {
   assert.match(S.PESAN_ALAMAT_TAUTAN, /tidak boleh berupa tautan/);
   assert.match(S.PESAN_ALAMAT_TAUTAN, /Koordinat Lokasi/);
