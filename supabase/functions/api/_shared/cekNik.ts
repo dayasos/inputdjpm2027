@@ -6,6 +6,17 @@ import { TAHUN_AKTIF } from "./config.ts";
 // Kelola Data (domains/kelolaData.ts), supaya aturannya tidak bisa menyimpang (plans/plan-pilih-rumah-ibadah-kelola-data.md, audit konsistensi).
 // Dipindah apa adanya dari validasi.ts (port cekDomisiliCapil_ dan cekStatusTahunLalu_ dari Kode.gs).
 
+// Data Capil berstatus PINDAH (diimpor dari sumber) mengisi kolom domisili TERTUKAR: kab_kota_domisili berisi NOMOR SURAT pindah
+// ("SKPWNI/1271/27102025/0008") dan alamat_domisili berisi nama kabupaten/kota. Pesan penolakan sebelumnya menampilkan nomor surat itu
+// sebagai "kabupaten/kota". Dicek 2026-11-10: 6 dari 28 baris Capil (semua berstatus PINDAH). Penanganan di kode, data TIDAK diubah.
+const POLA_NOMOR_SURAT_PINDAH = /^SKPWNI\b|^[A-Z]{3,10}\/\d+\/\d+\/\d+$/i;
+export function rapikanDomisiliCapil(alamat: unknown, kabKota: unknown): { alamatDomisili: string; kabKotaDomisili: string } {
+  const a = String(alamat ?? "").trim();
+  const k = String(kabKota ?? "").trim();
+  if (k && POLA_NOMOR_SURAT_PINDAH.test(k)) return { alamatDomisili: "", kabKotaDomisili: a };
+  return { alamatDomisili: a, kabKotaDomisili: k };
+}
+
 // Port dari cekDomisiliCapil() -- gagal cek TIDAK memblokir (sama seperti Kode.gs).
 export async function cekDomisiliCapil(nik: string) {
   try {
@@ -21,13 +32,14 @@ export async function cekDomisiliCapil(nik: string) {
     if (rows.length === 0) return { ditemukan: false as const };
 
     const r = rows[0];
+    const domisili = rapikanDomisiliCapil(r.alamat_domisili, r.kab_kota_domisili);
     return {
       ditemukan: true as const,
       nama: (r.nama || "").toString().trim(),
       nik: nikTarget,
       status: (r.status || "").toString().trim(),
-      alamatDomisili: (r.alamat_domisili || "").toString().trim(),
-      kabKotaDomisili: (r.kab_kota_domisili || "").toString().trim(),
+      alamatDomisili: domisili.alamatDomisili,
+      kabKotaDomisili: domisili.kabKotaDomisili,
     };
   } catch (_e) {
     // Jika error, JANGAN blokir input — sama seperti Kode.gs.

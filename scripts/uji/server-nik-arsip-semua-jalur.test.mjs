@@ -137,3 +137,44 @@ for (const peran of ["UTAMA", "KECAMATAN"]) {
     assert.equal((await edit({ 2: "3210172512990097" }, peran)).sukses, true);
   });
 }
+
+// ============================== (3) Capil berstatus PINDAH: kolom domisili tertukar (nomor surat vs kabupaten) ==============================
+// Data nyata (6 dari 28 baris Capil, semua PINDAH): alamat_domisili = "KABUPATEN ACEH TENGGARA", kab_kota_domisili = "SKPWNI/1271/27102025/0008".
+// Pesan penolakan harus menampilkan nama kabupaten/kota, BUKAN nomor surat.
+const { rapikanDomisiliCapil } = await muatServer("supabase/functions/api/_shared/cekNik.ts");
+
+test("rapikanDomisiliCapil: kolom tertukar (nomor SKPWNI di kab/kota) dibetulkan; baris normal tidak berubah", () => {
+  assert.deepEqual(rapikanDomisiliCapil("KABUPATEN ACEH TENGGARA", "SKPWNI/1271/27102025/0008"), { alamatDomisili: "", kabKotaDomisili: "KABUPATEN ACEH TENGGARA" });
+  assert.deepEqual(rapikanDomisiliCapil("KOTA SUBULUSSALAM", "  skpwni/1271/01102025/0052 "), { alamatDomisili: "", kabKotaDomisili: "KOTA SUBULUSSALAM" });
+  assert.deepEqual(rapikanDomisiliCapil("JL.MALAYA LRG 12 NO. 11", "KOTA PALU"), { alamatDomisili: "JL.MALAYA LRG 12 NO. 11", kabKotaDomisili: "KOTA PALU" });
+  assert.deepEqual(rapikanDomisiliCapil("DUSUN VI RAWA BADAK", "KABUPATEN DELI SERDANG"), { alamatDomisili: "DUSUN VI RAWA BADAK", kabKotaDomisili: "KABUPATEN DELI SERDANG" });
+  assert.deepEqual(rapikanDomisiliCapil(null, undefined), { alamatDomisili: "", kabKotaDomisili: "" });
+  assert.deepEqual(rapikanDomisiliCapil("A", ""), { alamatDomisili: "A", kabKotaDomisili: "" });
+  // Nilai biasa yang memuat garis miring (bukan format nomor surat) tidak ikut ditukar.
+  assert.deepEqual(rapikanDomisiliCapil("JL X", "KABUPATEN LABUHANBATU/UTARA"), { alamatDomisili: "JL X", kabKotaDomisili: "KABUPATEN LABUHANBATU/UTARA" });
+  assert.deepEqual(rapikanDomisiliCapil("JL X", "KOTA A/B/C"), { alamatDomisili: "JL X", kabKotaDomisili: "KOTA A/B/C" });
+  // Nama daerah yang kebetulan mengandung "SKPWNI" di tengah tidak dianggap nomor surat.
+  assert.deepEqual(rapikanDomisiliCapil("X", "KABUPATEN SKPWNI BARU"), { alamatDomisili: "X", kabKotaDomisili: "KABUPATEN SKPWNI BARU" });
+});
+
+for (const peran of ["UTAMA", "KECAMATAN"]) {
+  test(`Simpan input baru [${peran}]: Capil PINDAH (kolom tertukar) -> pesan menyebut KABUPATEN, bukan nomor surat; TANPA menulis`, async () => {
+    bersih();
+    capil = [{ nama: "TARMIZI", nik: NIK_MONEV, status: "PINDAH", alamat_domisili: "KABUPATEN ACEH TENGGARA", kab_kota_domisili: "SKPWNI/1271/27102025/0008" }];
+    const h = await simpan(peran, { inputNik: NIK_MONEV });
+    assert.equal(h.sukses, false, JSON.stringify(h));
+    assert.match(h.pesan, /DI LUAR KOTA MEDAN: KABUPATEN ACEH TENGGARA/);
+    assert.doesNotMatch(h.pesan, /SKPWNI/);
+    assert.equal(insertan().length, 0);
+  });
+
+  test(`Edit data [${peran}]: ubah NIK ke NIK Capil PINDAH -> pesan menyebut KABUPATEN, bukan nomor surat`, async () => {
+    baris = BARIS(); bersih();
+    capil = [{ nama: "TARMIZI", nik: NIK_MONEV, status: "PINDAH", alamat_domisili: "KABUPATEN DELI SERDANG", kab_kota_domisili: "SKPWNI/1271/30062025/0102" }];
+    const h = await edit({ 2: NIK_MONEV }, peran);
+    assert.equal(h.sukses, false, JSON.stringify(h));
+    assert.match(h.pesan, /DI LUAR KOTA MEDAN: KABUPATEN DELI SERDANG/);
+    assert.doesNotMatch(h.pesan, /SKPWNI/);
+    assert.equal(penulisan().length, 0);
+  });
+}
