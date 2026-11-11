@@ -2570,12 +2570,12 @@ function halamanBerikutnya() {
     const olehVerif = d[35] || "";
     const batasWaktuVerif = d[36] || "";
     let h = `<div class="mb-4">${badgeStatusVerifikasi(statusVerif)}`;
-    if ((statusVerif === "Tidak Memenuhi Syarat" || statusVerif === "Berkas Tidak Lengkap") && keteranganVerif) {
-      const warnaBox = statusVerif === "Berkas Tidak Lengkap" ? "amber" : "red";
+    if (((statusVerif === "Tidak Memenuhi Syarat" || statusVerif === "Berkas Tidak Lengkap") && keteranganVerif) || (statusVerif === "Memenuhi Syarat" && (olehVerif || tglVerif))) {
+      const warnaBox = statusVerif === "Berkas Tidak Lengkap" ? "amber" : (statusVerif === "Memenuhi Syarat" ? "emerald" : "red"); // Memenuhi Syarat: hanya baris "Diverifikasi oleh" (keterangan biasanya kosong)
       const batasWaktuHtml = (statusVerif === "Berkas Tidak Lengkap" && batasWaktuVerif) ? ('<span class="block text-[11px] font-bold text-slate-900 mt-1">Batas waktu perbaikan: ' + esc(batasWaktuVerif) + '</span>') : '';
       h += `<div class="mt-2 bg-${warnaBox}-50 border border-${warnaBox}-200 rounded-lg px-3 py-2 text-xs text-slate-900">
-        <span class="font-bold">Keterangan:</span>${keteranganVerif.indexOf("\n") !== -1 ? '<span class="block whitespace-pre-line mt-0.5">' + esc(keteranganVerif) + '</span>' : " " + esc(keteranganVerif)}
-        <span class="block text-[10px] text-slate-700 mt-1">Diverifikasi oleh ${esc(olehVerif)} · ${esc(tglVerif)}</span>
+        ${keteranganVerif ? '<span class="font-bold">Keterangan:</span>' + (keteranganVerif.indexOf("\n") !== -1 ? '<span class="block whitespace-pre-line mt-0.5">' + esc(keteranganVerif) + '</span>' : " " + esc(keteranganVerif)) : ''}
+        <span class="block text-[10px] text-slate-700${keteranganVerif ? ' mt-1' : ''}">Diverifikasi oleh ${esc(olehVerif)} · ${esc(tglVerif)}</span>
         ${batasWaktuHtml}
       </div>`;
     }
