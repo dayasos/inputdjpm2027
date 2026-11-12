@@ -170,3 +170,16 @@ test("AGREGAT: per orang per hari tersedia hanya bila diminta (untuk Excel)", ()
     { username: "verif_a1", tanggal: "2026-11-10", jamKerja: 1, luarJamKerja: 0 },
   ]);
 });
+
+test("AGREGAT: kartu per tim memuat SEMUA tim walau tabel disaring ke satu tim (angka tim lain tidak boleh tampak 0)", () => {
+  const kejadian = [kej("VERIF_A1", "2026-11-09 09:00:00"), kej("VERIF_B1", "2026-11-10 09:00:00"), kej("VERIF_B1", "2026-11-11 09:00:00")];
+  const tim2 = AKUN.filter((x) => x.tim === "II");
+  const a = susunAgregat({ cakupan: "SEMUA", anggota: tim2, semuaAnggota: AKUN, kejadian, rentang, konfig, libur });
+  assert.deepEqual(a.perOrang.map((o) => o.username).sort(), ["verif_b1", "verif_b2"], "tabel tersaring ke Tim II");
+  assert.equal(a.ringkasan.total, 2, "angka ringkasan hanya Tim II");
+  const tim = Object.fromEntries(a.perTim.map((t) => [t.tim, t]));
+  assert.deepEqual([tim.I.total, tim.I.anggota, tim.II.total, tim.II.anggota], [1, 2, 2, 2], "Tim I tetap tampil dengan angka aslinya");
+  // tanpa semuaAnggota: perilaku lama
+  const b = susunAgregat({ cakupan: "SEMUA", anggota: tim2, kejadian, rentang, konfig, libur });
+  assert.equal(b.perTim.find((t) => t.tim === "I").total, 0);
+});

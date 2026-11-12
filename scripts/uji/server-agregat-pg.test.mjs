@@ -196,6 +196,8 @@ test("AGREGAT (SQL nyata): hanya pemberian hasil PERTAMA oleh verifikator dihitu
   // Saringan tim (Admin Utama)
   const t2 = await AG.getAgregatVerifikasi(TOKEN.admin, ...RENT, "II");
   assert.deepEqual(t2.perOrang.map((o) => o.username), ["verif_bungamin_surbakti"]);
+  const timT2 = Object.fromEntries(t2.perTim.map((x) => [x.tim, x.total]));
+  assert.deepEqual([timT2.I, timT2.II, timT2["-"]], [8, 1, 1], "kartu per tim tidak menyempit saat disaring ke Tim II");
   // Peran lain ditolak
   const kk = await AG.getAgregatVerifikasi(TOKEN.kec, ...RENT);
   assert.equal(kk.sukses, false);

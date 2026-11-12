@@ -71,7 +71,9 @@ async function hitung(token: string, dari: unknown, sampai: unknown, timDiminta:
   const konfig = bangunKonfig(rowsJam);
   const libur = new Set<string>(rowsLibur.map((x: Record<string, unknown>) => String(x.tanggal)));
 
-  const usernames = c.anggota.map((a) => a.username.toUpperCase());
+  // Admin Utama: riwayat SEMUA verifikator dibaca walau tabel disaring ke satu tim, karena kartu per tim memakai semuanya.
+  const dasarKejadian = c.cakupan === "SEMUA" ? semuaAkun : c.anggota;
+  const usernames = dasarKejadian.map((a) => a.username.toUpperCase());
   let kejadian: Kejadian[] = [];
   if (usernames.length > 0) {
     const rowsKej = await sql`
@@ -100,7 +102,7 @@ async function hitung(token: string, dari: unknown, sampai: unknown, timDiminta:
     luarTim = rowsAdm.map((x: Record<string, unknown>) => ({ waktu: new Date(x.waktu as string) }));
   }
 
-  const hasil = susunAgregat({ cakupan: c.cakupan, anggota: c.anggota, kejadian, rentang: r.rentang, konfig, libur, luarTim, sertakanPerOrangHari });
+  const hasil = susunAgregat({ cakupan: c.cakupan, anggota: c.anggota, semuaAnggota: c.cakupan === "SEMUA" ? semuaAkun : undefined, kejadian, rentang: r.rentang, konfig, libur, luarTim, sertakanPerOrangHari });
   return {
     cakupan: c.cakupan, timFokus: c.timFokus,
     rentang: { dari: r.rentang.dari, sampai: r.rentang.sampai, jumlahHari: r.rentang.jumlahHari },

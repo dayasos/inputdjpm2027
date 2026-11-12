@@ -147,6 +147,8 @@ const nol = () => ({ total: 0, jamKerja: 0, luarJamKerja: 0, memenuhiSyarat: 0, 
 export function susunAgregat(p: {
   cakupan: Cakupan; anggota: AkunVerif[]; kejadian: Kejadian[]; rentang: Rentang; konfig: KonfigJamKerja; libur: ReadonlySet<string>;
   luarTim?: { waktu: Date }[]; sertakanPerOrangHari?: boolean;
+  /** Hanya cakupan SEMUA: seluruh verifikator, dipakai untuk kartu per tim agar TIDAK ikut menyempit saat tabel disaring ke satu tim. */
+  semuaAnggota?: AkunVerif[];
 }) {
   const orang = new Map<string, BarisOrang>();
   for (const a of p.anggota) {
@@ -185,8 +187,12 @@ export function susunAgregat(p: {
   let perTim: { tim: string; anggota: number; total: number; jamKerja: number; luarJamKerja: number }[] | undefined;
   if (p.cakupan === "SEMUA") {
     const kunciTim = [...DAFTAR_TIM, "-"] as string[];
+    // Kartu per tim selalu dari SEMUA verifikator (bukan hanya yang lolos saringan tim), supaya angka tim lain tidak tampak 0 saat satu tim dipilih.
+    const dasarTim = p.semuaAnggota && p.semuaAnggota !== p.anggota
+      ? susunAgregat({ ...p, anggota: p.semuaAnggota, semuaAnggota: undefined, luarTim: undefined, sertakanPerOrangHari: false }).perOrang
+      : perOrang;
     perTim = kunciTim.map((tm) => {
-      const m = perOrang.filter((o) => (o.tim || "-") === tm);
+      const m = dasarTim.filter((o) => (o.tim || "-") === tm);
       return { tim: tm, anggota: m.length, total: m.reduce((s, o) => s + o.total, 0), jamKerja: m.reduce((s, o) => s + o.jamKerja, 0), luarJamKerja: m.reduce((s, o) => s + o.luarJamKerja, 0) };
     }).filter((t) => t.tim !== "-" || t.anggota > 0);
   }

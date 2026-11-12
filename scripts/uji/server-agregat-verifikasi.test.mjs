@@ -83,6 +83,10 @@ test("CAKUPAN: Admin Utama melihat semua tim, perTim, dan baris luarTim terpisah
   const t2 = await ambil(...RENT, "II");
   assert.deepEqual(t2.perOrang.map((o) => o.username).sort(), ["verif_b1", "verif_b2"]);
   assert.equal(t2.tim, "II");
+  assert.deepEqual(t2.perTim.map((t) => [t.tim, t.total]).filter((t) => t[1] > 0), [["I", 3], ["II", 1], ["-", 1]], "kartu per tim tetap memuat semua tim saat disaring");
+  assert.equal(t2.ringkasan.total, 1, "ringkasan hanya Tim II");
+  const kueri = db().panggilan.filter((p) => p.teks.includes("distinct on")).pop();
+  assert.ok(kueri.nilai.some((n) => typeof n === "string" && n.includes("VERIF_A1") && n.includes("VERIF_B1")), "riwayat semua verifikator dibaca untuk kartu per tim");
 });
 
 test("HAK: peran lain (Kecamatan, GMM) ditolak tanpa membaca riwayat", async () => {
