@@ -61,7 +61,7 @@ test("Pemuat per peran: skrip dimuat hanya untuk GMM (peran lain tidak mengunduh
   assert.doesNotMatch(utama, /pengingat-koordinat-gmm/);
   assert.doesNotMatch(/MUI: \[[^\]]*\]/.exec(pemuat)[0], /pengingat-koordinat-gmm/);
   const html = fs.readFileSync("index.html", "utf8");
-  assert.match(html, /app-pesan-periode\.js\?v=20271069/);
+  assert.match(html, /app-pesan-periode\.js\?v=20271072/);
 });
 
 test("Pembungkus hak akses tidak merusak kebiasaan pembungkus lain: nama berkas tidak mengubah aksi server/DB (hanya tampilan)", () => {

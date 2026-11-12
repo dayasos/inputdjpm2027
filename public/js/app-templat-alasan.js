@@ -110,6 +110,11 @@
     return typeof dataPengguna !== 'undefined' && !!dataPengguna && !!dataPengguna.token &&
       String(dataPengguna.role || '').toUpperCase() === 'UTAMA';
   }
+  // Verifikator ikut memakai templat (hanya membaca/memilih); mengelola templat tetap khusus Admin Utama (utama()).
+  function boleh() {
+    return typeof dataPengguna !== 'undefined' && !!dataPengguna && !!dataPengguna.token &&
+      ['UTAMA', 'VERIFIKATOR'].indexOf(String(dataPengguna.role || '').toUpperCase()) !== -1;
+  }
   function buat(tag, kelas, teks) {
     var e = document.createElement(tag);
     if (kelas) e.className = kelas;
@@ -165,7 +170,7 @@
   // Data
   // ---------------------------------------------------------------------------------------------
   function bersihkanCacheJikaPerlu() {
-    if (!utama() || cacheToken !== dataPengguna.token) { cache = null; cacheToken = ''; }
+    if (!boleh() || cacheToken !== dataPengguna.token) { cache = null; cacheToken = ''; }
   }
 
   /** Mengambil templat (dari cache modul bila ada). `paksa` = abaikan cache (mis. sesudah Kelola). */
@@ -181,7 +186,7 @@
         var r = google.script.run
           .withSuccessHandler(function (res) {
             if (!res || res.sukses !== true) { akhir(reject, new Error((res && res.pesan) || 'Templat gagal dimuat.')); return; }
-            if (!utama() || dataPengguna.token !== token) { akhir(reject, new Error('Sesi berganti.')); return; }
+            if (!boleh() || dataPengguna.token !== token) { akhir(reject, new Error('Sesi berganti.')); return; }
             cache = res; cacheToken = token;
             akhir(resolve, res);
           })
@@ -199,7 +204,7 @@
   function html(d, berkas) {
     try {
       bersihkanCacheJikaPerlu();
-      if (!utama()) return '';
+      if (!boleh()) return '';
       suntikStyle();
       daftarBerkas = Array.isArray(berkas) ? berkas.map(function (b) { return { label: String((b && b.label) || '') }; }) : [];
       return '<div id="' + ID_WADAH + '" class="ac-wadah"><span class="ac-kosong">⚡ Memuat alasan cepat…</span></div>';
@@ -212,10 +217,10 @@
   function pasang(d) {
     try {
       var w = $(ID_WADAH);
-      if (!w || !utama()) return;
+      if (!w || !boleh()) return;
       var token = dataPengguna.token, layanan = layananDari(d);
       ambil(false).then(function (data) {
-        if (!w.isConnected || !utama() || dataPengguna.token !== token) return;
+        if (!w.isConnected || !boleh() || dataPengguna.token !== token) return;
         gambar(w, data, layanan, d);
       }).catch(function (e) {
         if (!w.isConnected) return;
@@ -258,7 +263,8 @@
     kepala.appendChild(buat('span', 'ac-spasi'));
     var bKelola = buat('button', 'ac-tombol', '⚙ Kelola'); bKelola.type = 'button'; bKelola.title = 'Tambah / ubah / hapus templat';
     var bBersih = buat('button', 'ac-tombol', 'Bersihkan'); bBersih.type = 'button'; bBersih.title = 'Kosongkan kotak keterangan';
-    kepala.appendChild(bKelola); kepala.appendChild(bBersih);
+    if (utama()) kepala.appendChild(bKelola);   // verifikator tidak mengelola templat
+    kepala.appendChild(bBersih);
     w.appendChild(kepala);
 
     var chips = [];    // {el, ikon, kalimat}
@@ -322,7 +328,7 @@
       if (g[0] === TMS && !daftar.length) return;      // Tidak Memenuhi Syarat belum dipakai: tampil hanya bila sudah ada templatnya
       w.appendChild(buat('div', 'ac-label', g[1]));
       if (!daftar.length) {
-        w.appendChild(buat('div', 'ac-kosong', 'Belum ada templat untuk layanan ini. Tambahkan lewat tombol ⚙ Kelola' + (g[0] === BTL && daftarBerkas.length ? ', atau pilih "Berkas lain" di bawah.' : '.')));
+        w.appendChild(buat('div', 'ac-kosong', 'Belum ada templat untuk layanan ini. ' + (utama() ? 'Tambahkan lewat tombol ⚙ Kelola' : 'Hubungi Admin Utama untuk menambah templat') + (g[0] === BTL && daftarBerkas.length ? ', atau pilih "Berkas lain" di bawah.' : '.')));
       } else {
         var baris = buat('div', 'ac-chips');
         daftar.forEach(function (t) { baris.appendChild(buatChip(g[0], t)); });

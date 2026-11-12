@@ -37,7 +37,7 @@ test("KABEL: proxy dev vite (yang juga menyuntikkan _secret) memakai penolakan y
 
 test("KABEL: index.ts memakai ditolakTanpaSecret SEBELUM mencari aksi di ALLOWED, dan aksinya terdaftar", () => {
   const src = fs.readFileSync(new URL("../../supabase/functions/api/index.ts", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  assert.match(src, /import \{ aksiPublikTanpaGerbang, ditolakTanpaSecret \} from "\.\/_shared\/gerbangAksi\.ts";/);
+  assert.match(src, /import \{ AKSI_HANYA_JALUR_SECRET, aksiPublikTanpaGerbang, ditolakTanpaSecret \} from "\.\/_shared\/gerbangAksi\.ts";/);
   const iGerbang = src.indexOf("ditolakTanpaSecret(action, isValidSecret)");
   const iCari = src.indexOf("const fn = ALLOWED[action];");
   assert.ok(iGerbang > 0 && iCari > 0 && iGerbang < iCari, "gerbang harus sebelum ALLOWED[action]");

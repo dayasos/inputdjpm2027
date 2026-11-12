@@ -53,7 +53,9 @@ export async function muatServer(entriRelatif) {
           b.onResolve({ filter: /(^|\/)(setelan|validasi|master|gasDrive|storage)\.ts$/ }, (a) => {
             const nama = path.basename(a.path);
             const berkas = path.join(tmp, "stub-" + nama + ".mjs");
-            fs.writeFileSync(berkas, STUB_MODUL[nama]);
+            // Ditulis SEKALI per bundel: esbuild membaca berkas ini dari utas lain, dan menimpanya lagi (modul yang sama diimpor dari
+            // beberapa berkas) membuatnya sesaat kosong -> impor tidak ditemukan -> "(void 0) is not a function" acak.
+            if (!fs.existsSync(berkas)) fs.writeFileSync(berkas, STUB_MODUL[nama]);
             return { path: berkas };
           });
         },

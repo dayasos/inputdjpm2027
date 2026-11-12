@@ -2,8 +2,9 @@
 import { loginPengguna, logoutPengguna, pulihkanSesi } from "./domains/auth.ts";
 // Cek status penerima untuk warga: hanya lewat jalur _secret (Worker /api/cek-status), BUKAN aksi publik di gerbang.
 import { cekStatusPublik } from "./domains/cekStatusPublik.ts";
-import { aksiPublikTanpaGerbang, ditolakTanpaSecret } from "./_shared/gerbangAksi.ts";
+import { AKSI_HANYA_JALUR_SECRET, aksiPublikTanpaGerbang, ditolakTanpaSecret } from "./_shared/gerbangAksi.ts";
 import { ambilSesi } from "./_shared/sesi.ts";
+import { ditolakUntukVerifikator, PESAN_VERIFIKATOR_DITOLAK } from "./_shared/gerbangPeran.ts";
 import {
   ambilDaftarRumahIbadahAdmin,
   cariRumahIbadahPengurus,
@@ -67,6 +68,7 @@ import {
 } from "./domains/templatAlasan.ts";
 import {
   cekBatasWaktuVerifikasi,
+  getRingkasanVerifikasiSaya,
   getDaftarBerkasTidakLengkapUntukWA,
   laporkanPerbaikanBerkas,
   tandaiSudahDiperbaiki,
@@ -173,6 +175,7 @@ const ALLOWED: Record<string, Handler> = {
   hapusTemplatAlasan,
   urutkanTemplatAlasan,
   verifikasiSatuData,
+  getRingkasanVerifikasiSaya,
   laporkanPerbaikanBerkas,
   tandaiSudahDiperbaiki,
   verifikasiMassalMemenuhiSyarat,
@@ -358,6 +361,20 @@ Deno.serve(async (req: Request) => {
   if (!fn) {
     const pesan = "Aksi tidak diizinkan: " + action;
     return json({ error: pesan, sukses: false, pesan });
+  }
+
+  // Gerbang DAFTAR-PUTIH role VERIFIKATOR (default tolak; plans/plan-tim-verifikator.md): akun Verifikator hanya boleh memanggil
+  // aksi di _shared/gerbangPeran.ts. Dicek untuk token header DAN token yang dipakai fungsi (args[0]), supaya tidak bisa dilewati
+  // dengan menukar salah satunya. Aksi publik tanpa sesi (login, master layanan) dan aksi khusus jalur _secret (cekStatusPublik: args[0] = NIK,
+  // bukan token) dilewati agar tidak menambah kueri.
+  if (!aksiPublikTanpaGerbang(action) && !AKSI_HANYA_JALUR_SECRET.has(action)) {
+    for (const tk of [sessionTokenFromHeader, typeof args[0] === "string" ? args[0] : null]) {
+      if (!tk) continue;
+      const sesiGerbang = await ambilSesi(tk);
+      if (sesiGerbang && ditolakUntukVerifikator(sesiGerbang.role, action)) {
+        return json({ error: PESAN_VERIFIKATOR_DITOLAK, sukses: false, pesan: PESAN_VERIFIKATOR_DITOLAK });
+      }
+    }
   }
 
   try {

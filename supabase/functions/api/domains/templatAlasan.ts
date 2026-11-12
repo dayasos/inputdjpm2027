@@ -1,3 +1,4 @@
+import { bolehVerifikasiSatuData } from "../_shared/gerbangPeran.ts";
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
 import { getMasterLayanan } from "./master.ts";
@@ -86,6 +87,19 @@ async function wajibUtama(token: string): Promise<HasilUtama> {
   return { ok: true, username: (sesi.username || "").toString() };
 }
 
+async function wajibUtamaAtauVerifikator(token: string): Promise<HasilUtama> {
+  let sesi;
+  try {
+    sesi = await wajibSesi(token);
+  } catch (e) {
+    return { ok: false, pesan: e instanceof Error ? e.message : String(e) };
+  }
+  if (!bolehVerifikasiSatuData(sesi.role)) {
+    return { ok: false, pesan: "Fitur ini khusus Admin Utama dan Verifikator." };
+  }
+  return { ok: true, username: (sesi.username || "").toString() };
+}
+
 /**
  * Membersihkan & memvalidasi isian satu templat. Mengembalikan {galat} bila ada yang salah, selain itu nilai bersih
  * (judul rapi, kalimat HURUF BESAR satu baris, layanan unik & dikenal; kosong = semua layanan).
@@ -125,7 +139,8 @@ async function namaLayananValid() {
 }
 
 export async function getTemplatAlasan(token: string) {
-  const u = await wajibUtama(token);
+  // Membaca templat: Admin Utama dan Verifikator (hanya membaca; kelola/simpan/hapus tetap khusus Admin Utama).
+  const u = await wajibUtamaAtauVerifikator(token);
   if (!u.ok) return { sukses: false, pesan: u.pesan };
   try {
     const [rows, layanan] = await Promise.all([

@@ -121,8 +121,9 @@
   var pesanSedangTampil = null;
 
   function role() { return (typeof dataPengguna !== 'undefined' && dataPengguna) ? dataPengguna.role : ''; }
+  // VERIFIKATOR (tim verifikasi) tidak ikut periode input (tidak menginput; bekerja juga sesudah input ditutup): tanpa timer, banner, dan pesan periode.
   function peranTerbatas() {
-    return typeof dataPengguna !== 'undefined' && !!dataPengguna && !!dataPengguna.token && !!dataPengguna.role && dataPengguna.role !== 'UTAMA';
+    return typeof dataPengguna !== 'undefined' && !!dataPengguna && !!dataPengguna.token && !!dataPengguna.role && dataPengguna.role !== 'UTAMA' && dataPengguna.role !== 'VERIFIKATOR';
   }
   // Akun MUI ikut penutupan periode seperti Kecamatan/Kemenag sejak bisa menginput (2026-10-20): tidak ada
   // lagi pengecualian MUI di banner, toast, modal penutupan, maupun penguncian layar.
@@ -557,6 +558,8 @@
   var SKRIP_PER_PERAN = {
     UTAMA: ['/js/app-jadwal-pesan.js', '/js/app-laporan-progres.js', '/js/app-capaian-input.js', '/js/app-penanda-mui.js', '/js/app-verifikasi-massal.js', '/js/app-cek-rumah-ibadah.js', '/js/app-templat-alasan.js', '/js/app-pilih-rumah-ibadah.js'],
     MUI: ['/js/app-penanda-mui.js'],
+    // Tim verifikator (plans/plan-tim-verifikator.md): tampilan khusus + alasan cepat (hanya dibaca/dipakai, tanpa Kelola).
+    VERIFIKATOR: ['/js/app-verifikator.js', '/js/app-templat-alasan.js'],
     // Pengingat koordinat lokasi (plans/plan-pengingat-koordinat-gmm.md): hanya akun Guru Maghrib Mengaji.
     'GURU MAGHRIB MENGAJI': ['/js/app-pengingat-koordinat-gmm.js']
   };

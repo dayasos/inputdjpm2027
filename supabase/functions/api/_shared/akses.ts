@@ -1,7 +1,9 @@
 import { getMasterLayanan } from "../domains/master.ts";
 import type { DataSesi } from "./sesi.ts";
 
-export type Instansi = "SUPERADMIN" | "KECAMATAN" | "KEMENAG" | "MUI";
+// VERIFIKATOR (tim verifikator): baca SEMUA baris seperti SUPERADMIN, tanpa hak tulis (penulisan dijaga gerbang daftar-putih di index.ts
+// dan pemeriksaan role di tiap aksi). Rencana: plans/plan-tim-verifikator.md.
+export type Instansi = "SUPERADMIN" | "KECAMATAN" | "KEMENAG" | "MUI" | "VERIFIKATOR";
 export type SubFilterGsm = "" | "KATOLIK" | "BUKAN_KATOLIK";
 
 // Layanan yang boleh DIINPUT (dan diedit, bila milik sendiri) oleh akun MUI -- keputusan 2026-10-20
@@ -51,6 +53,7 @@ export async function resolveInstansiPengguna(
 ): Promise<{ instansiPengguna: Instansi | null; layananPengguna: string; listLayananKemenag: string[] }> {
   const listLayananKemenag = await daftarLayananKemenagUpper();
   if (role === "UTAMA") return { instansiPengguna: "SUPERADMIN", layananPengguna: "", listLayananKemenag };
+  if (role === "VERIFIKATOR") return { instansiPengguna: "VERIFIKATOR", layananPengguna: "", listLayananKemenag };
   if (role === "MUI") return { instansiPengguna: "MUI", layananPengguna: "", listLayananKemenag };
   if (role === "KECAMATAN") return { instansiPengguna: "KECAMATAN", layananPengguna: "", listLayananKemenag };
   if (listLayananKemenag.includes(role)) return { instansiPengguna: "KEMENAG", layananPengguna: role, listLayananKemenag };
@@ -120,7 +123,7 @@ export function lolosAksesBarisLihatData(params: {
         lolos = true;
       }
     }
-  } else if (instansiPengguna === "SUPERADMIN") {
+  } else if (instansiPengguna === "SUPERADMIN" || instansiPengguna === "VERIFIKATOR") {
     lolos = true;
   } else if (instansiPengguna === "MUI") {
     const lay = (layananSheet || "").toUpperCase();

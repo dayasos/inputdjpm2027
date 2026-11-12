@@ -31,6 +31,7 @@
     "uji:db-pool": "node --test scripts/uji/db-pool.test.mjs",
     "uji:wajib-daftar-ri": "node --test scripts/uji/server-wajib-daftar-rumah-ibadah.test.mjs",
     "uji:pengingat-koordinat": "node --test scripts/uji/pengingat-koordinat-gmm.test.mjs",
+    "uji:verifikator": "node --test scripts/uji/server-verifikator.test.mjs",
     "uji:nik-arsip": "node --test scripts/uji/server-nik-arsip-semua-jalur.test.mjs",
     "uji:wilayah-ri-kelola": "node --test scripts/uji/server-wilayah-rumah-ibadah-kelola.test.mjs",
     "uji:validasi-penerima": "node --test scripts/uji/validasi-penerima.test.mjs scripts/uji/wilayah-tugas-utama.test.mjs scripts/uji/validasi-tanggal-lahir-layar.test.mjs scripts/uji/server-penerima.test.mjs scripts/uji/server-simpan-penerima.test.mjs scripts/uji/kabel-validasi-penerima.test.mjs",

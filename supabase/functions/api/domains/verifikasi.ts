@@ -1,5 +1,50 @@
+import { bolehVerifikasiSatuData } from "../_shared/gerbangPeran.ts";
+import { catatRiwayatVerifikasi, catatRiwayatVerifikasiBanyak } from "../_shared/riwayatVerifikasi.ts";
+
+/** Nama lengkap akun pemverifikator (untuk tampilan segera sesudah verifikasi). Gagal/kosong -> "" (layar menampilkan username saja). */
+async function namaLengkapAkun(akunId: unknown): Promise<string> {
+  try {
+    const rows = await sql`select nama_lengkap from akun where id = ${akunId as string} limit 1`;
+    return rows.length > 0 ? String(rows[0].nama_lengkap || "").trim() : "";
+  } catch (_e) {
+    return "";
+  }
+}
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
+
+/**
+ * Agregat verifikasi milik akun yang login (untuk badge melayang). Hanya membaca; hanya baris yang saat ini
+ * tercatat `diverifikasi_oleh` = username akun ini pada tahun aktif. Khusus UTAMA dan Verifikator.
+ */
+export async function getRingkasanVerifikasiSaya(token: string) {
+  try {
+    const sesi = await wajibSesi(token);
+    if (!bolehVerifikasiSatuData(sesi.role)) return { sukses: false, pesan: "Fitur ini khusus Admin Utama dan Verifikator." };
+    const nama = (sesi.username || "").toString().toUpperCase();
+    if (!nama) return { sukses: true, total: 0, hariIni: 0, memenuhiSyarat: 0, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0 };
+    const rows = await sql`
+      select
+        count(*) filter (where status_verifikasi in ('Memenuhi Syarat','Berkas Tidak Lengkap','Tidak Memenuhi Syarat'))::int as total,
+        count(*) filter (where status_verifikasi in ('Memenuhi Syarat','Berkas Tidak Lengkap','Tidak Memenuhi Syarat') and (tanggal_verifikasi at time zone 'Asia/Jakarta')::date = (now() at time zone 'Asia/Jakarta')::date)::int as hari_ini,
+        count(*) filter (where status_verifikasi = 'Memenuhi Syarat')::int as ms,
+        count(*) filter (where status_verifikasi = 'Berkas Tidak Lengkap')::int as btl,
+        count(*) filter (where status_verifikasi = 'Tidak Memenuhi Syarat')::int as tms
+      from penerima
+      where tahun = ${TAHUN_AKTIF} and upper(diverifikasi_oleh) = ${nama}`;
+    const r = rows[0] || {};
+    return {
+      sukses: true,
+      total: Number(r.total) || 0,
+      hariIni: Number(r.hari_ini) || 0,
+      memenuhiSyarat: Number(r.ms) || 0,
+      berkasTidakLengkap: Number(r.btl) || 0,
+      tidakMemenuhiSyarat: Number(r.tms) || 0,
+    };
+  } catch (error) {
+    return { sukses: false, pesan: error instanceof Error ? error.message : String(error) };
+  }
+}
 import { TAHUN_AKTIF } from "../_shared/config.ts";
 import { formatTanggalWaktuWIB } from "../_shared/tanggal.ts";
 import {
@@ -33,8 +78,8 @@ export async function verifikasiSatuData(
   } catch (e) {
     return { sukses: false, pesan: e instanceof Error ? e.message : String(e) };
   }
-  if ((sesi.role || "").toString().trim().toUpperCase() !== "UTAMA") {
-    return { sukses: false, pesan: "Fitur ini khusus Admin Utama." };
+  if (!bolehVerifikasiSatuData(sesi.role)) {
+    return { sukses: false, pesan: "Fitur ini khusus Admin Utama dan Verifikator." };
   }
 
   const id = Number(nomorBarisAsli);
@@ -107,6 +152,10 @@ export async function verifikasiSatuData(
       };
     }
 
+    await catatRiwayatVerifikasi({
+      penerimaId: id, tahun: TAHUN_AKTIF, statusLama: String(statusSebelumnya || ""), statusBaru, keterangan: keteranganBersih, oleh: namaVerifikator, sumber: "SATU",
+    });
+
     // Update berhasil — jika status berubah DARI "Memenuhi Syarat" ke status lain,
     // arsipkan dan hapus baris dari data_detail (non-blocking: tidak boleh gagalkan respons).
     if (statusSebelumnya === "Memenuhi Syarat" && statusBaru !== "Memenuhi Syarat") {
@@ -127,6 +176,7 @@ export async function verifikasiSatuData(
       keterangan: keteranganBersih,
       tanggal: formatTanggalWaktuWIB(waktuVerifikasi),
       verifikator: namaVerifikator,
+      namaLengkap: await namaLengkapAkun(sesi.akunId),
       batasWaktu: batasWaktuBersih,
     };
   } catch (error) {
@@ -207,8 +257,8 @@ export async function tandaiSudahDiperbaiki(token: string, nomorBarisAsli: numbe
   } catch (e) {
     return { sukses: false, pesan: e instanceof Error ? e.message : String(e) };
   }
-  if ((sesi.role || "").toString().trim().toUpperCase() !== "UTAMA") {
-    return { sukses: false, pesan: "Fitur ini khusus Admin Utama." };
+  if (!bolehVerifikasiSatuData(sesi.role)) {
+    return { sukses: false, pesan: "Fitur ini khusus Admin Utama dan Verifikator." };
   }
 
   const id = Number(nomorBarisAsli);
@@ -245,13 +295,17 @@ export async function tandaiSudahDiperbaiki(token: string, nomorBarisAsli: numbe
       };
     }
 
+    await catatRiwayatVerifikasi({
+      penerimaId: id, tahun: TAHUN_AKTIF, statusLama: "Berkas Tidak Lengkap", statusBaru: "Memenuhi Syarat", keterangan: "", oleh: namaVerifikator, sumber: "DIPERBAIKI",
+    });
+
     // Status kembali ke Memenuhi Syarat — sinkronkan data_detail secara non-blocking
     // agar baris tersedia segera (tidak menunggu user buka tombol Data Detail).
     pastikanDataDetailTersinkron(TAHUN_AKTIF).catch((e) => {
       console.error("tandaiSudahDiperbaiki: pastikanDataDetailTersinkron gagal (non-blocking):", e);
     });
 
-    return { sukses: true, status: "Memenuhi Syarat", tanggal: formatTanggalWaktuWIB(waktuVerifikasi), verifikator: namaVerifikator };
+    return { sukses: true, status: "Memenuhi Syarat", tanggal: formatTanggalWaktuWIB(waktuVerifikasi), verifikator: namaVerifikator, namaLengkap: await namaLengkapAkun(sesi.akunId) };
   } catch (error) {
     return { sukses: false, pesan: String(error) };
   }
@@ -385,6 +439,7 @@ export async function verifikasiMassalMemenuhiSyarat(
 
     // Sinkron data_detail non-blocking (idempoten; kegagalannya tidak menggagalkan respons).
     if (idDiubah.length > 0) {
+      await catatRiwayatVerifikasiBanyak(idDiubah, TAHUN_AKTIF, "Proses Verifikasi", "Memenuhi Syarat", "", namaVerifikator, "MASSAL");
       pastikanDataDetailTersinkron(TAHUN_AKTIF).catch((e) => {
         console.error("verifikasiMassalMemenuhiSyarat: pastikanDataDetailTersinkron gagal (non-blocking):", e);
       });
@@ -503,6 +558,10 @@ export async function cekBatasWaktuVerifikasi() {
     `;
 
     const jumlahBerubah = rowsBerubah.length;
+    await catatRiwayatVerifikasiBanyak(
+      rowsBerubah.map((x: { id: unknown }) => Number(x.id)), TAHUN_AKTIF, "Berkas Tidak Lengkap", "Tidak Memenuhi Syarat",
+      "Otomatis diubah sistem: batas waktu perbaikan berkas telah lewat tanpa perbaikan.", "SISTEM (OTOMATIS)", "OTOMATIS",
+    );
     const sekarang = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
 
     // Jika ada data yang berubah, jalankan sweep data_detail sebagai jaring pengaman

@@ -26,6 +26,7 @@
     { nilai: 'UTAMA', label: 'Utama' },
     { nilai: 'KECAMATAN', label: 'Kecamatan' },
     { nilai: 'MUI', label: 'MUI (Ustadz & Ustadzah)' },
+    { nilai: 'VERIFIKATOR', label: 'Verifikator (tim verifikasi)' },
     { nilai: 'GURU SEKOLAH BUDDHA', label: 'Guru Sekolah Buddha' },
     { nilai: 'GURU SEKOLAH HINDU', label: 'Guru Sekolah Hindu' },
     { nilai: 'GURU SEKOLAH KONG HU CHU', label: 'Guru Sekolah Kong Hu Chu' },

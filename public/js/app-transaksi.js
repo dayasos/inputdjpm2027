@@ -2575,7 +2575,7 @@ function halamanBerikutnya() {
       const batasWaktuHtml = (statusVerif === "Berkas Tidak Lengkap" && batasWaktuVerif) ? ('<span class="block text-[11px] font-bold text-slate-900 mt-1">Batas waktu perbaikan: ' + esc(batasWaktuVerif) + '</span>') : '';
       h += `<div class="mt-2 bg-${warnaBox}-50 border border-${warnaBox}-200 rounded-lg px-3 py-2 text-xs text-slate-900">
         ${keteranganVerif ? '<span class="font-bold">Keterangan:</span>' + (keteranganVerif.indexOf("\n") !== -1 ? '<span class="block whitespace-pre-line mt-0.5">' + esc(keteranganVerif) + '</span>' : " " + esc(keteranganVerif)) : ''}
-        <span class="block text-[10px] text-slate-700${keteranganVerif ? ' mt-1' : ''}">Diverifikasi oleh ${esc(olehVerif)} · ${esc(tglVerif)}</span>
+        <span class="block text-[10px] text-slate-700${keteranganVerif ? ' mt-1' : ''}">Diverifikasi oleh ${esc(olehVerif)}${d[54] ? " (" + esc(d[54]) + ")" : ""} · ${esc(tglVerif)}</span>
         ${batasWaktuHtml}
       </div>`;
     }
@@ -2598,7 +2598,7 @@ function halamanBerikutnya() {
         </div>`;
       }
     }
-    if (dataPengguna.role === "UTAMA") {
+    if (dataPengguna.role === "UTAMA" || dataPengguna.role === "VERIFIKATOR") {
       if (statusVerif === "Berkas Tidak Lengkap") {
         h += `<div class="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
           ${tglLaporPerbaikan && d[53] !== true ? `<p class="text-xs text-emerald-800 mb-2">Dilaporkan sudah diperbaiki oleh <strong>${esc(dilaporOlehPerbaikan)}</strong> (${esc(tglLaporPerbaikan)}). Cek berkasnya, lalu:</p>` : `<p class="text-xs text-emerald-800 mb-2">Kalau sudah dicek dan berkasnya benar sudah lengkap:</p>`}
@@ -2608,7 +2608,7 @@ function halamanBerikutnya() {
         </div>`;
       }
       h += `<div class="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-        <p class="text-xs font-bold text-amber-900 uppercase mb-2">Verifikasi Admin Utama</p>
+        <p class="text-xs font-bold text-amber-900 uppercase mb-2">${dataPengguna.role === "UTAMA" ? "Verifikasi Admin Utama" : "Verifikasi"}</p>
         <textarea id="input-keterangan-verifikasi" rows="2" placeholder="Tulis alasan jika data ini TIDAK memenuhi syarat atau berkasnya tidak lengkap (tidak perlu diisi untuk Memenuhi Syarat)..." class="w-full text-xs p-2 border border-amber-300 rounded-md mb-2"></textarea>
         ${window.djpmTemplatAlasan ? window.djpmTemplatAlasan.html(d, getBerkasSesuaiLayanan(d[7])) : ""}
         <label class="block text-[10px] font-semibold text-amber-800 mb-1">Batas Waktu Perbaikan (khusus jika pilih "Berkas Tidak Lengkap")</label>
@@ -2778,12 +2778,12 @@ function halamanBerikutnya() {
       // statusDiharapkan (deteksi konflik admin lain) -- HARUS diambil sebelum dataAktif diubah.
       const nomorTarget = nomorBarisAktif;
       const statusLama = dataAktif[32] || "";
-      const snapshotLama = dataAktif.slice(32, 40); // status..batas waktu, catatan nama, tgl lapor, dilapor oleh
+      const snapshotLama = dataAktif.slice(32, 40); const nama54Lama = dataAktif[54]; // status..batas waktu, catatan nama, tgl lapor, dilapor oleh; + nama lengkap pemverifikator
       const statusTabelLama = statusLama || "Proses Verifikasi";
       dataAktif[32] = statusBaru;
       dataAktif[33] = ket;
       dataAktif[34] = "menyimpan...";
-      dataAktif[35] = (dataPengguna.username || "").toString().toUpperCase();
+      dataAktif[35] = (dataPengguna.username || "").toString().toUpperCase(); dataAktif[54] = "";
       dataAktif[36] = batasWaktu;
       if (putaranBaru) { dataAktif[38] = ""; dataAktif[39] = ""; dataAktif[52] = ""; dataAktif[53] = false; } // laporan perbaikan ikut direset server
       renderBaca(dataAktif);
@@ -2800,7 +2800,7 @@ function halamanBerikutnya() {
           if (sinkronPenuh && typeof inisialisasiMenuLihatData === 'function') inisialisasiMenuLihatData();
         }
         if (nomorBarisAktif === nomorTarget) {
-          for (let i = 0; i < snapshotLama.length; i++) dataAktif[32 + i] = snapshotLama[i];
+          for (let i = 0; i < snapshotLama.length; i++) dataAktif[32 + i] = snapshotLama[i]; dataAktif[54] = nama54Lama;
           if (statusServer) dataAktif[32] = statusServer; // samakan dgn tabel; keterangan lengkap menyusul saat detail dibuka ulang
           renderBaca(dataAktif);
           // renderBaca membangun ulang form: kembalikan isian agar tidak perlu mengetik ulang.
@@ -2824,7 +2824,7 @@ function halamanBerikutnya() {
             dataAktif[32] = res.status;
             dataAktif[33] = res.keterangan;
             dataAktif[34] = res.tanggal;
-            dataAktif[35] = res.verifikator;
+            dataAktif[35] = res.verifikator; dataAktif[54] = res.namaLengkap || "";
             dataAktif[36] = res.batasWaktu || "";
             if (putaranBaru) { dataAktif[38] = ""; dataAktif[39] = ""; dataAktif[52] = ""; dataAktif[53] = false; }
             renderBaca(dataAktif);
@@ -2913,7 +2913,7 @@ function halamanBerikutnya() {
             dataAktif[32] = res.status;
             dataAktif[33] = "";
             dataAktif[34] = res.tanggal;
-            dataAktif[35] = res.verifikator;
+            dataAktif[35] = res.verifikator; dataAktif[54] = res.namaLengkap || "";
             dataAktif[36] = "";
             dataAktif[38] = "";
             dataAktif[39] = "";

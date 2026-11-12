@@ -1,3 +1,4 @@
+import { adalahVerifikator } from "../_shared/gerbangPeran.ts";
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
 import { hashUntukSimpan, verifikasiSandi } from "../_shared/sandi.ts";
@@ -15,6 +16,7 @@ const ROLE_PENGGUNA_VALID = new Set([
   "PENATUA GEREJA",
   "GURU MAGHRIB MENGAJI",
   "MUI",
+  "VERIFIKATOR", // tim verifikator (plans/plan-tim-verifikator.md): tanpa kecamatan, user_id kosong seperti UTAMA
 ]);
 // Role yang BOLEH punya kecamatan. KECAMATAN wajib; GURU MAGHRIB MENGAJI opsional — GMM tanpa
 // kecamatan berlaku se-Kota Medan (akun lama "BIMAS ISLAM").
@@ -103,6 +105,11 @@ export async function ubahAkunSendiri(
 
   if (!verif) return { sukses: false, pesan: "Password (verifikasi) wajib diisi." };
   const mauGantiUser = userBaru.length > 0;
+  // Jejak verifikasi (penerima.diverifikasi_oleh, riwayat_verifikasi) menyimpan USERNAME. Mengganti username akan memutus jejak lama dan
+  // membuka nama lama untuk dipakai akun lain; karena itu akun Verifikator hanya boleh mengganti kata sandi.
+  if (mauGantiUser && adalahVerifikator(sesi.role)) {
+    return { sukses: false, pesan: "Username akun Verifikator tidak dapat diubah karena dipakai sebagai jejak verifikasi. Hubungi Admin Utama bila perlu." };
+  }
   const mauGantiPass = passBaru.length > 0 || konfirm.length > 0;
   if (!mauGantiUser && !mauGantiPass) {
     return { sukses: false, pesan: "Isi username baru dan/atau password baru." };

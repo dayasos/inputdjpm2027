@@ -1,0 +1,34 @@
+
+## 9. Catatan realisasi T1-T4 (2026-11-12) -- SELESAI DI LOKAL, BELUM commit/push/deploy/migrasi
+**Lokasi kerja:** *git worktree* terpisah `D:\DJPM\DJPM 2027\Aplikasi DJPM2027\Input 2027\wt-verifikator` (cabang `feat/tim-verifikator`, dari `main` = 31f935f). Dipisah karena folder kerja utama berisi perubahan belum di-commit milik orang lain/sesi lain (batas waktu perbaikan seragam) pada `verifikasi.ts`, `app-transaksi.js`, dan `config.ts` -- berkas yang juga saya ubah. **Saat penggabungan ke `main`, perubahan itu harus lebih dulu di-commit atau diputuskan user, agar tidak bentrok/tercampur.**
+
+**Dibuat/diubah**
+- Server: `_shared/gerbangPeran.ts` (baru; daftar-putih 22 aksi + helper), `_shared/riwayatVerifikasi.ts` (baru), `index.ts` (gerbang sebelum fungsi aksi; periksa token header DAN args[0]; aksi publik dan `cekStatusPublik` dilewati), `_shared/akses.ts` (instansi VERIFIKATOR baca-semua), `domains/penerima.ts` (instansi baca-semua, nama lengkap pemverifikator di indeks 54, lapis kedua tolak edit/simpan), `domains/verifikasi.ts` (satu data + tandai diperbaiki untuk UTAMA dan VERIFIKATOR; massal dan daftar WA tetap UTAMA; riwayat), `domains/templatAlasan.ts` (baca saja untuk verifikator), `domains/dashboard.ts` (VERIFIKATOR = UTAMA hanya di fungsi baca ini), `domains/akun.ts` (role resmi), migrasi `20261112100000_riwayat_verifikasi.sql` (BELUM diterapkan).
+- Layar: `public/js/app-verifikator.js` (baru; menutup tab Input, Lihat Data jadi awal, menyembunyikan menu lain), `app-pesan-periode.js` (pemuat per peran), `app-templat-alasan.js` (verifikator boleh memakai chip, tanpa tombol Kelola), `app-transaksi.js` (panel verifikasi untuk UTAMA dan VERIFIKATOR; "Diverifikasi oleh X (Nama Lengkap)"; jumlah baris tetap 3760), `app-kelola-user.js` (pilihan role), `index.html` (`?v=20271072`).
+- Uji: `scripts/uji/server-verifikator.test.mjs` (20; `npm run uji:verifikator`), `scripts/uji/layar/verifikator.mjs` (Chrome, 23 pemeriksaan), perbaikan harness `_harness-server.mjs`.
+
+**Hasil uji:** 26 rangkaian `uji:*` hijau; uji layar verifikator, alamat-rumah-gmm, detail-diverifikasi-oleh, pengingat-koordinat-gmm lulus; `check-css`, `verify-html`, `vite build` OK; 20 percobaan merusak kode (15 server, 5 layar) tertangkap semua.
+**Temuan saat uji:**
+1. Harness uji server punya balapan menulis berkas tiruan (modul yang sama diimpor dari banyak berkas) sehingga uji bisa gagal acak ("(void 0) is not a function", sekitar 30%); diperbaiki (tulis sekali per bundel). Ini juga bisa menjelaskan kegagalan acak pada uji lain di masa lalu.
+2. `dataPengguna` adalah variabel `let` global, bukan properti `window`; modul harus membacanya lewat nama.
+3. Panel Input dan tombol berkelas `auth-show` tidak hilang hanya dengan kelas `hidden`; modul memakai `display:none !important`.
+4. Layar memanggil `ambilStatusPeriode` (alias `statusInputKecKem`); ditambahkan ke daftar-putih (baca saja). Uji layar mencocokkan SELURUH aksi yang dipanggil layar verifikator dengan daftar-putih.
+
+**Urutan rilis (T5-T7), semuanya atas perintah user:** (1) terapkan migrasi `riwayat_verifikasi`; (2) commit + push; (3) deploy fungsi `api` (v116 -> v117); (4) buat akun uji `verif_uji` lewat Manajemen Pengguna, uji nyata (verifikasi 1 data uji, coba aksi terlarang), kembalikan data uji; (5) buat akun tim dari data user.
+
+## 10. Tinjauan ulang teliti (2026-11-12) -- 6 temuan, semuanya diperbaiki di lokal
+1. **Nama lengkap bisa basi di layar.** Sesudah verifikasi, layar memperbarui username tetapi nama lengkap lama tetap tampil (mis. "VERIF_ANDI (nama verifikator sebelumnya)"). Diperbaiki: server mengembalikan `namaLengkap` akun pemverifikator (satu data dan tandai-diperbaiki); layar mengosongkan nama saat "menyimpan...", memakai nama dari server saat sukses, dan memulihkannya bila gagal (rollback).
+2. **Nama lengkap terkirim ke semua peran.** Semula indeks 54 dikirim ke setiap peran yang membuka Detail (termasuk Kecamatan/Kemenag/GMM). Dibatasi: hanya Admin Utama dan Verifikator; petugas tetap melihat username saja seperti sebelumnya (tanpa kueri tambahan).
+3. **Username Verifikator bisa diganti sendiri** lewat `ubahAkunSendiri`. Jejak verifikasi menyimpan username, jadi penggantian memutus jejak lama dan membuka nama lama untuk dipakai akun lain (akun yang bisa "meniru" pemverifikator lama). Akun Verifikator kini hanya boleh mengganti kata sandi. **Catatan:** akun Admin Utama masih bisa mengganti username sendiri (perilaku lama, tidak diubah); penghapusan akun (`hapusUser`) juga membuka username untuk dipakai ulang, jadi aturan operasional: **akun verifikator dinonaktifkan, tidak dihapus**.
+4. **Timer/banner periode input muncul untuk verifikator** (`peranTerbatas()` menganggap semua selain UTAMA sebagai pengguna periode). Verifikator tidak menginput dan bekerja juga sesudah input ditutup; dikecualikan. Akibatnya `ambilStatusPeriode` tidak dipanggil dan dikeluarkan dari daftar-putih (hak minimal).
+5. **Gerbang menambah kueri pada aksi khusus jalur _secret** (`cekStatusPublik`: args[0] = NIK, bukan token). Dilewati seperti aksi publik.
+6. **Harness uji server balapan (flaky ~30%)** -- sudah diperbaiki sebelumnya; dicatat di bagian 9.
+
+**Hasil setelah perbaikan:** `uji:verifikator` 22; 26 rangkaian `uji:*` hijau; layar verifikator 26 pemeriksaan + 4 uji layar lain lulus; `check-css`, `verify-html`, `vite build` OK; 27 percobaan merusak kode (20 + 7 baru) tertangkap semua.
+
+## 11. Badge melayang "Verifikasi saya" (2026-11-12)
+- Aksi baca baru `getRingkasanVerifikasiSaya` (domains/verifikasi.ts; daftar-putih Verifikator jadi 22 aksi): menghitung baris `penerima` tahun aktif dengan `diverifikasi_oleh` = username akun yang login: total, hari ini (WIB), per status (MS/BTL/TMS). Khusus UTAMA & VERIFIKATOR; hanya membaca.
+- Tampilan di `public/js/app-verifikator.js` (hanya role VERIFIKATOR): badge tetap di kanan-bawah, ketuk = rincian per status; segar tiap 20 dtk dan 2,5 dtk sesudah klik tombol (mis. simpan verifikasi); hilang saat keluar akun.
+- Catatan: angka = data yang SAAT INI tercatat atas nama akun itu (bila data diverifikasi ulang akun lain, pindah ke akun tersebut). Riwayat utuh per kejadian ada di `riwayat_verifikasi` setelah migrasi diterapkan.
+- Uji: server 24 lulus, layar 38 pemeriksaan lulus (termasuk UTAMA tanpa badge), seluruh rangkaian uji:* hijau.
+- Tinjauan ketat badge (2026-11-12): (1) total = jumlah 3 status (konsisten dengan rincian); (2) badge dipindah ke KIRI-bawah (kanan-bawah bisa menutupi tombol jendela Detail); (3) penyegaran sesudah klik hanya untuk tombol `btn-tandai-*` (bukan tiap tombol), permintaan yang tumpang tindih diulang sesudahnya; tab tersembunyi tidak membebani server; (4) jawaban untuk token sesi lama dibuang; (5) server gagal -> angka terakhir dipertahankan (bila belum pernah berhasil: "gagal dimuat · ketuk untuk ulang"); (6) batas tunggu 30 dtk agar tidak macet. Uji: server 24, layar 45 pemeriksaan, 8 percobaan merusak kode tertangkap semua.

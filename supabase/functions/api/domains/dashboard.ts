@@ -30,7 +30,9 @@ export async function getDashboardProgresVerifikasi(token: string, kecamatanFilt
   }
 
   try {
-    const role = (sesi.role || "").toString().trim().toUpperCase();
+    const peranAsli = (sesi.role || "").toString().trim().toUpperCase();
+    // Verifikator melihat dashboard seluruh kota persis seperti Admin Utama (baca saja): dipetakan ke UTAMA HANYA di fungsi baca ini.
+    const role = peranAsli === "VERIFIKATOR" ? "UTAMA" : peranAsli;
     const kecUser = (sesi.kecamatan || "").toString().trim().toUpperCase();
     const kecFilterInput = (kecamatanFilter || "").toString().trim().toUpperCase();
     const kelurahanTerkunci = kelurahanTerkunciDari(sesi);

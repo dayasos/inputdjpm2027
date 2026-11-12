@@ -1,3 +1,4 @@
+import { adalahVerifikator, bolehVerifikasiSatuData, PESAN_VERIFIKATOR_DITOLAK } from "../_shared/gerbangPeran.ts";
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
 import { LAYANAN_BATASI_TEMPAT_TUGAS, rapikanTeks, TAHUN_AKTIF } from "../_shared/config.ts";
@@ -109,8 +110,8 @@ export async function ambilDataLihatDataHakAkses(token: string): Promise<string>
     // deno-lint-ignore no-explicit-any
     let rows: any[];
 
-    if (instansiPengguna === "SUPERADMIN") {
-      // Admin utama: lihat semua data tahun aktif
+    if (instansiPengguna === "SUPERADMIN" || instansiPengguna === "VERIFIKATOR") {
+      // Admin utama dan Verifikator (baca saja): lihat semua data tahun aktif
       rows = await sql`
         select id, nama, nik, jenis_kelamin, tempat_lahir, tanggal_lahir, alamat, layanan,
                tempat_tugas, alamat_tugas, kecamatan, kelurahan, nama_rekening, nomor_rekening,
@@ -481,6 +482,17 @@ export async function ambilDetailPenerimaPerBaris(token: string, nomorBarisAsli:
     dataLengkap[52] = formatTanggalWaktuWIB(row.tanggal_berkas_diubah);
     dataLengkap[53] = perluLaporBerkas(row);
 
+    // Nama lengkap pemverifikator (indeks 54, non-breaking; plans/plan-tim-verifikator.md K5): dicari dari akun.nama_lengkap menurut username di
+    // diverifikasi_oleh. Kosong bila belum diverifikasi, pemverifikasi otomatis ("SISTEM ..."), akun sudah tak ada, atau nama belum diisi.
+    let namaVerifikator = "";
+    const usernameVerifikator = String(row.diverifikasi_oleh || "").trim();
+    // Hanya Admin Utama dan Verifikator yang menerima nama lengkap (petugas lain tetap melihat username saja, seperti sebelumnya).
+    if (usernameVerifikator && !/^SISTEM/i.test(usernameVerifikator) && bolehVerifikasiSatuData(sesi.role)) {
+      const rowsVerif = await sql`select nama_lengkap from akun where lower(username) = lower(${usernameVerifikator}) limit 1`;
+      if (rowsVerif.length > 0) namaVerifikator = String(rowsVerif[0].nama_lengkap || "").trim();
+    }
+    dataLengkap[54] = namaVerifikator;
+
     return JSON.stringify({ sukses: true, dataLengkap });
   } catch (error) {
     return JSON.stringify({ sukses: false, pesan: String(error) });
@@ -622,6 +634,8 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
   } catch (e) {
     return { sukses: false, pesan: e instanceof Error ? e.message : String(e) };
   }
+  // Lapis kedua (selain gerbang daftar-putih di index.ts): akun Verifikator tidak pernah boleh menulis/mengubah data penerima.
+  if (adalahVerifikator(sesi.role)) return { sukses: false, pesan: PESAN_VERIFIKATOR_DITOLAK };
 
   // ── Idempotency: cegah data dobel saat browser retry akibat timeout/koneksi putus ──
   // Frontend mengirim `idempotencyKey` (UUID v4) yang di-generate SEKALI saat tombol Konfirmasi
@@ -994,6 +1008,8 @@ export async function editDataPenerimaInti(
   } catch (e) {
     return { sukses: false, pesan: e instanceof Error ? e.message : String(e) };
   }
+  // Lapis kedua (selain gerbang daftar-putih di index.ts): akun Verifikator tidak pernah boleh menulis/mengubah data penerima.
+  if (adalahVerifikator(sesi.role)) return { sukses: false, pesan: PESAN_VERIFIKATOR_DITOLAK };
 
   const id = Number(nomorBarisAsli);
   if (!id) return { sukses: false, pesan: "Nomor baris tidak valid." };
