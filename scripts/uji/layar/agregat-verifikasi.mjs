@@ -215,6 +215,7 @@ try {
   cek("SEMUA: kartu Tim I, II, III, IV dan 'Tanpa tim' tampil", (await js("Array.from(" + OV + ".querySelectorAll('button[data-tim]')).map((b) => b.getAttribute('data-tim')).join(',')")) === "I,II,III,IV,-" && /Tanpa tim/.test(teks), teks.slice(0, 400));
   cek("SEMUA: baris Admin Utama tampil sebagai informasi terpisah (tidak dihitung ke tim)", /Admin Utama \(informasi, tidak dihitung ke tim\)/.test(teks));
   cek("SEMUA: akun tanpa tim tampil dengan strip", (await js("Array.from(" + OV + ".querySelectorAll('tbody tr')).some((r) => /verif_baru/.test(r.textContent) && /–/.test(r.cells[1].textContent))")) === true);
+  await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(os.tmpdir(), "djpm_agregat_semua.png"), Buffer.from(s.result.data, "base64")));
   await klik("button[data-tim='II']"); await tidur(800);
   const qt = terakhir("getAgregatVerifikasi");
   cek("SEMUA: mengetuk kartu Tim II mengirim saringan tim 'II' ke server (server yang menyaring)", qt.args[3] === "II", JSON.stringify(qt));
