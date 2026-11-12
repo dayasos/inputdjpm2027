@@ -240,6 +240,10 @@ try {
   await tidur(400);
   const kunciUtama = await js("(() => { const e = document.getElementById('gp-username'); return { ada: !!e, disabled: e.disabled, readOnly: e.readOnly, nilai: e.value, label: (e.parentNode.querySelector('label') || {}).textContent || '' }; })()");
   cek("UTAMA (regresi): kolom username TIDAK dikunci", kunciUtama.ada && !kunciUtama.disabled && !/dikunci/.test(kunciUtama.label), JSON.stringify(kunciUtama));
+  const rolePil = await js("(() => { const ops = (id) => Array.from((document.getElementById(id) || { options: [] }).options).map((o) => o.value); const s = document.getElementById('tu-role'); s.value = 'VERIFIKATOR'; s.dispatchEvent(new Event('change', { bubbles: true })); const dk = document.getElementById('tu-div-kecamatan'); return { tambah: ops('tu-role'), edit: ops('eu-role'), filter: ops('filter-role-kelola-user'), kecamatanTersembunyi: !!dk && dk.classList.contains('hidden') }; })()");
+  cek("UTAMA: role Verifikator ada di dropdown Tambah Pengguna Baru, Edit, dan filter Kelola User", rolePil.tambah.includes('VERIFIKATOR') && rolePil.edit.includes('VERIFIKATOR') && rolePil.filter.includes('VERIFIKATOR'), JSON.stringify(rolePil));
+  cek("UTAMA: memilih Verifikator menyembunyikan isian kecamatan", rolePil.kecamatanTersembunyi === true, JSON.stringify(rolePil));
+  cek("UTAMA: daftar role lain tetap lengkap (UTAMA, KECAMATAN, MUI, 6 jenis guru/penatua)", ['UTAMA', 'KECAMATAN', 'MUI', 'GURU SEKOLAH BUDDHA', 'GURU SEKOLAH HINDU', 'GURU SEKOLAH KONG HU CHU', 'GURU SEKOLAH MINGGU', 'PENATUA GEREJA', 'GURU MAGHRIB MENGAJI'].every((r) => rolePil.tambah.includes(r)), JSON.stringify(rolePil.tambah));
   cek("UTAMA (regresi): modul verifikator TIDAK dimuat", !skripDimuat.some((u) => /app-verifikator\.js/.test(u)));
 
   // ============================ GMM (regresi) ============================

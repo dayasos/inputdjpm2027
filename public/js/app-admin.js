@@ -2225,6 +2225,7 @@ const PILIHAN_ROLE_PENGGUNA = [
   { nilai: 'UTAMA', label: 'Utama' },
   { nilai: 'KECAMATAN', label: 'Kecamatan' },
   { nilai: 'MUI', label: 'MUI (Ustadz & Ustadzah)' },
+  { nilai: 'VERIFIKATOR', label: 'Verifikator (tim verifikasi)' },
   { nilai: 'GURU SEKOLAH BUDDHA', label: 'Guru Sekolah Buddha' },
   { nilai: 'GURU SEKOLAH HINDU', label: 'Guru Sekolah Hindu' },
   { nilai: 'GURU SEKOLAH KONG HU CHU', label: 'Guru Sekolah Kong Hu Chu' },
@@ -2547,7 +2548,7 @@ function bukaModalEditUser(username) {
   if (roleResmi) {
     pesanEl?.classList.add('hidden');
   } else if (pesanEl) {
-    pesanEl.textContent = 'Akun ini masih memakai role lama "' + (u.role || '-') + '". Pilih salah satu dari tujuh role resmi sebelum menyimpan perubahan.';
+    pesanEl.textContent = 'Akun ini masih memakai role lama "' + (u.role || '-') + '". Pilih salah satu role resmi sebelum menyimpan perubahan.';
     pesanEl.className = 'text-xs font-semibold p-2.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200';
     pesanEl.classList.remove('hidden');
   }

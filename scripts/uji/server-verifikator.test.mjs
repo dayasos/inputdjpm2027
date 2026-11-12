@@ -396,3 +396,48 @@ test("LOGIN PERTAMA: simpanProfilUser (profil awal) menolak tanpa sandi baru / s
   assert.ok(ok.sukses === true || tulis.length > 0, JSON.stringify(ok));
   assert.ok(!JSON.stringify(db().panggilan).includes("Sandi2027baru"), "sandi tidak tersimpan sebagai teks biasa");
 });
+
+test("TAMBAH AKUN: Admin Utama dapat membuat akun VERIFIKATOR (tanpa kecamatan, profil kosong, aktif, sandi ter-hash); non-UTAMA tidak bisa", async () => {
+  pakai("UTAMA");
+  const h = await akun.tambahUserBaru(token(), { username: "verif_budi_santoso", password: "admin123", role: "VERIFIKATOR", kecamatan: "MEDAN KOTA", namaLengkap: "", nomorHp: "", jabatan: "" });
+  assert.equal(h.sukses, true, JSON.stringify(h));
+  const ins = db().panggilan.find((p) => /insert into akun/i.test(p.teks));
+  assert.ok(ins, "akun ditulis");
+  const nilai = JSON.stringify(ins.nilai || ins.values || ins);
+  assert.ok(nilai.includes("VERIFIKATOR") && nilai.includes("verif_budi_santoso"));
+  assert.ok(!nilai.includes("admin123"), "sandi tidak tersimpan sebagai teks biasa");
+  assert.ok(!nilai.includes("MEDAN KOTA"), "kecamatan yang terkirim diabaikan untuk role ini");
+  for (const peran of ["VERIF", "KEC", "GMM"]) {
+    pakai(peran);
+    const t = await akun.tambahUserBaru(token(), { username: "verif_lain", password: "admin123", role: "VERIFIKATOR" });
+    assert.equal(t.sukses, false, peran);
+    assert.equal(db().panggilan.filter((p) => /insert into akun/i.test(p.teks)).length, 0, "tidak menulis: " + peran);
+  }
+});
+
+test("EDIT AKUN: Admin Utama dapat menyunting profil akun VERIFIKATOR tanpa mengubah role/kecamatan/user_id (dan tanpa mencabut sesi)", async () => {
+  pakai("UTAMA");
+  const dasar = db().handler;
+  db().handler = (q, v) => (q.includes("select id, role, kecamatan, user_id from akun") ? [{ id: "a9", role: "VERIFIKATOR", kecamatan: "", user_id: "" }] : dasar(q, v));
+  const h = await akun.ubahDataUserOlehAdmin(token(), "verif_andi", { role: "VERIFIKATOR", kecamatan: "MEDAN KOTA", namaLengkap: "Andi Saputra", nomorHp: "081234567890", jabatan: "Verifikator Tim I" });
+  assert.equal(h.sukses, true, JSON.stringify(h));
+  assert.doesNotMatch(h.pesan, /login ulang/, "penugasan tidak berubah -> sesi tidak dicabut");
+  const up = db().panggilan.find((p) => /update akun set\s+role/i.test(p.teks));
+  assert.ok(up, "akun diperbarui");
+  assert.ok(!JSON.stringify(up).includes("MEDAN KOTA"), "kecamatan yang terkirim diabaikan untuk role ini");
+  assert.equal(db().panggilan.filter((p) => /delete from sesi_login/i.test(p.teks)).length, 0);
+});
+
+test("KESESUAIAN: daftar role resmi di server (akun.ts), dropdown app-admin.js dan layar Kelola User (app-kelola-user.js) SAMA (kelalaian satu daftar tidak boleh terulang)", () => {
+  const nilai = (src, awal, akhir) => {
+    const i = src.indexOf(awal); const j = src.indexOf(akhir, i);
+    assert.ok(i >= 0 && j > i, "blok tidak ditemukan: " + awal);
+    return [...src.slice(i, j).matchAll(/(?:nilai:\s*|^\s*)["']([A-Z][A-Z ]+)["']/gm)].map((m) => m[1]).sort();
+  };
+  const server = nilai(baca("supabase/functions/api/domains/akun.ts"), "const ROLE_PENGGUNA_VALID", "]);");
+  const admin = nilai(baca("public/js/app-admin.js"), "const PILIHAN_ROLE_PENGGUNA", "];");
+  const kelola = nilai(baca("public/js/app-kelola-user.js"), "var PILIHAN_ROLE = [", "];");
+  assert.ok(server.includes("VERIFIKATOR") && server.length >= 10, JSON.stringify(server));
+  assert.deepEqual(admin, server, "app-admin.js vs server");
+  assert.deepEqual(kelola, server, "app-kelola-user.js vs server");
+});
