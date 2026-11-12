@@ -144,6 +144,26 @@ export interface BarisOrang {
 
 const nol = () => ({ total: 0, jamKerja: 0, luarJamKerja: 0, memenuhiSyarat: 0, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0 });
 
+/** Tabulasi per orang saja (tanpa rincian harian): dipakai kartu per tim agar tidak bergantung pada saringan tabel. Bukan rekursif (tipe hasil eksplisit). */
+export function hitungPerOrang(
+  anggota: AkunVerif[], kejadian: Kejadian[], rentang: Rentang, konfig: KonfigJamKerja, libur: ReadonlySet<string>,
+): BarisOrang[] {
+  const orang = new Map<string, BarisOrang>();
+  for (const a of anggota) orang.set(rapi(a.username), { username: a.username, namaLengkap: a.namaLengkap || "", tim: a.tim, koordinator: !!a.koordinator, aktif: !!a.aktif, ...nol() });
+  for (const k of kejadian) {
+    const b = orang.get(rapi(k.oleh));
+    if (!b) continue;
+    if (!(k.waktu >= rentang.awalUtc && k.waktu < rentang.akhirUtcEksklusif)) continue;
+    const jam = adalahJamKerja(k.waktu, konfig, libur);
+    const st = rapi(k.statusBaru);
+    b.total++; if (jam) b.jamKerja++; else b.luarJamKerja++;
+    if (st === "MEMENUHI SYARAT") b.memenuhiSyarat++;
+    else if (st === "BERKAS TIDAK LENGKAP") b.berkasTidakLengkap++;
+    else if (st === "TIDAK MEMENUHI SYARAT") b.tidakMemenuhiSyarat++;
+  }
+  return [...orang.values()];
+}
+
 export function susunAgregat(p: {
   cakupan: Cakupan; anggota: AkunVerif[]; kejadian: Kejadian[]; rentang: Rentang; konfig: KonfigJamKerja; libur: ReadonlySet<string>;
   luarTim?: { waktu: Date }[]; sertakanPerOrangHari?: boolean;
@@ -189,7 +209,7 @@ export function susunAgregat(p: {
     const kunciTim = [...DAFTAR_TIM, "-"] as string[];
     // Kartu per tim selalu dari SEMUA verifikator (bukan hanya yang lolos saringan tim), supaya angka tim lain tidak tampak 0 saat satu tim dipilih.
     const dasarTim = p.semuaAnggota && p.semuaAnggota !== p.anggota
-      ? susunAgregat({ ...p, anggota: p.semuaAnggota, semuaAnggota: undefined, luarTim: undefined, sertakanPerOrangHari: false }).perOrang
+      ? hitungPerOrang(p.semuaAnggota, p.kejadian, p.rentang, p.konfig, p.libur)
       : perOrang;
     perTim = kunciTim.map((tm) => {
       const m = dasarTim.filter((o) => (o.tim || "-") === tm);

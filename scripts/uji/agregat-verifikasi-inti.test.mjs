@@ -183,3 +183,21 @@ test("AGREGAT: kartu per tim memuat SEMUA tim walau tabel disaring ke satu tim (
   const b = susunAgregat({ cakupan: "SEMUA", anggota: tim2, kejadian, rentang, konfig, libur });
   assert.equal(b.perTim.find((t) => t.tim === "I").total, 0);
 });
+
+test("AGREGAT: kartu per tim memakai aturan yang SAMA dengan tabel (rentang, jam kerja, status) walau disaring", () => {
+  const kejadian = [
+    kej("VERIF_A1", "2026-11-09 09:00:00"),                              // Tim I, jam kerja
+    kej("VERIF_A1", "2026-11-14 09:00:00", "Berkas Tidak Lengkap"),      // Tim I, Sabtu -> luar
+    kej("VERIF_A2", "2026-11-08 23:59:59"),                              // Tim I, SEBELUM rentang -> tidak dihitung di kartu
+    kej("VERIF_A2", "2026-11-16 00:00:00"),                              // Tim I, SESUDAH rentang -> tidak dihitung
+    kej("VERIF_B1", "2026-11-10 10:00:00"),
+  ];
+  const a = susunAgregat({ cakupan: "SEMUA", anggota: AKUN.filter((x) => x.tim === "II"), semuaAnggota: AKUN, kejadian, rentang, konfig, libur });
+  const tim = Object.fromEntries(a.perTim.map((t) => [t.tim, t]));
+  assert.deepEqual([tim.I.total, tim.I.jamKerja, tim.I.luarJamKerja], [2, 1, 1], "kartu Tim I: hanya kejadian dalam rentang, dengan klasifikasi jam kerja yang sama");
+  assert.deepEqual([tim.II.total, tim.II.jamKerja, tim.II.luarJamKerja], [1, 1, 0]);
+  assert.equal(a.ringkasan.total, 1, "ringkasan tetap hanya Tim II");
+  // Kartu tanpa saringan = tabel (konsisten)
+  const b = susunAgregat({ cakupan: "SEMUA", anggota: AKUN, semuaAnggota: AKUN, kejadian, rentang, konfig, libur });
+  assert.deepEqual(b.perTim.map((x) => [x.tim, x.total, x.jamKerja, x.luarJamKerja]), a.perTim.map((x) => [x.tim, x.total, x.jamKerja, x.luarJamKerja]), "kartu sama dengan atau tanpa saringan");
+});
