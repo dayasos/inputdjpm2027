@@ -220,6 +220,7 @@ try {
   const qt = terakhir("getAgregatVerifikasi");
   cek("SEMUA: mengetuk kartu Tim II mengirim saringan tim 'II' ke server (server yang menyaring)", qt.args[3] === "II", JSON.stringify(qt));
   cek("SEMUA: judul menjadi 'Agregat Tim II' dan kartu terpilih ditandai", /Agregat Tim II/.test(await teksPanel()) && (await js(OV + ".querySelector('button[data-tim=\"II\"]').getAttribute('aria-pressed')")) === "true");
+  await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(os.tmpdir(), "djpm_agregat_tim_terpilih.png"), Buffer.from(s.result.data, "base64")));
   await klik("button[data-tim='II']"); await tidur(800);
   cek("SEMUA: mengetuk lagi mengembalikan ke semua tim (saringan kosong)", terakhir("getAgregatVerifikasi").args[3] === "");
   await klik("#agr-unduh"); await tidur(900);

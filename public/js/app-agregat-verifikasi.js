@@ -114,7 +114,9 @@
       '#' + ID + ' .agr-tag{font-size:.66rem;border:1px solid #cbd5e1;border-radius:4px;padding:1px 6px;margin-left:6px;color:#64748b;font-style:normal}',
       '#' + ID + ' .agr-tim-baris{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}',
       '#' + ID + ' .agr-tim-baris .agr-kartu{cursor:pointer}',
-      '#' + ID + ' .agr-tim-baris .agr-kartu[aria-pressed="true"]{box-shadow:0 0 0 4px rgba(23,54,93,.28)}',
+      '#' + ID + ' .agr-tim-baris .agr-kartu[aria-pressed="true"]{outline:3px solid #17365d;outline-offset:2px}',
+      // penanda TEKS pada kartu terpilih (tidak hanya mengandalkan warna/garis)
+      '#' + ID + ' .agr-tim-baris .agr-kartu[aria-pressed="true"] .agr-lbl span:first-child::after{content:" ✓ dipilih";font-weight:700;color:#17365d}',
       // tiap tim punya warna garis sendiri (bukan warna jam kerja/luar jam kerja), supaya kartu mudah dibedakan
       '#' + ID + ' .agr-tim-baris .agr-kartu[data-tim="I"]{border-color:#2563eb;background:#f3f7ff}#' + ID + ' .agr-tim-baris .agr-kartu[data-tim="I"] .agr-lbl{color:#1d4ed8}',
       '#' + ID + ' .agr-tim-baris .agr-kartu[data-tim="II"]{border-color:#7c3aed;background:#f7f3ff}#' + ID + ' .agr-tim-baris .agr-kartu[data-tim="II"] .agr-lbl{color:#6d28d9}',
