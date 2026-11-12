@@ -34,6 +34,7 @@ function buatDetail({ status = "Proses Verifikasi", ket = "", tgl = "", oleh = "
 }
 function jawab(aksi, args) {
   if (aksi === "pulihkanSesi") return { sukses: true, token: "TOKEN-UJI", username: peran === "VERIFIKATOR" ? "verif_andi" : "petugas", role: peran, kecamatan: peran === "GURU MAGHRIB MENGAJI" ? "MEDAN MARELAN" : "", userId: "", profileBelumDiisi: false, profil: { namaLengkap: "ANDI SAPUTRA", nomorHp: "0800", jabatan: "Verifikator" } };
+  if (aksi === "ubahAkunSendiri") { panggilan.push({ aksi, args }); return { sukses: true, pesan: "Password berhasil diperbarui." }; }
   if (aksi === "getMasterLayanan") return { kecamatan: ["IMAM MASJID"], kemenag: ["GURU MAGHRIB MENGAJI"] };
   if (aksi === "ambilDetailPenerimaPerBaris") return { sukses: true, dataLengkap: detail };
   if (aksi === "ambilRiwayatEdit") return { sukses: true, riwayat: [] };
@@ -162,6 +163,19 @@ try {
 
   cek("VERIFIKATOR: tidak ikut timer/pesan periode input (ambilStatusPeriode TIDAK dipanggil)", !aksiDipanggil.has("ambilStatusPeriode"), [...aksiDipanggil.keys()].join(", "));
 
+  // Kolom username di "Ganti Password/Username" dikunci untuk Verifikator
+  await js("document.getElementById('fab-ganti-password').click(); true");
+  await tidur(400);
+  await js("(() => { const e = document.getElementById('gp-username'); e.disabled = false; e.readOnly = false; e.value = 'verif_baru'; return true; })()");   // simulasi upaya mengisi
+  await tidur(2600);   // pemeriksaan berkala modul verifikator mengunci ulang dan mengosongkan
+  const kunci = await js("(() => { const e = document.getElementById('gp-username'); return { ada: !!e, disabled: e.disabled, readOnly: e.readOnly, nilai: e.value, label: (e.parentNode.querySelector('label') || {}).textContent || '' }; })()");
+  cek("VERIFIKATOR: kolom username di Ganti Password dikunci (nonaktif), kosong, dan berlabel dikunci", kunci.ada && kunci.disabled && kunci.readOnly && kunci.nilai === '' && /dikunci/.test(kunci.label), JSON.stringify(kunci));
+  await js("document.getElementById('gp-lama').value = 'x'; document.getElementById('gp-baru').value = 'Baru2027abc'; document.getElementById('gp-konfirm').value = 'Baru2027abc'; document.getElementById('gp-simpan').click(); true");
+  await tidur(900);
+  const ua = panggilan.filter((x) => x.aksi === 'ubahAkunSendiri');
+  cek("VERIFIKATOR: ganti password saja tetap terkirim dengan username baru KOSONG", ua.length === 1 && ua[0].args[2] === '', JSON.stringify(ua));
+  await js("document.getElementById('modal-ganti-password') && document.getElementById('modal-ganti-password').classList.add('hidden'); true");
+
   // Badge melayang: agregat verifikasi akun yang login
   await tidur(1200);
   const badge = await js("(() => { const e = document.getElementById('djpm-badge-verifikasi'); if (!e) return null; const r = e.getBoundingClientRect(); return { teks: e.textContent.replace(/\\s+/g, ' ').trim(), tetap: getComputedStyle(e).position, terlihat: r.width > 0 && r.height > 0 }; })()");
@@ -206,12 +220,26 @@ try {
   const luarDaftar = [...aksiDipanggil.keys()].filter((a) => !AKSI_VERIFIKATOR.has(a));
   cek("VERIFIKATOR: SELURUH aksi yang dipanggil layar ada di daftar-putih server (tidak ada yang akan ditolak)", luarDaftar.length === 0, "di luar daftar: " + luarDaftar.join(", ") + " | dipanggil: " + [...aksiDipanggil.keys()].join(", "));
 
+  // Logout tidak memuat ulang halaman: akun lain (UTAMA) yang masuk sesudah verifikator HARUS mendapat kolom username kembali normal
+  await js("dataPengguna.role = 'UTAMA'; true");
+  await tidur(2600);
+  const terbuka = await js("(() => { const e = document.getElementById('gp-username'); return { disabled: e.disabled, label: (e.parentNode.querySelector('label') || {}).textContent || '', ph: e.placeholder }; })()");
+  cek("Pergantian akun tanpa muat ulang (Verifikator -> UTAMA): kolom username dibuka kembali dan label dipulihkan", terbuka.disabled === false && /Username Baru/.test(terbuka.label) && /Min\. 4 karakter/.test(terbuka.ph), JSON.stringify(terbuka));
+  await js("dataPengguna.role = 'VERIFIKATOR'; true");
+  await tidur(2600);
+  const terkunciLagi = await js("(() => { const e = document.getElementById('gp-username'); return { disabled: e.disabled, label: (e.parentNode.querySelector('label') || {}).textContent || '', ph: e.placeholder }; })()");
+  cek("Kembali ke Verifikator: kolom username terkunci lagi", terkunciLagi.disabled === true && /dikunci/.test(terkunciLagi.label), JSON.stringify(terkunciLagi));
+
   // ============================ UTAMA (regresi) ============================
   await masuk("UTAMA");
   k = await bukaDetail({ status: "Proses Verifikasi" });
   cek("UTAMA (regresi): panel tetap berjudul 'Verifikasi Admin Utama' dan tombol Kelola alasan cepat ada", k.judulPanel === "Verifikasi Admin Utama" && k.tombolAc.some((t) => /Kelola/.test(t)), JSON.stringify(k));
   cek("UTAMA (regresi): tab Input tetap terlihat", (await tampil("tab-input")) === "tampil");
   cek("UTAMA (regresi): badge verifikasi TIDAK tampil", (await js("!document.getElementById('djpm-badge-verifikasi')")) === true);
+  await js("document.getElementById('fab-ganti-password').click(); true");
+  await tidur(400);
+  const kunciUtama = await js("(() => { const e = document.getElementById('gp-username'); return { ada: !!e, disabled: e.disabled, readOnly: e.readOnly, nilai: e.value, label: (e.parentNode.querySelector('label') || {}).textContent || '' }; })()");
+  cek("UTAMA (regresi): kolom username TIDAK dikunci", kunciUtama.ada && !kunciUtama.disabled && !/dikunci/.test(kunciUtama.label), JSON.stringify(kunciUtama));
   cek("UTAMA (regresi): modul verifikator TIDAK dimuat", !skripDimuat.some((u) => /app-verifikator\.js/.test(u)));
 
   // ============================ GMM (regresi) ============================

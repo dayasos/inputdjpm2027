@@ -380,3 +380,19 @@ test("BATAS SERAGAM: Berkas Tidak Lengkap memakai batas dari server (tanggal kir
   const b = await verifikasi.verifikasiSatuData(token(), 1, "Tidak Memenuhi Syarat", "alasan", "2099-01-01", "Proses Verifikasi");
   assert.equal(b.batasWaktu, "", "status lain tanpa batas");
 });
+
+test("LOGIN PERTAMA: simpanProfilUser (profil awal) menolak tanpa sandi baru / sandi lemah, tanpa menulis; sandi baru valid tersimpan sebagai hash", async () => {
+  pakai("VERIF");
+  for (const [pb, pola] of [["", /Password baru wajib/], ["abc12", /minimal 6/], ["abcdefgh", /huruf dan angka/]]) {
+    db().panggilan.length = 0;
+    const h = await akun.simpanProfilUser(token(), "Uga Deba", "081234567890", "Verifikator Tim IV", pb);
+    assert.equal(h.sukses, false);
+    assert.match(h.pesan, pola);
+    assert.equal(db().panggilan.filter((p) => /update akun/i.test(p.teks)).length, 0, "tidak menulis: " + JSON.stringify(pb));
+  }
+  db().panggilan.length = 0;
+  const ok = await akun.simpanProfilUser(token(), "Uga Deba", "081234567890", "Verifikator Tim IV", "Sandi2027baru");
+  const tulis = db().panggilan.filter((p) => /update akun set password_hash/i.test(p.teks));
+  assert.ok(ok.sukses === true || tulis.length > 0, JSON.stringify(ok));
+  assert.ok(!JSON.stringify(db().panggilan).includes("Sandi2027baru"), "sandi tidak tersimpan sebagai teks biasa");
+});

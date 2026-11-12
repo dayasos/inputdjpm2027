@@ -50,10 +50,38 @@
     if (e.style) { e.style.pointerEvents = 'none'; e.style.setProperty('display', 'none', 'important'); }   // sebagian tombol (kelas auth-show/flex) tidak hilang hanya dengan 'hidden'
   }
 
+  // Username verifikator TIDAK boleh diubah (dipakai sebagai jejak verifikasi; server juga menolaknya). Kolomnya dikunci supaya tidak dicoba.
+  function kunciUsername() {
+    var el = dok.getElementById('gp-username');
+    if (!el) return;
+    if (el.value) el.value = '';
+    if (!el.__djpmDikunci) {
+      var label = el.parentNode && el.parentNode.querySelector('label');
+      el.__djpmDikunci = { placeholder: el.placeholder, bg: el.style.backgroundColor, warna: el.style.color, kursor: el.style.cursor, label: label ? label.textContent : null };
+      el.placeholder = 'Username tidak dapat diubah';
+      el.style.backgroundColor = '#f1f5f9'; el.style.color = '#94a3b8'; el.style.cursor = 'not-allowed';
+      if (label) label.textContent = 'Username (dikunci, dipakai sebagai jejak verifikasi)';
+    }
+    el.disabled = true; el.readOnly = true;   // ditegaskan ulang setiap pemeriksaan (bila dibuka lewat alat pengembang, dikunci lagi)
+  }
+
+  /** Logout tidak memuat ulang halaman: bila akun lain (mis. Admin Utama) masuk sesudah verifikator, kolom dikembalikan seperti semula. */
+  function bukaKunciUsername() {
+    var el = dok.getElementById('gp-username');
+    if (!el || !el.__djpmDikunci) return;
+    var a = el.__djpmDikunci;
+    el.disabled = false; el.readOnly = false;
+    el.placeholder = a.placeholder;
+    el.style.backgroundColor = a.bg; el.style.color = a.warna; el.style.cursor = a.kursor;
+    var label = el.parentNode && el.parentNode.querySelector('label');
+    if (label && a.label !== null) label.textContent = a.label;
+    el.__djpmDikunci = null;
+  }
+
   function selaraskan() {
     // dataPengguna adalah variabel `let` global (bukan properti window), jadi dibaca lewat nama, bukan akar.dataPengguna.
     var pengguna = (typeof dataPengguna !== 'undefined') ? dataPengguna : null;
-    if (!perluDipasang(pengguna)) return;
+    if (!perluDipasang(pengguna)) { bukaKunciUsername(); return; }
     // terapkanHakAkses membuka tab Input lebih dulu; verifikator dipindah ke "Lihat Data" bila panel Input masih terlihat
     // (DIPERIKSA sebelum panel disembunyikan, supaya perpindahan tab benar-benar terjadi).
     var panelInput = dok.getElementById('panel-input');
@@ -61,6 +89,7 @@
     var perluPindah = !!panelInput && !panelInput.classList.contains('hidden') && !!tabRekap;
     if (perluPindah) { try { tabRekap.click(); } catch (_e) { /* abaikan */ } }
     ID_SEMBUNYI.forEach(sembunyikan);
+    kunciUsername();
     if (typeof selarasBadge === 'function') selarasBadge();
   }
   api.selaraskan = selaraskan;
