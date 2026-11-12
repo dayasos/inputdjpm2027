@@ -9,6 +9,12 @@
 //   2. Set env var TAHUN_AKTIF=2028 di Supabase secrets, lalu deploy ulang Edge Function.
 export const TAHUN_AKTIF = Number(Deno.env.get("TAHUN_AKTIF")) || 2027;
 
+// Batas waktu perbaikan SERAGAM untuk semua data "Berkas Tidak Lengkap" (yyyy-MM-dd, tanggal WIB). Ditetapkan server di
+// verifikasiSatuData -- Admin Utama tidak lagi memilih tanggal per data. Bila perlu diganti, ubah di sini DAN konstanta
+// BATAS_PERBAIKAN_SERAGAM di public/js/app-transaksi.js, lalu samakan data lama:
+//   update penerima set batas_waktu_perbaikan = '<tanggal>' where tahun = <TAHUN_AKTIF> and status_verifikasi = 'Berkas Tidak Lengkap';
+export const BATAS_PERBAIKAN_SERAGAM = "2026-11-30";
+
 // ID spreadsheet Penyimpanan (SS_ID_PENYIMPANAN di Kode.gs baris 5) — dipakai sync-worker untuk
 // menulis mirror "Data Input <tahun>" ke Google Sheets. Bukan rahasia (sama seperti env.js skrip
 // backfill), aman hardcode dengan fallback env var kalau suatu saat perlu dialihkan ke salinan lain.

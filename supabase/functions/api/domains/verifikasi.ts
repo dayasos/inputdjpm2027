@@ -45,7 +45,7 @@ export async function getRingkasanVerifikasiSaya(token: string) {
     return { sukses: false, pesan: error instanceof Error ? error.message : String(error) };
   }
 }
-import { TAHUN_AKTIF } from "../_shared/config.ts";
+import { BATAS_PERBAIKAN_SERAGAM, TAHUN_AKTIF } from "../_shared/config.ts";
 import { formatTanggalWaktuWIB } from "../_shared/tanggal.ts";
 import {
   daftarLayananKemenagUpper,
@@ -98,13 +98,10 @@ export async function verifikasiSatuData(
   const keteranganBersih = memenuhi ? "" : (keterangan || "").toString().trim();
   if (!memenuhi && !keteranganBersih) return { sukses: false, pesan: "Keterangan hasil verifikasi wajib diisi." };
 
-  let batasWaktuBersih = "";
-  if (statusBaru === "Berkas Tidak Lengkap") {
-    batasWaktuBersih = (batasWaktu || "").toString().trim();
-    if (!batasWaktuBersih) {
-      return { sukses: false, pesan: "Batas waktu perbaikan wajib diisi untuk status Berkas Tidak Lengkap." };
-    }
-  }
+  // Batas waktu perbaikan Berkas Tidak Lengkap DISERAGAMKAN (BATAS_PERBAIKAN_SERAGAM); nilai `batasWaktu` dari browser
+  // diabaikan supaya tidak ada data yang batasnya berbeda (tab lama / pemanggilan langsung).
+  void batasWaktu;
+  const batasWaktuBersih = statusBaru === "Berkas Tidak Lengkap" ? BATAS_PERBAIKAN_SERAGAM : "";
 
   try {
     // Dihitung sekali di JS (bukan now() di SQL) supaya nilai yang DISIMPAN dan yang DIKEMBALIKAN

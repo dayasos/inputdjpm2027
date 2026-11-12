@@ -1,6 +1,6 @@
 # Plan: Templat "Alasan Cepat" untuk Keterangan Verifikasi (+ layar Kelola Templat)
 
-> Versi **2.1** (2026-10-30) · Status: **P0–P5 SELESAI di lokal; migrasi P1 SUDAH DITERAPKAN di produksi (izin user). BELUM di-commit/push/deploy (P6 menunggu izin setelah review user).** Lihat "Catatan realisasi" di akhir.
+> Versi **2.2** (2026-10-30) · Status: **SUDAH LIVE (P6 selesai 2026-10-30): commit a3936bd, push 0174bea..a3936bd, fungsi `api` v102 aktif, frontend ?v=20271057 tayang. Sisa: uji klik Admin Utama di data nyata + pantau log.** Lihat "Catatan realisasi" di akhir.
 > v2.0 menggantikan v1.0 setelah jawaban user: chip klik (K1), templat di kode **dan** layar tambah-sendiri (K2), berlaku juga untuk
 > Tidak Memenuhi Syarat (K4), tanpa kalimat favorit tambahan (K5), format nomor `1. …` per baris (K6). K3 tidak perlu lagi (lihat §3c).
 > Prinsip proyek: bertahap, mudah dibatalkan, uji lokal dulu, migrasi/push/deploy hanya atas izin.

@@ -204,10 +204,11 @@ test("VERIFIKASI: alasan wajib untuk Berkas Tidak Lengkap dan Tidak Memenuhi Sya
     assert.equal(h.sukses, false, status);
     assert.match(h.pesan, /Keterangan hasil verifikasi wajib diisi/);
   }
-  const h2 = await verif("Berkas Tidak Lengkap", "alasan", "");
-  assert.equal(h2.sukses, false);
   assert.equal(tulisan("update penerima set").length, 0);
   assert.equal(riwayat().length, 0);
+  // Batas waktu perbaikan kini SERAGAM (ditetapkan server): tanpa tanggal dari browser tetap sukses.
+  const h2 = await verif("Berkas Tidak Lengkap", "alasan", "");
+  assert.equal(h2.sukses, true);
 });
 
 test("VERIFIKASI: peran selain UTAMA/VERIFIKATOR ditolak (Kecamatan, GMM), tanpa menulis apa pun", async () => {
@@ -363,4 +364,19 @@ test("BADGE: ringkasan verifikasi saya hanya milik akun yang login, hanya UTAMA/
 test("BADGE: aksi terdaftar di ALLOWED dan daftar-putih Verifikator", () => {
   assert.equal(AKSI_VERIFIKATOR.has("getRingkasanVerifikasiSaya"), true);
   assert.match(baca("supabase/functions/api/index.ts"), /^\s*getRingkasanVerifikasiSaya,$/m);
+});
+
+test("BATAS SERAGAM: Berkas Tidak Lengkap memakai batas dari server (tanggal kiriman browser diabaikan); status lain tanpa batas", async () => {
+  const seragam = baca("supabase/functions/api/_shared/config.ts").match(/BATAS_PERBAIKAN_SERAGAM = "(\d{4}-\d{2}-\d{2})"/)[1];
+  const klien = baca("public/js/app-transaksi.js").match(/const BATAS_PERBAIKAN_SERAGAM = "(\d{4}-\d{2}-\d{2})"/)[1];
+  assert.equal(klien, seragam, "konstanta layar harus sama dengan server");
+  pakai("VERIF");
+  const a = await verifikasi.verifikasiSatuData(token(), 1, "Berkas Tidak Lengkap", "alasan", "2099-01-01", "Proses Verifikasi");
+  assert.equal(a.sukses, true);
+  assert.equal(a.batasWaktu, seragam, "bukan 2099-01-01");
+  const u = tulisan("update penerima set").pop();
+  assert.ok(u.nilai ? u.nilai.includes(seragam) : JSON.stringify(u).includes(seragam), "yang DISIMPAN juga batas seragam");
+  assert.ok(!JSON.stringify(u).includes("2099-01-01"));
+  const b = await verifikasi.verifikasiSatuData(token(), 1, "Tidak Memenuhi Syarat", "alasan", "2099-01-01", "Proses Verifikasi");
+  assert.equal(b.batasWaktu, "", "status lain tanpa batas");
 });
