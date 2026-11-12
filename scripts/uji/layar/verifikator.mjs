@@ -140,18 +140,13 @@ try {
   const sesudah = await js(`(() => { const k = document.getElementById('isi-konten-detail').querySelector('.mt-2.rounded-lg'); return k ? k.textContent.replace(/\\s+/g, ' ').trim() : null; })()`);
   cek("VERIFIKATOR: sesudah verifikasi, kotak status langsung memuat username DAN nama lengkap pemverifikator baru", sesudah === "Diverifikasi oleh VERIF_ANDI (Andi Saputra) · 12-11-2026 10:00", JSON.stringify(sesudah));
 
-  // Tampilan optimistik: saat "menyimpan...", nama pemverifikator LAMA tidak boleh tampil di samping username baru; setelah sukses nama baru tampil
-  tundaVerifikasiMs = 1600;
-  await bukaDetail({ status: "Berkas Tidak Lengkap", ket: "KTP buram", tgl: "01-11-2026 08:00", oleh: "BUDI_LAMA", nama: "Budi Lama" });
-  await js("document.getElementById('btn-tandai-memenuhi').click(); true");
-  await tidur(500);
-  const kotakJs = `(() => { const k = document.getElementById('isi-konten-detail').querySelector('.mt-2.rounded-lg'); return k ? k.textContent.replace(/\\s+/g, ' ').trim() : null; })()`;
-  const saatMenyimpan = await js(kotakJs);
-  cek("VERIFIKATOR: saat 'menyimpan...' tampil username baru TANPA nama pemverifikator lama", !!saatMenyimpan && /VERIF_ANDI/.test(saatMenyimpan) && !/Budi Lama|BUDI_LAMA/.test(saatMenyimpan), JSON.stringify(saatMenyimpan));
-  await tidur(1800);
-  const sesudahLambat = await js(kotakJs);
-  cek("VERIFIKATOR: sesudah sukses tampil nama lengkap pemverifikator baru", sesudahLambat === "Diverifikasi oleh VERIF_ANDI (Andi Saputra) · 12-11-2026 10:00", JSON.stringify(sesudahLambat));
-  tundaVerifikasiMs = 0;
+  // D9: data yang SUDAH berstatus tidak dapat diubah verifikator: tanpa panel/tombol hasil, hanya keterangan
+  for (const st of ["Berkas Tidak Lengkap", "Memenuhi Syarat", "Tidak Memenuhi Syarat"]) {
+    const kk = await bukaDetail({ status: st, ket: st === "Memenuhi Syarat" ? "" : "alasan", tgl: "01-11-2026 08:00", oleh: "BUDI_LAMA", nama: "Budi Lama" });
+    const adaCatatan = await js("/Hasil verifikasi sudah diberikan\\. Perubahan hanya dapat dilakukan oleh Admin Utama/.test(document.getElementById('isi-konten-detail').textContent)");
+    cek("VERIFIKATOR (D9): data berstatus '" + st + "' tanpa panel verifikasi dan tanpa tombol hasil/perbaikan, ada catatan 'perubahan hanya Admin Utama'",
+      kk.judulPanel === null && kk.tombol.length === 0 && adaCatatan === true, JSON.stringify({ kk, adaCatatan }));
+  }
 
   // Tampilan pemverifikator dengan nama lengkap (K5)
   k = await bukaDetail({ status: "Memenuhi Syarat", tgl: "12-11-2026 10:00", oleh: "VERIF_ANDI", nama: "Andi Saputra" });
@@ -159,7 +154,7 @@ try {
   k = await bukaDetail({ status: "Memenuhi Syarat", tgl: "05-11-2026 12:11", oleh: "ADMIN", nama: "" });
   cek("Tanpa nama lengkap: tampil username saja ('Diverifikasi oleh ADMIN · ...')", k.kotakStatus === "Diverifikasi oleh ADMIN · 05-11-2026 12:11", JSON.stringify(k.kotakStatus));
   k = await bukaDetail({ status: "Berkas Tidak Lengkap", ket: "KTP buram", tgl: "01-11-2026 08:00", oleh: "VERIF_ANDI", nama: "Andi Saputra" });
-  cek("VERIFIKATOR: data Berkas Tidak Lengkap menampilkan tombol 'Tandai Sudah Diperbaiki'", k.tombol.includes("btn-tandai-sudah-diperbaiki") && /Keterangan: KTP buram/.test(k.kotakStatus || ""), JSON.stringify(k));
+  cek("VERIFIKATOR (D9): data Berkas Tidak Lengkap TIDAK menampilkan 'Tandai Sudah Diperbaiki', tetapi keterangan tetap terbaca", !k.tombol.includes("btn-tandai-sudah-diperbaiki") && /Keterangan: KTP buram/.test(k.kotakStatus || ""), JSON.stringify(k));
 
   cek("VERIFIKATOR: tidak ikut timer/pesan periode input (ambilStatusPeriode TIDAK dipanggil)", !aksiDipanggil.has("ambilStatusPeriode"), [...aksiDipanggil.keys()].join(", "));
 
@@ -240,6 +235,21 @@ try {
   await tidur(400);
   const kunciUtama = await js("(() => { const e = document.getElementById('gp-username'); return { ada: !!e, disabled: e.disabled, readOnly: e.readOnly, nilai: e.value, label: (e.parentNode.querySelector('label') || {}).textContent || '' }; })()");
   cek("UTAMA (regresi): kolom username TIDAK dikunci", kunciUtama.ada && !kunciUtama.disabled && !/dikunci/.test(kunciUtama.label), JSON.stringify(kunciUtama));
+  // UTAMA: tampilan optimistik: saat "menyimpan...", nama pemverifikator LAMA tidak boleh tampil di samping username baru; setelah sukses nama baru tampil
+  tundaVerifikasiMs = 1600;
+  await bukaDetail({ status: "Berkas Tidak Lengkap", ket: "KTP buram", tgl: "01-11-2026 08:00", oleh: "BUDI_LAMA", nama: "Budi Lama" });
+  await js("document.getElementById('btn-tandai-memenuhi').click(); true");
+  await tidur(500);
+  const kotakJs = `(() => { const k = document.getElementById('isi-konten-detail').querySelector('.mt-2.rounded-lg'); return k ? k.textContent.replace(/\\s+/g, ' ').trim() : null; })()`;
+  const saatMenyimpan = await js(kotakJs);
+  cek("UTAMA: saat 'menyimpan...' tampil username baru TANPA nama pemverifikator lama", !!saatMenyimpan && /PETUGAS/.test(saatMenyimpan) && !/Budi Lama|BUDI_LAMA/.test(saatMenyimpan), JSON.stringify(saatMenyimpan));
+  await tidur(1800);
+  const sesudahLambat = await js(kotakJs);
+  cek("UTAMA: sesudah sukses tampil nama lengkap pemverifikator baru", sesudahLambat === "Diverifikasi oleh VERIF_ANDI (Andi Saputra) · 12-11-2026 10:00", JSON.stringify(sesudahLambat));
+  tundaVerifikasiMs = 0;
+
+  k = await bukaDetail({ status: "Berkas Tidak Lengkap", ket: "KTP buram", tgl: "01-11-2026 08:00", oleh: "VERIF_ANDI", nama: "Andi Saputra" });
+  cek("UTAMA (D9): tetap menampilkan panel hasil dan tombol 'Tandai Sudah Diperbaiki' pada data Berkas Tidak Lengkap", k.judulPanel === "Verifikasi Admin Utama" && k.tombol.includes("btn-tandai-sudah-diperbaiki") && k.tombol.includes("btn-tandai-memenuhi"), JSON.stringify(k));
   const rolePil = await js("(() => { const ops = (id) => Array.from((document.getElementById(id) || { options: [] }).options).map((o) => o.value); const s = document.getElementById('tu-role'); s.value = 'VERIFIKATOR'; s.dispatchEvent(new Event('change', { bubbles: true })); const dk = document.getElementById('tu-div-kecamatan'); return { tambah: ops('tu-role'), edit: ops('eu-role'), filter: ops('filter-role-kelola-user'), kecamatanTersembunyi: !!dk && dk.classList.contains('hidden') }; })()");
   cek("UTAMA: role Verifikator ada di dropdown Tambah Pengguna Baru, Edit, dan filter Kelola User", rolePil.tambah.includes('VERIFIKATOR') && rolePil.edit.includes('VERIFIKATOR') && rolePil.filter.includes('VERIFIKATOR'), JSON.stringify(rolePil));
   cek("UTAMA: memilih Verifikator menyembunyikan isian kecamatan", rolePil.kecamatanTersembunyi === true, JSON.stringify(rolePil));

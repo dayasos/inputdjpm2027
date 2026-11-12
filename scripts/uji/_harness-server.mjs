@@ -32,7 +32,11 @@ const STUB_DB = `
   }
   export function sql(strings, ...nilai) { return jalankan(strings.join("?"), nilai); }
   sql.unsafe = (teks, nilai) => jalankan("UNSAFE " + teks, nilai || []);
-  sql.begin = (fn) => fn(sql);
+  sql.begin = async (fn) => {
+    const awal = globalThis.__ujiDb.panggilan.length;
+    try { return await fn(sql); }
+    catch (e) { for (let i = awal; i < globalThis.__ujiDb.panggilan.length; i++) globalThis.__ujiDb.panggilan[i].dibatalkan = true; throw e; }
+  };
   sql.json = (x) => x;
 `;
 
@@ -50,6 +54,7 @@ export async function muatServer(entriRelatif) {
         name: "stub",
         setup(b) {
           b.onResolve({ filter: /(^|\/)db\.ts$/ }, () => ({ path: stubDb }));
+          b.onResolve({ filter: /^npm:/ }, (x) => ({ path: x.path, external: true }));   // pustaka npm milik Deno (mis. exceljs) tidak dimuat di uji
           b.onResolve({ filter: /(^|\/)(setelan|validasi|master|gasDrive|storage)\.ts$/ }, (a) => {
             const nama = path.basename(a.path);
             const berkas = path.join(tmp, "stub-" + nama + ".mjs");

@@ -1,5 +1,5 @@
-import { bolehVerifikasiSatuData } from "../_shared/gerbangPeran.ts";
-import { catatRiwayatVerifikasi, catatRiwayatVerifikasiBanyak } from "../_shared/riwayatVerifikasi.ts";
+import { adalahVerifikator, bolehVerifikasiSatuData } from "../_shared/gerbangPeran.ts";
+import { catatRiwayatVerifikasi, catatRiwayatVerifikasiBanyak, catatRiwayatVerifikasiWajib } from "../_shared/riwayatVerifikasi.ts";
 
 /** Nama lengkap akun pemverifikator (untuk tampilan segera sesudah verifikasi). Gagal/kosong -> "" (layar menampilkan username saja). */
 async function namaLengkapAkun(akunId: unknown): Promise<string> {
@@ -14,8 +14,8 @@ import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
 
 /**
- * Agregat verifikasi milik akun yang login (untuk badge melayang). Hanya membaca; hanya baris yang saat ini
- * tercatat `diverifikasi_oleh` = username akun ini pada tahun aktif. Khusus UTAMA dan Verifikator.
+ * Agregat verifikasi milik akun yang login (untuk badge melayang). Hanya membaca; dihitung dari riwayat_verifikasi
+ * (pemberian hasil pertama per data oleh akun ini, tahun aktif). Khusus UTAMA dan Verifikator.
  */
 export async function getRingkasanVerifikasiSaya(token: string) {
   try {
@@ -23,15 +23,22 @@ export async function getRingkasanVerifikasiSaya(token: string) {
     if (!bolehVerifikasiSatuData(sesi.role)) return { sukses: false, pesan: "Fitur ini khusus Admin Utama dan Verifikator." };
     const nama = (sesi.username || "").toString().toUpperCase();
     if (!nama) return { sukses: true, total: 0, hariIni: 0, memenuhiSyarat: 0, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0 };
+    // Sumber SAMA dengan agregat hasil kerja (plans/plan-agregat-verifikator.md, K10): pemberian hasil verifikasi PERTAMA per data
+    // oleh akun ini (riwayat_verifikasi, sumber SATU, status sebelumnya "Proses Verifikasi"/kosong), 1 kali per data.
     const rows = await sql`
       select
-        count(*) filter (where status_verifikasi in ('Memenuhi Syarat','Berkas Tidak Lengkap','Tidak Memenuhi Syarat'))::int as total,
-        count(*) filter (where status_verifikasi in ('Memenuhi Syarat','Berkas Tidak Lengkap','Tidak Memenuhi Syarat') and (tanggal_verifikasi at time zone 'Asia/Jakarta')::date = (now() at time zone 'Asia/Jakarta')::date)::int as hari_ini,
-        count(*) filter (where status_verifikasi = 'Memenuhi Syarat')::int as ms,
-        count(*) filter (where status_verifikasi = 'Berkas Tidak Lengkap')::int as btl,
-        count(*) filter (where status_verifikasi = 'Tidak Memenuhi Syarat')::int as tms
-      from penerima
-      where tahun = ${TAHUN_AKTIF} and upper(diverifikasi_oleh) = ${nama}`;
+        count(*)::int as total,
+        count(*) filter (where (waktu at time zone 'Asia/Jakarta')::date = (now() at time zone 'Asia/Jakarta')::date)::int as hari_ini,
+        count(*) filter (where status_baru = 'Memenuhi Syarat')::int as ms,
+        count(*) filter (where status_baru = 'Berkas Tidak Lengkap')::int as btl,
+        count(*) filter (where status_baru = 'Tidak Memenuhi Syarat')::int as tms
+      from (
+        select distinct on (penerima_id) penerima_id, waktu, status_baru
+        from riwayat_verifikasi
+        where tahun = ${TAHUN_AKTIF} and oleh = ${nama} and sumber = 'SATU'
+          and coalesce(nullif(trim(status_lama), ''), 'Proses Verifikasi') = 'Proses Verifikasi'
+        order by penerima_id, waktu
+      ) x`;
     const r = rows[0] || {};
     return {
       sukses: true,
@@ -121,25 +128,49 @@ export async function verifikasiSatuData(
     // "$8 = '' OR status_verifikasi = $8": kalau statusDiharapkan kosong (tidak dikirim), tidak
     // ada pengecekan status sama sekali (perilaku asli: cek konflik cuma jalan kalau statusDiharapkan
     // diisi) — persis logika `if (statusDiharapkan && statusSaatIni !== statusDiharapkan)`.
-    const rows = await sql`
-      update penerima set
-        status_verifikasi = ${statusBaru},
-        keterangan_verifikasi = ${keteranganBersih},
-        tanggal_verifikasi = ${waktuVerifikasi},
-        diverifikasi_oleh = ${namaVerifikator},
-        batas_waktu_perbaikan = ${batasWaktuBersih || null},
-        tanggal_lapor_perbaikan = case when ${putaranBaru}::boolean then null else tanggal_lapor_perbaikan end,
-        dilapor_oleh = case when ${putaranBaru}::boolean then null else dilapor_oleh end,
-        tanggal_berkas_diubah = null
-      where id = ${id} and tahun = ${TAHUN_AKTIF}
-        and (${statusDiharapkan} = '' or status_verifikasi = ${statusDiharapkan})
-      returning id
-    `;
+    // D9 (plans/plan-agregat-verifikator.md): akun VERIFIKATOR hanya boleh memberi hasil pada data yang MASIH menunggu
+    // ("" atau "Proses Verifikasi", predikat sama dengan verifikasi massal). Mengubah data yang sudah berstatus = Admin Utama.
+    const pelakuVerifikator = adalahVerifikator(sesi.role);
+    const riwayat = {
+      penerimaId: id, tahun: TAHUN_AKTIF, statusLama: String(statusSebelumnya || ""), statusBaru, keterangan: keteranganBersih, oleh: namaVerifikator, sumber: "SATU" as const,
+    };
+    // Verifikator: pembaruan status + catatan riwayat dalam SATU transaksi (riwayat gagal -> pembaruan dibatalkan), karena riwayat
+    // menjadi dasar hitungan lembur. Admin Utama: riwayat tetap non-blocking (tidak boleh menghambat Admin Utama).
+    // deno-lint-ignore no-explicit-any
+    const rows = await sql.begin(async (trx: any) => {
+      const hasil = await trx`
+        update penerima set
+          status_verifikasi = ${statusBaru},
+          keterangan_verifikasi = ${keteranganBersih},
+          tanggal_verifikasi = ${waktuVerifikasi},
+          diverifikasi_oleh = ${namaVerifikator},
+          batas_waktu_perbaikan = ${batasWaktuBersih || null},
+          tanggal_lapor_perbaikan = case when ${putaranBaru}::boolean then null else tanggal_lapor_perbaikan end,
+          dilapor_oleh = case when ${putaranBaru}::boolean then null else dilapor_oleh end,
+          tanggal_berkas_diubah = null
+        where id = ${id} and tahun = ${TAHUN_AKTIF}
+          and (${statusDiharapkan} = '' or status_verifikasi = ${statusDiharapkan})
+          and (not ${pelakuVerifikator}::boolean or (status_verifikasi = '' or upper(trim(status_verifikasi)) = 'PROSES VERIFIKASI'))
+        returning id
+      `;
+      if (hasil.length > 0 && pelakuVerifikator) await catatRiwayatVerifikasiWajib(trx, riwayat);
+      return hasil;
+    });
 
     if (rows.length === 0) {
       const cekAda = await sql`select status_verifikasi from penerima where id = ${id} and tahun = ${TAHUN_AKTIF} limit 1`;
       if (cekAda.length === 0) return { sukses: false, pesan: "Baris tidak ditemukan." };
       const statusTerkini = cekAda[0].status_verifikasi;
+      const sudahBerstatus = String(statusTerkini || "").trim() !== "" && String(statusTerkini).trim().toUpperCase() !== "PROSES VERIFIKASI";
+      if (pelakuVerifikator && sudahBerstatus) {
+        return {
+          sukses: false,
+          konflik: true,
+          statusTerkini,
+          pesan: 'Data ini sudah memiliki hasil verifikasi (status: "' + statusTerkini +
+            '"). Perubahan hanya dapat dilakukan oleh Admin Utama. Muat ulang data.',
+        };
+      }
       return {
         sukses: false,
         konflik: true,
@@ -149,9 +180,7 @@ export async function verifikasiSatuData(
       };
     }
 
-    await catatRiwayatVerifikasi({
-      penerimaId: id, tahun: TAHUN_AKTIF, statusLama: String(statusSebelumnya || ""), statusBaru, keterangan: keteranganBersih, oleh: namaVerifikator, sumber: "SATU",
-    });
+    if (!pelakuVerifikator) await catatRiwayatVerifikasi(riwayat);
 
     // Update berhasil — jika status berubah DARI "Memenuhi Syarat" ke status lain,
     // arsipkan dan hapus baris dari data_detail (non-blocking: tidak boleh gagalkan respons).
@@ -254,8 +283,9 @@ export async function tandaiSudahDiperbaiki(token: string, nomorBarisAsli: numbe
   } catch (e) {
     return { sukses: false, pesan: e instanceof Error ? e.message : String(e) };
   }
-  if (!bolehVerifikasiSatuData(sesi.role)) {
-    return { sukses: false, pesan: "Fitur ini khusus Admin Utama dan Verifikator." };
+  // D9 (plans/plan-agregat-verifikator.md): perbaikan/pemeriksaan ulang = pekerjaan Admin Utama; akun Verifikator ditolak.
+  if ((sesi.role || "").toString().trim().toUpperCase() !== "UTAMA") {
+    return { sukses: false, pesan: "Fitur ini khusus Admin Utama." };
   }
 
   const id = Number(nomorBarisAsli);

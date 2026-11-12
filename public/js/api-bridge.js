@@ -434,6 +434,8 @@ const AKSI_BACA_AMAN_DIRETRY = new Set([
   'ambilDetailBatchPembayaran',
   'getDaftarBerkasTidakLengkapUntukWA',
   'ringkasanVerifikasiMassal', // pratinjau verifikasi massal: SELECT murni, tanpa cache SWR (angka harus segar)
+  'getAgregatVerifikasi', // agregat hasil kerja verifikator: SELECT murni, tanpa cache SWR (domains/agregatVerifikasi.ts)
+  'getRingkasanVerifikasiSaya', // badge verifikator: SELECT murni (domains/verifikasi.ts)
   // Cek Rumah Ibadah (khusus UTAMA): SELECT murni, SENGAJA tanpa cache SWR -- jawaban "sudah ada pengurusnya?" harus segar, dan jawaban
   // lama yang tiba sesudah sinyal perubahan data bisa mengisi ulang cache dengan data basi (muat ulang otomatis lalu menampilkannya).
   'cariRumahIbadahPengurus',

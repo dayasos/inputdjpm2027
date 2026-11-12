@@ -233,26 +233,68 @@ test("VERIFIKASI: konflik (status sudah berubah oleh verifikator lain) tidak men
   assert.equal(riwayat().length, 0);
 });
 
-test("TANDAI SUDAH DIPERBAIKI: VERIFIKATOR boleh; riwayat sumber DIPERBAIKI", async () => {
+test("TANDAI SUDAH DIPERBAIKI (D9): khusus Admin Utama; VERIFIKATOR ditolak tanpa menulis; UTAMA sukses dengan riwayat DIPERBAIKI atas namanya", async () => {
   pakai("VERIF");
+  const t = await verifikasi.tandaiSudahDiperbaiki(token(), 1);
+  assert.equal(t.sukses, false, JSON.stringify(t));
+  assert.match(t.pesan, /khusus Admin Utama/);
+  assert.equal(tulisan("update penerima set").length, 0);
+  assert.equal(riwayat().length, 0);
+  pakai("UTAMA");
   const h = await verifikasi.tandaiSudahDiperbaiki(token(), 1);
   assert.equal(h.sukses, true, JSON.stringify(h));
-  assert.equal(h.verifikator, "VERIF_ANDI");
-  assert.equal(h.namaLengkap, "Andi Saputra");
+  assert.equal(h.verifikator, "ADMIN");
   const r = riwayat();
   assert.equal(r.length, 1);
-  assert.deepEqual(r[0].nilai, [1, 2027, "Berkas Tidak Lengkap", "Memenuhi Syarat", "", "VERIF_ANDI", "DIPERBAIKI"]);
+  assert.deepEqual(r[0].nilai, [1, 2027, "Berkas Tidak Lengkap", "Memenuhi Syarat", "", "ADMIN", "DIPERBAIKI"]);
 });
 
-test("RIWAYAT non-blocking: bila tabel riwayat belum ada/gagal, verifikasi TETAP berhasil", async () => {
+test("RIWAYAT (D8): untuk VERIFIKATOR riwayat WAJIB satu transaksi dengan pembaruan status; bila riwayat gagal, verifikasi gagal dan pembaruan DIBATALKAN", async () => {
   pakai("VERIF");
+  const asli = db().handler;
+  db().handler = (q, v) => { if (q.includes("insert into riwayat_verifikasi")) throw new Error('relation "riwayat_verifikasi" does not exist'); return asli(q, v); };
+  const h = await verif("Memenuhi Syarat", "", "");
+  assert.equal(h.sukses, false, JSON.stringify(h));
+  const up = tulisan("update penerima set");
+  assert.equal(up.length, 1);
+  assert.equal(up[0].dibatalkan, true, "pembaruan status ikut dibatalkan (rollback)");
+});
+
+test("RIWAYAT: untuk Admin Utama tetap NON-BLOCKING (riwayat gagal tidak menghambat verifikasi)", async () => {
+  pakai("UTAMA");
   const asli = db().handler;
   db().handler = (q, v) => { if (q.includes("insert into riwayat_verifikasi")) throw new Error('relation "riwayat_verifikasi" does not exist'); return asli(q, v); };
   const galat = console.error; console.error = () => {};
   try {
     const h = await verif("Memenuhi Syarat", "", "");
     assert.equal(h.sukses, true, JSON.stringify(h));
+    assert.notEqual(tulisan("update penerima set")[0].dibatalkan, true);
   } finally { console.error = galat; }
+});
+
+test("D9: VERIFIKATOR hanya boleh memberi hasil pada data yang masih Proses Verifikasi (syarat ada di UPDATE); Admin Utama tidak dibatasi", async () => {
+  pakai("VERIF");
+  await verif("Memenuhi Syarat", "", "");
+  let up = tulisan("update penerima set")[0];
+  assert.ok(up.teks.includes("upper(trim(status_verifikasi)) = 'PROSES VERIFIKASI'"), "predikat Proses Verifikasi");
+  assert.equal(up.nilai[up.nilai.length - 1], true, "parameter terakhir (pelaku verifikator) = true");
+  pakai("UTAMA");
+  await verif("Memenuhi Syarat", "", "");
+  up = tulisan("update penerima set")[0];
+  assert.equal(up.nilai[up.nilai.length - 1], false, "parameter terakhir (pelaku verifikator) = false untuk Admin Utama");
+});
+
+test("D9: data sudah berstatus -> VERIFIKATOR mendapat pesan 'perubahan hanya oleh Admin Utama' (konflik), tanpa riwayat; Admin Utama mendapat pesan konflik biasa", async () => {
+  for (const [peran, pola] of [["VERIF", /Perubahan hanya dapat dilakukan oleh Admin Utama/], ["UTAMA", /diverifikasi\/diubah oleh admin lain/]]) {
+    pakai(peran);
+    const asli = db().handler;
+    db().handler = (q, v) => (q.includes("update penerima set") ? [] : q.includes("select status_verifikasi from penerima") ? [{ status_verifikasi: "Memenuhi Syarat" }] : asli(q, v));
+    const h = await verif("Berkas Tidak Lengkap", "alasan", "", "Proses Verifikasi");
+    assert.equal(h.sukses, false, peran);
+    assert.equal(h.konflik, true, peran);
+    assert.match(h.pesan, pola, peran);
+    assert.equal(riwayat().length, 0, peran);
+  }
 });
 
 test("VERIFIKASI MASSAL dan daftar WA tetap KHUSUS Admin Utama: VERIFIKATOR ditolak tanpa menulis; UTAMA tetap bisa", async () => {
@@ -340,16 +382,17 @@ test("BADGE: ringkasan verifikasi saya hanya milik akun yang login, hanya UTAMA/
   let kueri = null;
   const dasar = db().handler;
   db().handler = (q, v) => {
-    if (q.includes("count(*)") && q.includes("diverifikasi_oleh")) { kueri = { q, v }; return [{ total: 7, hari_ini: 2, ms: 4, btl: 2, tms: 1 }]; }
+    if (q.includes("count(*)") && q.includes("from riwayat_verifikasi")) { kueri = { q, v }; return [{ total: 7, hari_ini: 2, ms: 4, btl: 2, tms: 1 }]; }
     return dasar(q, v);
   };
   const h = await verifikasi.getRingkasanVerifikasiSaya(token());
   assert.deepEqual(h, { sukses: true, total: 7, hariIni: 2, memenuhiSyarat: 4, berkasTidakLengkap: 2, tidakMemenuhiSyarat: 1 });
   assert.ok(kueri.v.includes("VERIF_ANDI"), "disaring menurut username akun yang login (huruf besar)");
   assert.ok(kueri.v.includes(2027), "tahun aktif");
-  assert.ok(kueri.q.includes("upper(diverifikasi_oleh) = "), "disaring menurut pemverifikator");
-  assert.ok(kueri.q.includes("status_verifikasi in ('Memenuhi Syarat','Berkas Tidak Lengkap','Tidak Memenuhi Syarat')"), "total = jumlah tiga status");
-  assert.ok(kueri.q.includes("'Tidak Memenuhi Syarat'))::int as total"), "kolom total memakai saringan status");
+  assert.ok(kueri.q.includes("oleh = ") && kueri.q.includes("sumber = 'SATU'"), "disaring menurut pemverifikator dan hanya pemberian hasil (SATU)");
+  assert.ok(kueri.q.includes("distinct on (penerima_id)"), "satu data dihitung 1 kali");
+  assert.ok(kueri.q.includes("'Proses Verifikasi'"), "hanya pemberian hasil PERTAMA (status sebelumnya Proses Verifikasi)");
+  assert.ok(!kueri.q.includes("diverifikasi_oleh"), "bukan lagi dari kolom pemverifikator terakhir (sumber sama dengan agregat)");
   assert.equal(db().panggilan.filter((p) => /^\s*(insert|update|delete)/i.test(p.teks)).length, 0, "tidak menulis");
   // Akun lain tidak boleh.
   for (const peran of ["KEC", "GMM"]) {

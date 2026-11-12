@@ -28,6 +28,19 @@ export async function catatRiwayatVerifikasi(r: RiwayatVerifikasi): Promise<void
   }
 }
 
+/**
+ * WAJIB (blocking): dipakai untuk akun VERIFIKATOR, karena riwayat inilah dasar perhitungan lembur (plans/plan-agregat-verifikator.md, D8).
+ * Dijalankan DI DALAM transaksi yang sama dengan pembaruan status data: bila insert gagal, pembaruan status ikut dibatalkan
+ * (exception dilempar ke pemanggil, yang melakukan rollback). Tidak ada verifikasi yang sukses tetapi tidak terhitung.
+ */
+// deno-lint-ignore no-explicit-any
+export async function catatRiwayatVerifikasiWajib(trx: any, r: RiwayatVerifikasi): Promise<void> {
+  await trx`
+    insert into riwayat_verifikasi (penerima_id, tahun, status_lama, status_baru, keterangan, oleh, sumber)
+    values (${r.penerimaId}, ${r.tahun}, ${r.statusLama}, ${r.statusBaru}, ${r.keterangan}, ${r.oleh}, ${r.sumber})
+  `;
+}
+
 /** Banyak data sekaligus (verifikasi massal / penurunan otomatis): satu pernyataan, status lama/baru sama untuk semuanya. */
 export async function catatRiwayatVerifikasiBanyak(ids: number[], tahun: number, statusLama: string, statusBaru: string, keterangan: string, oleh: string, sumber: SumberRiwayat): Promise<void> {
   if (ids.length === 0) return;

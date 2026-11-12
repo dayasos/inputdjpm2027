@@ -113,7 +113,17 @@
       el.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:60;background:#0f172a;color:#f8fafc;border:1px solid #334155;' +
         'border-radius:14px;padding:8px 12px;font:600 13px/1.35 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.3);cursor:pointer;' +
         'max-width:calc(100vw - 32px);user-select:none';
-      el.addEventListener('click', function () { if (!ringkasan) { muatBadge(true); return; } terbuka = !terbuka; gambarBadge(); });
+      el.addEventListener('click', function (e) {
+        var tautan = e.target && e.target.closest ? e.target.closest('[data-agr]') : null;
+        if (tautan) {   // "Lihat hasil kerja": buka panel agregat (app-agregat-verifikasi.js, dimuat bersama modul ini)
+          e.preventDefault(); e.stopPropagation();
+          if (typeof akar.bukaAgregatVerifikasi === 'function') akar.bukaAgregatVerifikasi(el);
+          else if (typeof tampilkanToast === 'function') tampilkanToast('Fitur belum siap dimuat. Muat ulang halaman lalu coba lagi.', 'gagal');
+          return;
+        }
+        if (!ringkasan) { muatBadge(true); return; }
+        terbuka = !terbuka; gambarBadge();
+      });
       dok.body.appendChild(el);
     }
     var nama = String(pengguna.username || '').toUpperCase();
@@ -122,7 +132,8 @@
       if (el.__isi !== '#' + pesan) { el.textContent = pesan; el.__isi = '#' + pesan; }
       return;
     }
-    var kepala = '<div>✔ Verifikasi saya: <b>' + angka(ringkasan.total) + '</b> · Hari ini: <b>' + angka(ringkasan.hariIni) + '</b></div>';
+    var kepala = '<div>✔ Verifikasi saya: <b>' + angka(ringkasan.total) + '</b> · Hari ini: <b>' + angka(ringkasan.hariIni) + '</b></div>' +
+      '<div style="margin-top:2px;font-weight:500"><a href="#" data-agr="1" style="color:#8fd3ff;text-decoration:underline">Lihat hasil kerja \u2192</a></div>';
     var rinci = terbuka
       ? '<div style="margin-top:6px;font-weight:500;color:#cbd5e1">' +
         '<div>Memenuhi Syarat: ' + angka(ringkasan.memenuhiSyarat) + '</div>' +

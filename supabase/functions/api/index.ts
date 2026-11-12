@@ -58,6 +58,7 @@ import {
 import { buatTokenSSORetur } from "./domains/sso.ts";
 import { ambilDataTahunHakAkses, ambilRiwayatEdit, ambilTahunTersedia } from "./domains/riwayat.ts";
 import { getDashboardProgresVerifikasi } from "./domains/dashboard.ts";
+import { getAgregatVerifikasi, unduhRekapLemburVerifikasi } from "./domains/agregatVerifikasi.ts";
 import { getCapaianInput, getProgresKuota, getSemuaKuota, simpanKuota } from "./domains/kuota.ts";
 import {
   getTemplatAlasan,
@@ -175,6 +176,8 @@ const ALLOWED: Record<string, Handler> = {
   hapusTemplatAlasan,
   urutkanTemplatAlasan,
   verifikasiSatuData,
+  getAgregatVerifikasi,
+  unduhRekapLemburVerifikasi,
   getRingkasanVerifikasiSaya,
   laporkanPerbaikanBerkas,
   tandaiSudahDiperbaiki,

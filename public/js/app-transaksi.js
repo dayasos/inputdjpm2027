@@ -2601,7 +2601,7 @@ function halamanBerikutnya() {
         </div>`;
       }
     }
-    if (dataPengguna.role === "UTAMA" || dataPengguna.role === "VERIFIKATOR") {
+    if (dataPengguna.role === "UTAMA" || (dataPengguna.role === "VERIFIKATOR" && statusVerif === "Proses Verifikasi")) { // D9: Verifikator hanya memberi hasil pada data Proses Verifikasi
       if (statusVerif === "Berkas Tidak Lengkap") {
         h += `<div class="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
           ${tglLaporPerbaikan && d[53] !== true ? `<p class="text-xs text-emerald-800 mb-2">Dilaporkan sudah diperbaiki oleh <strong>${esc(dilaporOlehPerbaikan)}</strong> (${esc(tglLaporPerbaikan)}). Cek berkasnya, lalu:</p>` : `<p class="text-xs text-emerald-800 mb-2">Kalau sudah dicek dan berkasnya benar sudah lengkap:</p>`}
@@ -2628,7 +2628,7 @@ function halamanBerikutnya() {
           </button>
         </div>
       </div>`;
-    }
+    } else if (dataPengguna.role === "VERIFIKATOR") { h += '<p class="mb-4 text-[11px] text-slate-600">Hasil verifikasi sudah diberikan. Perubahan hanya dapat dilakukan oleh Admin Utama.</p>'; }
     const isLayananMui = ["USTADZ", "USTADZAH", "USTADZ/USTADZAH"].includes((d[7] || "").toString().toUpperCase().trim());
     const statusMui = d[41] || "BELUM_DIPERIKSA";
     const catatanMui = d[42] || "";

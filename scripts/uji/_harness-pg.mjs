@@ -60,12 +60,19 @@ const STUB_DB = `
   sql.begin = (fn) => globalThis.__ujiPg.transaction(async (tx) => fn(fabrik(() => tx)));
 `;
 
-export async function muatServerPg(entriRelatif) {
+// Stub OPSIONAL (hanya bila diminta lewat opsi.stub): modul sampingan yang tidak relevan bagi uji dan menyentuh tabel yang tidak dibuat di sana.
+const STUB_OPSIONAL = {
+  "dataDetail.ts": "export const arsipkanDataDetail = async () => {}; export const pastikanDataDetailTersinkron = async () => {};",
+};
+
+export async function muatServerPg(entriRelatif, opsi = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "djpm-ujipg-"));
   try {
     const stubDb = path.join(tmp, "db-stub.mjs");
     fs.writeFileSync(stubDb, STUB_DB);
     for (const [nama, isi] of Object.entries(STUB_MODUL)) fs.writeFileSync(path.join(tmp, "stub-" + nama + ".mjs"), isi);
+    const stubOpsi = (opsi.stub || []).filter((n) => STUB_OPSIONAL[n]);
+    for (const n of stubOpsi) fs.writeFileSync(path.join(tmp, "stub-" + n + ".mjs"), STUB_OPSIONAL[n]);
     const keluar = path.join(tmp, "bundel.mjs");
     await build({
       entryPoints: [path.join(akarRepo, entriRelatif)],
@@ -74,6 +81,8 @@ export async function muatServerPg(entriRelatif) {
         name: "stub",
         setup(b) {
           b.onResolve({ filter: /(^|\/)db\.ts$/ }, () => ({ path: stubDb }));
+          b.onResolve({ filter: /^npm:/ }, (x) => ({ path: x.path, external: true }));   // pustaka npm milik Deno (mis. exceljs) tidak dimuat di uji
+          if (stubOpsi.length > 0) b.onResolve({ filter: new RegExp("(^|/)(" + stubOpsi.map((n) => n.replace(".ts", "")).join("|") + ")\\.ts$") }, (a) => ({ path: path.join(tmp, "stub-" + path.basename(a.path) + ".mjs") }));
           b.onResolve({ filter: /(^|\/)(setelan|validasi|master|gasDrive|storage|sesi)\.ts$/ }, (a) => {
             // Berkas stub sudah ditulis SEKALI di awal (menulis ulang saat resolusi = balapan dengan pembacaan esbuild -> terbaca kosong).
             return { path: path.join(tmp, "stub-" + path.basename(a.path) + ".mjs") };

@@ -30,11 +30,12 @@ export const AKSI_VERIFIKATOR: ReadonlySet<string> = new Set([
   "ambilDataTahunHakAkses",
   "ambilRiwayatEdit",
   "getDashboardProgresVerifikasi",
-  // Verifikasi (satu data)
+  // Verifikasi (satu data; hanya memberi hasil pada data "Proses Verifikasi"). "Tandai Sudah Diperbaiki" = khusus Admin Utama (D9)
   "getTemplatAlasan",     // templat alasan cepat (hanya membaca)
   "verifikasiSatuData",
-  "tandaiSudahDiperbaiki",
   "getRingkasanVerifikasiSaya", // badge melayang: agregat verifikasi akun sendiri (hanya membaca)
+  "getAgregatVerifikasi",       // agregat hasil kerja (sendiri / tim bila koordinator); cakupan ditentukan server (hanya membaca)
+  "unduhRekapLemburVerifikasi", // Excel rekap lembur, cakupan sama seperti di atas (hanya membaca)
 ]);
 
 export const PESAN_VERIFIKATOR_DITOLAK =
