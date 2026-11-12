@@ -139,58 +139,100 @@ export async function getAgregatVerifikasi(token: string, dari?: string, sampai?
 const TEKS_ATURAN = "Jam kerja (WIB): Senin-Kamis 08.00-16.30, Jumat 08.00-17.00. Sabtu, Minggu, dan tanggal merah dihitung luar jam kerja. "
   + "Dihitung: pemberian hasil verifikasi pertama oleh verifikator, 1 kali per data. Perbaikan/pemeriksaan ulang oleh Admin Utama tidak dihitung.";
 
+const URUTAN_TIM = ["I", "II", "III", "IV"];
+function peringkatTim(tim: string | null): number { const k = URUTAN_TIM.indexOf(String(tim || "")); return k < 0 ? 99 : k; }
+
+/** Urutan untuk Excel: per TIM (I, II, III, IV, tanpa tim), koordinator lebih dulu, lalu username. */
+export function urutkanPerTim<T extends { tim: string | null; koordinator?: boolean; username: string }>(daftar: T[]): T[] {
+  return [...daftar].sort((a, b) =>
+    peringkatTim(a.tim) - peringkatTim(b.tim) ||
+    Number(!!b.koordinator) - Number(!!a.koordinator) ||
+    a.username.localeCompare(b.username));
+}
+
+const labelTim = (tim: string | null) => tim ? "Tim " + tim : "Tanpa tim";
+const namaTampil = (n: string | undefined) => (n && n.trim()) ? n : "(belum mengisi profil)";
+
 // deno-lint-ignore no-explicit-any
 export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string) {
   const wb = new ExcelJS.Workbook();
   const judulCakupan = h.cakupan === "SAYA" ? "Hasil Kerja Saya" : h.cakupan === "TIM" ? `Hasil Tim ${h.timFokus}` : (h.timFokus ? `Agregat Tim ${h.timFokus}` : "Agregat Semua Tim");
   const rentangTeks = `${h.rentang.dari} s/d ${h.rentang.sampai}`;
+  const urut = urutkanPerTim(h.hasil.perOrang);
+  const kolom = 11;
 
-  // Sheet 1: rekap per orang
+  // Sheet 1: rekap per orang, DIURUTKAN per tim (Admin Utama: dengan subtotal tiap tim)
   const ws = wb.addWorksheet("Rekap");
   ws.addRow([`Rekap Hasil Kerja Verifikator - ${judulCakupan}`]);
   ws.addRow([`Periode: ${rentangTeks} (WIB)`]);
   ws.addRow([TEKS_ATURAN]);
   ws.addRow([]);
   const barisHeader = 5;
-  ws.addRow(["No", "Username", "Nama Lengkap", "Tim", "Jam Kerja", "Luar Jam Kerja (Lembur)", "Total Data", "Memenuhi Syarat", "Berkas Tidak Lengkap", "Tidak Memenuhi Syarat"]);
-  h.hasil.perOrang.forEach((o, i) => {
-    ws.addRow([i + 1, o.username, o.namaLengkap, o.tim ? "Tim " + o.tim : "-", o.jamKerja, o.luarJamKerja, o.total, o.memenuhiSyarat, o.berkasTidakLengkap, o.tidakMemenuhiSyarat]);
-  });
+  ws.addRow(["No", "Tim", "Username", "Nama Lengkap", "Peran", "Jam Kerja", "Luar Jam Kerja (Lembur)", "Total Data", "Memenuhi Syarat", "Berkas Tidak Lengkap", "Tidak Memenuhi Syarat"]);
+  let baris = barisHeader;
+  let no = 0;
+  const barisSubtotal: number[] = [];
+  const kelompok = new Map<string, typeof urut>();
+  for (const o of urut) { const k = o.tim || "-"; if (!kelompok.has(k)) kelompok.set(k, []); kelompok.get(k)!.push(o); }
+  for (const [k, anggota] of kelompok) {
+    for (const o of anggota) {
+      no++; baris++;
+      ws.addRow([no, labelTim(o.tim), o.username, namaTampil(o.namaLengkap), o.koordinator ? "Koordinator" : "Anggota", o.jamKerja, o.luarJamKerja, o.total, o.memenuhiSyarat, o.berkasTidakLengkap, o.tidakMemenuhiSyarat]);
+    }
+    if (h.cakupan === "SEMUA") {
+      const s = (f: (o: (typeof urut)[number]) => number) => anggota.reduce((x, o) => x + f(o), 0);
+      baris++; barisSubtotal.push(baris);
+      ws.addRow(["", "Subtotal " + labelTim(k === "-" ? null : k), "", "", `${anggota.length} orang`, s((o) => o.jamKerja), s((o) => o.luarJamKerja), s((o) => o.total), s((o) => o.memenuhiSyarat), s((o) => o.berkasTidakLengkap), s((o) => o.tidakMemenuhiSyarat)]);
+    }
+  }
   const r = h.hasil.ringkasan;
-  ws.addRow(["", "TOTAL", "", "", r.jamKerja, r.luarJamKerja, r.total, r.memenuhiSyarat, r.berkasTidakLengkap, r.tidakMemenuhiSyarat]);
-  const barisAkhir = barisHeader + h.hasil.perOrang.length + 1;
+  baris++;
+  ws.addRow(["", "TOTAL", "", "", `${urut.length} orang`, r.jamKerja, r.luarJamKerja, r.total, r.memenuhiSyarat, r.berkasTidakLengkap, r.tidakMemenuhiSyarat]);
+  const barisTotal = baris;
+  if (h.cakupan === "SEMUA" && h.hasil.luarTim) {
+    const a = h.hasil.luarTim;
+    ws.addRow([]);
+    ws.addRow([`Informasi (tidak masuk total di atas): pekerjaan Admin Utama pada periode ini = ${a.total} (jam kerja ${a.jamKerja}, luar jam kerja ${a.luarJamKerja}).`]);
+  }
   ws.getRow(1).font = { bold: true, size: 13 };
-  terapkanGayaHeaderKolom(ws, barisHeader, 10);
-  terapkanBorderData(ws, barisHeader + 1, barisAkhir, 10);
-  terapkanGayaBarisTotal(ws, barisAkhir, 10);
-  [6, 28, 30, 9, 11, 22, 12, 16, 20, 22].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  terapkanGayaHeaderKolom(ws, barisHeader, kolom);
+  terapkanBorderData(ws, barisHeader + 1, barisTotal, kolom);
+  for (const b of barisSubtotal) ws.getRow(b).font = { bold: true };
+  terapkanGayaBarisTotal(ws, barisTotal, kolom);
+  [6, 12, 28, 30, 13, 11, 22, 12, 16, 20, 22].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   ws.views = [{ state: "frozen", ySplit: barisHeader }];
 
-  // Sheet 2: per orang per hari (dasar lembur)
+  // Sheet 2: per orang per hari (dasar lembur), diurutkan per tim -> orang -> tanggal
   const wh = wb.addWorksheet("Per Hari");
   wh.addRow([`Rincian per hari - ${judulCakupan}`]);
   wh.addRow([`Periode: ${rentangTeks} (WIB)`]);
   wh.addRow([]);
-  wh.addRow(["Tanggal", "Hari", "Keterangan", "Username", "Nama Lengkap", "Tim", "Jam Kerja", "Luar Jam Kerja (Lembur)", "Total Data"]);
+  wh.addRow(["Tim", "Username", "Nama Lengkap", "Tanggal", "Hari", "Keterangan", "Jam Kerja", "Luar Jam Kerja (Lembur)", "Total Data"]);
   const info = new Map(h.hasil.perHari.map((x) => [x.tanggal, x]));
   const orang = new Map(h.hasil.perOrang.map((o) => [o.username.toUpperCase(), o]));
-  for (const x of h.hasil.perOrangHari ?? []) {
+  const tanpaData = { tim: null as string | null, koordinator: false };
+  const perOrangHari = [...(h.hasil.perOrangHari ?? [])].sort((a, b) => {
+    const oa = orang.get(a.username.toUpperCase()) ?? { ...tanpaData, username: a.username };
+    const ob = orang.get(b.username.toUpperCase()) ?? { ...tanpaData, username: b.username };
+    return peringkatTim(oa.tim) - peringkatTim(ob.tim) || Number(!!ob.koordinator) - Number(!!oa.koordinator) || a.username.localeCompare(b.username) || a.tanggal.localeCompare(b.tanggal);
+  });
+  for (const x of perOrangHari) {
     const hh = info.get(x.tanggal);
     const o = orang.get(x.username.toUpperCase());
-    wh.addRow([x.tanggal, hh?.hari ?? "", hh?.libur ? "Libur / luar jam kerja seharian" : "", x.username, o?.namaLengkap ?? "", o?.tim ? "Tim " + o.tim : "-", x.jamKerja, x.luarJamKerja, x.jamKerja + x.luarJamKerja]);
+    wh.addRow([labelTim(o?.tim ?? null), x.username, namaTampil(o?.namaLengkap), x.tanggal, hh?.hari ?? "", hh?.libur ? "Sabtu/Minggu/tanggal merah (seharian luar jam kerja)" : "", x.jamKerja, x.luarJamKerja, x.jamKerja + x.luarJamKerja]);
   }
-  const barisAkhirHari = 4 + (h.hasil.perOrangHari?.length ?? 0);
+  const barisAkhirHari = 4 + perOrangHari.length;
   wh.getRow(1).font = { bold: true, size: 13 };
   terapkanGayaHeaderKolom(wh, 4, 9);
   if (barisAkhirHari >= 5) terapkanBorderData(wh, 5, barisAkhirHari, 9);
-  [12, 10, 30, 28, 30, 9, 11, 22, 12].forEach((w, i) => { wh.getColumn(i + 1).width = w; });
+  [11, 28, 30, 12, 10, 48, 11, 22, 12].forEach((w, i) => { wh.getColumn(i + 1).width = w; });
   wh.views = [{ state: "frozen", ySplit: 4 }];
 
   // Sheet 3: aturan
   const wa = wb.addWorksheet("Aturan");
   wa.addRow(["Aturan perhitungan"]);
   wa.getRow(1).font = { bold: true };
-  [TEKS_ATURAN, `Dihitung sejak ${MULAI_DIHITUNG} (awal pencatatan riwayat). Dibuat oleh ${namaPembuat}.`].forEach((t) => wa.addRow([t]));
+  [TEKS_ATURAN, `Dihitung sejak ${MULAI_DIHITUNG} (awal pencatatan riwayat). Dibuat oleh ${namaPembuat}.`, "Urutan: per tim (I, II, III, IV, tanpa tim), koordinator lebih dulu, lalu menurut username."].forEach((x) => wa.addRow([x]));
   wa.getColumn(1).width = 120;
   return wb;
 }
