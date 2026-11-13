@@ -116,12 +116,21 @@ async function bukaDetail(opsi) {
 }
 
 const OV = "document.getElementById('djpm-agr-overlay')";
+const UKUR_PONSEL = "(() => { const o = document.getElementById('djpm-agr-overlay'); const W = document.documentElement.clientWidth; const kotak = o.querySelector('.agr-kotak').getBoundingClientRect(); const lewat = []; o.querySelectorAll('.agr-kartu, .agr-aturan, .agr-periode, .agr-pil-baris, .agr-kepala, .agr-bagan').forEach((e) => { const r = e.getBoundingClientRect(); if (r.right > W + 1 || r.left < -1) lewat.push((e.className || e.tagName) + ':' + Math.round(r.left) + '-' + Math.round(r.right)); }); return { W, kotakKanan: Math.round(kotak.right), gulirHalaman: document.documentElement.scrollWidth > W + 1, gulirOverlay: o.scrollWidth > o.clientWidth + 1, lewat }; })()";
 const adaPanel = () => js("!!" + OV);
 const teksPanel = () => js("(" + OV + " ? " + OV + ".textContent.replace(/\\s+/g, ' ') : '')");
 const hitung = (a) => panggilan.filter((x) => x.aksi === a).length;
 const terakhir = (a) => panggilan.filter((x) => x.aksi === a).pop();
 const klik = (sel) => js("(() => { const e = document.querySelector(" + JSON.stringify(sel) + "); if (!e) return false; e.click(); return true; })()");
 async function tungguPanel(maks = 40) { await tungguSampai("!!" + OV + " && !" + OV + ".textContent.includes('Memuat')", "panel agregat termuat", maks); }
+async function cekPonselTerbuka(label, lebar = 360) {
+  await kirim("Emulation.setDeviceMetricsOverride", { width: lebar, height: 844, deviceScaleFactor: 2, mobile: true });
+  await tidur(500);
+  const hp = await js(UKUR_PONSEL);
+  cek("PONSEL " + lebar + "px (" + label + "): panel pas di layar, tanpa kartu/teks terpotong dan tanpa gulir horizontal halaman", hp.kotakKanan <= hp.W + 1 && hp.lewat.length === 0 && !hp.gulirHalaman && !hp.gulirOverlay, JSON.stringify(hp));
+  await kirim("Emulation.clearDeviceMetricsOverride");
+  await tidur(300);
+}
 async function tutupPanel() { await js("(" + OV + " && " + OV + ".remove()); true"); }
 
 try {
@@ -146,6 +155,7 @@ try {
   cek("SAYA: rincian per status tampil", /Memenuhi Syarat 101/.test(teks) && /Berkas Tidak Lengkap 29/.test(teks) && /Tidak Memenuhi Syarat 12/.test(teks));
   cek("SAYA: aturan jam kerja selalu terlihat", /Senin.Kamis 08\.00.16\.30/.test(teks) && /Jumat 08\.00.17\.00/.test(teks));
   cek("SAYA: TANPA tabel anggota/tim (hanya dirinya)", !/Anggota tim/.test(teks) && !/Semua verifikator/.test(teks) && !/Per tim/.test(teks));
+  await cekPonselTerbuka("verifikator biasa / SAYA");
   cek("SAYA: tabel harian dan bagan ada", /Rincian harian/.test(teks) && (await js("!!" + OV + ".querySelector('.agr-bagan')")) === true);
   await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(os.tmpdir(), "djpm_agregat_saya.png"), Buffer.from(s.result.data, "base64")));
 
@@ -203,6 +213,7 @@ try {
   cek("TIM: tiga anggota tampil; baris sendiri diberi tanda 'saya' dan 'koordinator'", (await js(OV + ".querySelectorAll('tbody tr').length")) >= 3 && (await js("!!" + OV + ".querySelector('tr.agr-saya')")) === true && /koordinator/.test(teks) && /saya/.test(teks));
   cek("TIM: tanpa kartu per tim (itu khusus Admin Utama)", !/Per tim/.test(teks));
   cek("KEAMANAN: nama berisi HTML tidak diterjemahkan jadi elemen (tidak ada <img>, tidak ada eksekusi)", (await js("!" + OV + ".querySelector('img') && !window.__xss")) === true);
+  await cekPonselTerbuka("koordinator / TIM");
   await tutupPanel(); agregatNamaJahat = false;
 
   // ============================ ADMIN UTAMA (cakupan SEMUA) ============================
@@ -228,7 +239,7 @@ try {
   await tutupPanel();
 
   // ============ Tampilan PONSEL: tidak boleh ada isi terpotong di kanan / gulir horizontal (laporan user: kartu dan teks terpotong) ============
-  for (const lebar of [360, 390]) {
+  for (const lebar of [320, 360, 390]) {
     await kirim("Emulation.setDeviceMetricsOverride", { width: lebar, height: 844, deviceScaleFactor: 2, mobile: true });
     await tidur(500);
     await klik("#btn-agregat-verifikasi"); await tungguPanel();
