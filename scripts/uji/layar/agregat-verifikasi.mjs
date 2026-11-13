@@ -233,8 +233,11 @@ try {
   cek("SEMUA: mengetuk kartu Tim II mengirim saringan tim 'II' ke server (server yang menyaring)", qt.args[3] === "II", JSON.stringify(qt));
   cek("SEMUA: judul menjadi 'Agregat Tim II' dan kartu terpilih ditandai", /Agregat Tim II/.test(await teksPanel()) && (await js(OV + ".querySelector('button[data-tim=\"II\"]').getAttribute('aria-pressed')")) === "true");
   await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(os.tmpdir(), "djpm_agregat_tim_terpilih.png"), Buffer.from(s.result.data, "base64")));
+  await cekPonselTerbuka("Admin Utama dengan saringan tim aktif + tombol semua tim");
+  cek("SEMUA: fokus keyboard tetap di kartu tim yang baru diketuk (tidak jatuh ke halaman)", (await js("document.activeElement && document.activeElement.getAttribute('data-tim')")) === "II", String(await js("document.activeElement && document.activeElement.outerHTML.slice(0, 80)")));
   cek("SEMUA: tombol 'Tampilkan semua tim' muncul selama satu tim dipilih", (await js("!!" + OV + ".querySelector('button[data-semua]')")) === true && /Tampilkan semua tim/.test(await teksPanel()));
   await klik("button[data-semua]"); await tidur(800);
+  cek("SEMUA: sesudah 'Tampilkan semua tim', fokus pindah ke kartu tim (tombol yang ditekan sudah hilang)", (await js("!!document.activeElement && document.activeElement.hasAttribute('data-tim')")) === true, String(await js("document.activeElement && document.activeElement.outerHTML.slice(0, 80)")));
   cek("SEMUA: tombol 'Tampilkan semua tim' mengembalikan ke semua tim (saringan kosong, judul semula, tombol hilang)", terakhir("getAgregatVerifikasi").args[3] === "" && /Agregat Semua Tim/.test(await teksPanel()) && (await js("!" + OV + ".querySelector('button[data-semua]')")) === true, JSON.stringify(terakhir("getAgregatVerifikasi")));
   await klik("button[data-tim='II']"); await tidur(800);   // pilih lagi untuk uji ketuk-ulang di bawah
   await klik("button[data-tim='II']"); await tidur(800);

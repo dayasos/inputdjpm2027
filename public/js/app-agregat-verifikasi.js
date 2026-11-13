@@ -52,7 +52,7 @@
   var ID = 'djpm-agr-overlay', ID_STYLE = 'djpm-agr-style', ID_TOMBOL = 'btn-agregat-verifikasi';
   var TEKS_ATURAN = 'Jam kerja (WIB): Senin–Kamis 08.00–16.30 · Jumat 08.00–17.00. Sabtu, Minggu, dan tanggal merah dihitung luar jam kerja.';
   var BATAS_TUNGGU_MS = 40000;
-  var st = { preset: 'bulan', dari: '', sampai: '', tim: '', data: null, status: 'idle', pesan: '', idPermintaan: 0, pembuka: null, unduh: false };
+  var st = { preset: 'bulan', dari: '', sampai: '', tim: '', data: null, status: 'idle', pesan: '', idPermintaan: 0, pembuka: null, unduh: false, fokus: '' };
 
   function pengguna() { return (typeof dataPengguna !== 'undefined') ? dataPengguna : null; }
   function peran() { var p = pengguna(); return p && p.token ? String(p.role || '').trim().toUpperCase() : ''; }
@@ -208,6 +208,11 @@
     }
     h += '<div class="agr-kaki"><span>' + (d ? 'Diperbarui ' + esc(new Date(d.diperbaruiPada).toLocaleString('id-ID')) : '') + '</span><button type="button" class="agr-unduh" id="agr-unduh"' + (st.unduh || !d ? ' disabled' : '') + '>' + (st.unduh ? 'Membuat file…' : 'Unduh Excel') + '</button></div>';
     o.querySelector('#agr-isi').innerHTML = h;
+    if (st.fokus) {   // pulihkan fokus (hanya sesudah aksi pengguna di kartu tim / tombol semua tim)
+      var tujuan = o.querySelector(st.fokus) || o.querySelector('button[data-tim]');
+      if (tujuan && tujuan.focus) { try { tujuan.focus(); } catch (_e) { /* abaikan */ } }
+      if (st.status !== 'muat') st.fokus = '';
+    }
   }
 
   function muat() {
@@ -289,8 +294,8 @@
         if (!d || !s || !d.value || !s.value) { toast('Isi tanggal awal dan akhir.'); return; }
         st.dari = d.value; st.sampai = s.value; muat();
       }
-      else if (tim) { var k = tim.getAttribute('data-tim'); st.tim = st.tim === k ? '' : k; muat(); }
-      else if (t.closest && t.closest('button[data-semua]')) { st.tim = ''; muat(); }
+      else if (tim) { var k = tim.getAttribute('data-tim'); st.tim = st.tim === k ? '' : k; st.fokus = 'button[data-tim="' + k + '"]'; muat(); }
+      else if (t.closest && t.closest('button[data-semua]')) { st.tim = ''; st.fokus = 'button[data-tim]'; muat(); }
       else if (t.id === 'agr-ulang') muat();
       else if (t.id === 'agr-unduh') unduhExcel();
     });
