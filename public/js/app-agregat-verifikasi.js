@@ -44,7 +44,18 @@
     return tim && tim !== '-' ? 'Agregat Tim ' + tim : (tim === '-' ? 'Agregat Tanpa Tim' : 'Agregat Semua Tim');
   }
 
-  var api = { rentangPreset: rentangPreset, judulPanel: judulPanel, tanggalWib: tanggalWib, geser: geser, esc: esc, fmt: fmt, persen: persen, bukaPanel: function () { /* diganti di browser */ } };
+  var URUTAN_TIM = ['I', 'II', 'III', 'IV'];
+  function peringkatTim(tim) { var k = URUTAN_TIM.indexOf(String(tim || '')); return k < 0 ? 99 : k; }
+  /** Urutan tabel verifikator = urutan Excel: per tim (I-IV, lalu tanpa tim), koordinator lebih dulu, lalu username. */
+  function urutkanPerTim(daftar) {
+    return (daftar || []).slice().sort(function (a, b) {
+      return (peringkatTim(a.tim) - peringkatTim(b.tim)) ||
+        ((b.koordinator ? 1 : 0) - (a.koordinator ? 1 : 0)) ||
+        String(a.username || '').localeCompare(String(b.username || ''));
+    });
+  }
+
+  var api = { urutkanPerTim: urutkanPerTim, rentangPreset: rentangPreset, judulPanel: judulPanel, tanggalWib: tanggalWib, geser: geser, esc: esc, fmt: fmt, persen: persen, bukaPanel: function () { /* diganti di browser */ } };
   if (!akar || !akar.document) return api;   // lingkungan uji Node: hanya bagian murni
 
   // ------------------------------------------------------------------ tampilan
@@ -111,6 +122,7 @@
       '#' + ID + ' th:first-child,#' + ID + ' td:first-child{text-align:left}',
       '#' + ID + ' thead th{background:#f1f5f9;font-weight:600;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;color:#5a6879}',
       '#' + ID + ' tbody tr:last-child td{border-bottom:0}',
+      '#' + ID + ' tr.agr-awal-tim td{border-top:2px solid #94a3b8}',
       '#' + ID + ' tr.agr-saya td{background:#d7f0ec;font-weight:600}',
       '#' + ID + ' tr.agr-luartim td{color:#64748b;font-style:italic}',
       '#' + ID + ' .agr-tag{font-size:.66rem;border:1px solid #cbd5e1;border-radius:4px;padding:1px 6px;margin-left:6px;color:#64748b;font-style:normal}',
@@ -164,9 +176,12 @@
     return '<div><h3>Rincian harian</h3><div class="agr-gulir"><table style="min-width:420px"><thead><tr><th>Tanggal</th><th>Data</th><th>Jam kerja</th><th>Luar jam kerja</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
   }
   function tabelOrang(daftar, saya, luarTim) {
-    var rows = daftar.map(function (o) {
+    var urut = urutkanPerTim(daftar), sebelumnya = null;
+    var rows = urut.map(function (o) {
       var ini = String(o.username).toUpperCase() === saya;
-      return '<tr class="' + (ini ? 'agr-saya' : '') + '"><td>' + esc(o.namaLengkap || o.username) + '<span class="agr-tag">' + esc(o.username) + '</span>' + (o.koordinator ? '<span class="agr-tag">koordinator</span>' : '') + (ini ? '<span class="agr-tag">saya</span>' : '') + (o.aktif ? '' : '<span class="agr-tag">nonaktif</span>') +
+      var awalTim = (sebelumnya !== null && String(o.tim || '-') !== sebelumnya);   // garis pemisah antar tim
+      sebelumnya = String(o.tim || '-');
+      return '<tr class="' + (ini ? 'agr-saya' : '') + (awalTim ? ' agr-awal-tim' : '') + '"><td>' + esc(o.namaLengkap || o.username) + '<span class="agr-tag">' + esc(o.username) + '</span>' + (o.koordinator ? '<span class="agr-tag">koordinator</span>' : '') + (ini ? '<span class="agr-tag">saya</span>' : '') + (o.aktif ? '' : '<span class="agr-tag">nonaktif</span>') +
         '</td><td>' + (o.tim ? 'Tim ' + esc(o.tim) : '–') + '</td><td>' + fmt(o.total) + '</td><td>' + fmt(o.jamKerja) + '</td><td>' + fmt(o.luarJamKerja) + '</td><td>' + fmt(o.memenuhiSyarat) + '</td><td>' + fmt(o.berkasTidakLengkap) + '</td><td>' + fmt(o.tidakMemenuhiSyarat) + '</td></tr>';
     }).join('');
     if (luarTim) rows += '<tr class="agr-luartim"><td>Admin Utama (informasi, tidak dihitung ke tim)</td><td>–</td><td>' + fmt(luarTim.total) + '</td><td>' + fmt(luarTim.jamKerja) + '</td><td>' + fmt(luarTim.luarJamKerja) + '</td><td>–</td><td>–</td><td>–</td></tr>';

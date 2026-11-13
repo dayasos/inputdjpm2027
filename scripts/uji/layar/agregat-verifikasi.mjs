@@ -42,7 +42,7 @@ function buatAgregat(args) {
   const dasar = { sukses: true, cakupan, tim: cakupan === "SEMUA" ? (tim || null) : (cakupan === "TIM" ? "II" : "III"), saya: "VERIF_ANDI", rentang: { dari, sampai, jumlahHari: perHari.length }, ringkasan, perHari, mulaiDihitung: "2026-11-12", diperbaruiPada: "2026-11-12T12:00:00Z" };
   if (cakupan === "SAYA") return { ...dasar, perOrang: [o("verif_andi", "Andi Saputra", "III", 0, 142, 96, 46)] };
   if (cakupan === "TIM") return { ...dasar, perOrang: [o("verif_andi", "Andi Saputra", "II", 0, 70, 50, 20, true), o("verif_budi", nama, "II", 0, 40, 30, 10), o("verif_citra", "Citra", "II", 0, 32, 16, 16)] };
-  return { ...dasar, perOrang: [o("verif_andi", "Andi Saputra", "I", 0, 60, 40, 20, true), o("verif_budi", nama, "II", 0, 50, 30, 20), o("verif_baru", "", null, 0, 32, 26, 6)],
+  return { ...dasar, perOrang: [o("verif_zz4", "Zed Empat", "IV", 0, 90, 60, 30), o("verif_budi", nama, "II", 0, 50, 30, 20), o("verif_baru", "", null, 0, 32, 26, 6), o("verif_b2", "Bela Koordinator", "II", 0, 41, 31, 10, true), o("verif_andi", "Andi Saputra", "I", 0, 60, 40, 20, true), o("verif_a2", "Ani", "I", 0, 20, 10, 10), o("verif_c1", "Citra Tiga", "III", 0, 5, 5, 0)],
     perTim: [{ tim: "I", anggota: 8, total: 60, jamKerja: 40, luarJamKerja: 20 }, { tim: "II", anggota: 7, total: 50, jamKerja: 30, luarJamKerja: 20 }, { tim: "III", anggota: 8, total: 0, jamKerja: 0, luarJamKerja: 0 }, { tim: "IV", anggota: 8, total: 0, jamKerja: 0, luarJamKerja: 0 }, { tim: "-", anggota: 1, total: 32, jamKerja: 26, luarJamKerja: 6 }],
     luarTim: { total: 6, jamKerja: 4, luarJamKerja: 2 } };
 }
@@ -226,6 +226,9 @@ try {
   cek("SEMUA: kartu Tim I, II, III, IV dan 'Tanpa tim' tampil", (await js("Array.from(" + OV + ".querySelectorAll('button[data-tim]')).map((b) => b.getAttribute('data-tim')).join(',')")) === "I,II,III,IV,-" && /Tanpa tim/.test(teks), teks.slice(0, 400));
   cek("SEMUA: baris Admin Utama tampil sebagai informasi terpisah (tidak dihitung ke tim)", /Admin Utama \(informasi, tidak dihitung ke tim\)/.test(teks));
   cek("SEMUA: pada keadaan awal (semua tim) tombol 'Tampilkan semua tim' TIDAK ada", (await js("!" + OV + ".querySelector('button[data-semua]')")) === true);
+  const urutan = await js("Array.from(" + OV + ".querySelectorAll('tbody tr')).map((r) => (r.cells[0].querySelector('.agr-tag') || {}).textContent)");
+  cek("SEMUA: tabel verifikator DIURUTKAN per tim (I, II, III, IV, tanpa tim), koordinator di atas tiap tim, lalu username", JSON.stringify(urutan.slice(0, 7)) === JSON.stringify(["verif_andi", "verif_a2", "verif_b2", "verif_budi", "verif_c1", "verif_zz4", "verif_baru"]), JSON.stringify(urutan));
+  cek("SEMUA: garis pemisah di awal tiap tim (bukan di baris pertama)", (await js(OV + ".querySelectorAll('tr.agr-awal-tim').length")) === 4 && (await js("!" + OV + ".querySelector('tbody tr:first-child').classList.contains('agr-awal-tim')")) === true);
   cek("SEMUA: akun tanpa tim tampil dengan strip", (await js("Array.from(" + OV + ".querySelectorAll('tbody tr')).some((r) => /verif_baru/.test(r.textContent) && /–/.test(r.cells[1].textContent))")) === true);
   await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(os.tmpdir(), "djpm_agregat_semua.png"), Buffer.from(s.result.data, "base64")));
   await klik("button[data-tim='II']"); await tidur(800);

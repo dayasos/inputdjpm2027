@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import { db, muatServer } from "./_harness-server.mjs";
 import { AKSI_VERIFIKATOR } from "../../supabase/functions/api/_shared/gerbangPeran.ts";
 
@@ -248,4 +249,17 @@ test("EXCEL: unduhRekapLemburVerifikasi mengikuti aturan hak yang sama (peran la
   pakai("UTAMA");
   const g = await agregat.unduhRekapLemburVerifikasi(tok(), "2026-13-01", "2026-13-02");
   assert.equal(g.sukses, false, "rentang tak valid ditolak");
+});
+
+test("KONSISTEN: urutan tabel di layar (app-agregat-verifikasi.js) SAMA dengan urutan Excel (server) untuk data yang sama", () => {
+  const layar = createRequire(import.meta.url)("../../public/js/app-agregat-verifikasi.js");
+  const o = (username, tim, koordinator) => ({ username, tim, koordinator, namaLengkap: username, aktif: true });
+  const daftar = [o("verif_zz", null, false), o("verif_d2", "IV", true), o("verif_b3", "II", false), o("verif_a2", "I", false), o("verif_c1", "III", false), o("verif_b2", "II", true),
+    o("verif_a3", "I", true), o("verif_a1", "I", false), o("verif_d1", "IV", false), o("verif_b1", "II", false)];
+  const dariLayar = layar.urutkanPerTim(daftar).map((x) => x.username);
+  const dariServer = agregat.urutkanPerTim(daftar).map((x) => x.username);
+  assert.deepEqual(dariLayar, dariServer, "layar dan Excel harus berurutan sama");
+  assert.deepEqual(dariLayar, ["verif_a3", "verif_a1", "verif_a2", "verif_b2", "verif_b1", "verif_b3", "verif_c1", "verif_d2", "verif_d1", "verif_zz"]);
+  assert.deepEqual(daftar.map((x) => x.username)[0], "verif_zz", "data asli tidak diubah (salinan diurutkan)");
+  assert.deepEqual(layar.urutkanPerTim(null), []);
 });
