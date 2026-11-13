@@ -114,6 +114,8 @@
       '#' + ID + ' tr.agr-saya td{background:#d7f0ec;font-weight:600}',
       '#' + ID + ' tr.agr-luartim td{color:#64748b;font-style:italic}',
       '#' + ID + ' .agr-tag{font-size:.66rem;border:1px solid #cbd5e1;border-radius:4px;padding:1px 6px;margin-left:6px;color:#64748b;font-style:normal}',
+      '#' + ID + ' .agr-tim-kepala{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;margin-bottom:8px}#' + ID + ' .agr-tim-kepala h3{margin:0;min-width:0}',
+      '#' + ID + ' .agr-semua{border-color:#17365d;color:#17365d;font-weight:600;min-height:40px}',
       '#' + ID + ' .agr-tim-baris{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}',
       '#' + ID + ' .agr-tim-baris .agr-kartu{cursor:pointer}',
       '#' + ID + ' .agr-tim-baris .agr-kartu[aria-pressed="true"]{outline:3px solid #17365d;outline-offset:2px}',
@@ -171,7 +173,8 @@
     return '<div class="agr-gulir"><table><thead><tr><th>Verifikator</th><th>Tim</th><th>Data</th><th>Jam kerja</th><th>Luar jam kerja</th><th>MS</th><th>BTL</th><th>TMS</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
   function kartuTim(perTim, timAktif) {
-    return '<div><h3>Per tim <span style="font-weight:400;color:#5a6879;font-size:.78rem">· ketuk kartu untuk menyaring, ketuk lagi untuk semua tim</span></h3><div class="agr-tim-baris">' +
+    var tombolSemua = (timAktif ? '<button type="button" class="agr-chip agr-semua" data-semua="1">\u2715 Tampilkan semua tim</button>' : '');
+    return '<div><div class="agr-tim-kepala"><h3>Per tim <span style="font-weight:400;color:#5a6879;font-size:.78rem">· ketuk kartu untuk menyaring, ketuk lagi untuk semua tim</span></h3>' + tombolSemua + '</div><div class="agr-tim-baris">' +
       perTim.map(function (t) {
         return '<button type="button" class="agr-kartu" data-tim="' + esc(t.tim) + '" aria-pressed="' + (timAktif === t.tim) + '"><div class="agr-lbl" style="justify-content:space-between"><span>' + (t.tim === '-' ? 'Tanpa tim' : 'Tim ' + esc(t.tim)) + '</span><span>' + fmt(t.anggota) + ' orang</span></div>' +
           '<div class="agr-angka" style="font-size:1.7rem">' + fmt(t.total) + '</div><div class="agr-ket"><span class="agr-sw kerja"></span> ' + fmt(t.jamKerja) + ' &nbsp; <span class="agr-sw luar"></span> ' + fmt(t.luarJamKerja) + '</div></button>';
@@ -287,6 +290,7 @@
         st.dari = d.value; st.sampai = s.value; muat();
       }
       else if (tim) { var k = tim.getAttribute('data-tim'); st.tim = st.tim === k ? '' : k; muat(); }
+      else if (t.closest && t.closest('button[data-semua]')) { st.tim = ''; muat(); }
       else if (t.id === 'agr-ulang') muat();
       else if (t.id === 'agr-unduh') unduhExcel();
     });
