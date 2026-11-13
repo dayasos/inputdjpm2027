@@ -227,6 +227,21 @@ try {
   cek("SEMUA: Unduh Excel mengirim token, periode, dan saringan tim", !!terakhir("unduhRekapLemburVerifikasi") && terakhir("unduhRekapLemburVerifikasi").args[0] === "TOKEN-UJI");
   await tutupPanel();
 
+  // ============ Tampilan PONSEL: tidak boleh ada isi terpotong di kanan / gulir horizontal (laporan user: kartu dan teks terpotong) ============
+  for (const lebar of [360, 390]) {
+    await kirim("Emulation.setDeviceMetricsOverride", { width: lebar, height: 844, deviceScaleFactor: 2, mobile: true });
+    await tidur(500);
+    await klik("#btn-agregat-verifikasi"); await tungguPanel();
+    await tidur(300);
+    const hp = await js("(() => { const o = document.getElementById('djpm-agr-overlay'); const W = document.documentElement.clientWidth; const kotak = o.querySelector('.agr-kotak').getBoundingClientRect(); const lewat = []; o.querySelectorAll('.agr-kartu, .agr-aturan, .agr-periode, .agr-pil-baris, .agr-kepala, .agr-bagan').forEach((e) => { const r = e.getBoundingClientRect(); if (r.right > W + 1 || r.left < -1) lewat.push((e.className || e.tagName) + ':' + Math.round(r.left) + '-' + Math.round(r.right)); }); return { W, kotakKanan: Math.round(kotak.right), gulirHalaman: document.documentElement.scrollWidth > W + 1, gulirOverlay: o.scrollWidth > o.clientWidth + 1, lewat }; })()");
+    cek("PONSEL " + lebar + "px: panel pas di layar, tanpa kartu/teks terpotong dan tanpa gulir horizontal halaman", hp.kotakKanan <= hp.W + 1 && hp.lewat.length === 0 && !hp.gulirHalaman && !hp.gulirOverlay, JSON.stringify(hp));
+    cek("PONSEL " + lebar + "px: tabel verifikator tetap dapat digulir ke samping di dalam wadahnya (bukan memperlebar halaman)", (await js("(() => { const g = document.querySelector('#djpm-agr-overlay .agr-gulir'); return !!g && g.scrollWidth > g.clientWidth; })()")) === true);
+    if (lebar === 360) await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(os.tmpdir(), "djpm_agregat_hp.png"), Buffer.from(s.result.data, "base64")));
+    await tutupPanel();
+    await kirim("Emulation.clearDeviceMetricsOverride");
+    await tidur(300);
+  }
+
   // Pergantian akun tanpa muat ulang: Admin Utama -> VERIFIKATOR: tombol toolbar harus hilang
   await js("dataPengguna.role = 'VERIFIKATOR'; true");
   await tidur(2600);
