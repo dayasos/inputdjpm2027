@@ -2856,7 +2856,7 @@ window.konfirmasiHapusUser = konfirmasiHapusUser;
     }
 
     // Modal "Data Detail" (rekap Memenuhi Syarat) -- domain sama yang dipakai
-    // verifikasiSatuData/tandaiSudahDiperbaiki/verifikasiMassalMemenuhiSyarat untuk invalidasi.
+    // verifikasiSatuData/tandaiSudahDiperbaiki untuk invalidasi.
     if (isAll || domains.includes('data_detail')) {
       const modalDataDetail = document.getElementById('modal-data-detail');
       if (modalDataDetail && !modalDataDetail.classList.contains('hidden') && typeof muatDataDetail === 'function') {

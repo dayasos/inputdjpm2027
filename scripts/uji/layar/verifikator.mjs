@@ -112,12 +112,12 @@ try {
   // ============================ VERIFIKATOR ============================
   await masuk("VERIFIKATOR");
   cek("VERIFIKATOR: modul khusus (app-verifikator.js) dan alasan cepat dimuat; modul admin UTAMA TIDAK dimuat",
-    skripDimuat.some((u) => /app-verifikator\.js/.test(u)) && skripDimuat.some((u) => /app-templat-alasan\.js/.test(u)) && !skripDimuat.some((u) => /app-verifikasi-massal|app-jadwal-pesan|app-laporan-progres|app-cek-rumah-ibadah|app-templat-kelola/.test(u)), JSON.stringify(skripDimuat.map((u) => u.split("/").pop())));
+    skripDimuat.some((u) => /app-verifikator\.js/.test(u)) && skripDimuat.some((u) => /app-templat-alasan\.js/.test(u)) && !skripDimuat.some((u) => /app-jadwal-pesan|app-laporan-progres|app-cek-rumah-ibadah|app-templat-kelola/.test(u)), JSON.stringify(skripDimuat.map((u) => u.split("/").pop())));
   const keadaan = { tabInput: await tampil("tab-input"), panelInput: await tampil("panel-input"), panelRekap: await tampil("panel-rekap"), tabRekap: await tampil("tab-rekap"), dashboard: await tampil("btn-dashboard-progres") };
   cek("VERIFIKATOR: tab Input tersembunyi dan panel Input tidak terlihat", keadaan.tabInput === "tersembunyi" && keadaan.panelInput === "tersembunyi", JSON.stringify(keadaan));
   cek("VERIFIKATOR: tab Input tidak bisa diklik (nonaktif)", await js("(() => { const t = document.getElementById('tab-input'); return !!t && (t.disabled === true || t.style.pointerEvents === 'none'); })()"));
   cek("VERIFIKATOR: tampilan awal = Lihat Data", keadaan.panelRekap === "tampil", JSON.stringify(keadaan));
-  for (const idEl of ["btn-data-detail", "btn-retur-kematian", "tab-tools", "tab-kelola-data", "btn-kelola-kuota", "btn-progres-kuota", "btn-kelola-user", "btn-kelola-rumah-ibadah", "btn-verifikasi-massal", "btn-cek-rumah-ibadah"]) {
+  for (const idEl of ["btn-data-detail", "btn-retur-kematian", "tab-tools", "tab-kelola-data", "btn-kelola-kuota", "btn-progres-kuota", "btn-kelola-user", "btn-kelola-rumah-ibadah", "btn-cek-rumah-ibadah"]) {
     const s = await tampil(idEl);
     cek(`VERIFIKATOR: ${idEl} tidak terlihat`, s !== "tampil", s);
   }

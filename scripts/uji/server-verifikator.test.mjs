@@ -75,7 +75,7 @@ test("GERBANG: seluruh aksi di ALLOWED index.ts DITOLAK untuk VERIFIKATOR kecual
   assert.equal(ditolak.length, semua.length - AKSI_VERIFIKATOR.size);
   // Aksi yang TIDAK BOLEH ada di daftar-putih.
   const terlarang = ["ambilStatusPeriode", "simpanDataKeSheet", "editDataPenerima", "validasiDataBaru", "mintaUrlUploadBerkas", "konfirmasiUploadBerkas", "mulaiUnggahBerkas", "adminUbahData",
-    "adminHapusData", "adminHapusDataMassal", "adminHapusBerkasMassal", "verifikasiMassalMemenuhiSyarat", "ringkasanVerifikasiMassal", "getDaftarBerkasTidakLengkapUntukWA",
+    "adminHapusData", "adminHapusDataMassal", "adminHapusBerkasMassal", "getDaftarBerkasTidakLengkapUntukWA",
     "simpanTemplatAlasan", "ubahAktifTemplatAlasan", "hapusTemplatAlasan", "urutkanTemplatAlasan", "tambahUserBaru", "hapusUser", "resetPasswordUser", "ubahDataUserOlehAdmin",
     "ambilDaftarAkun", "ambilDaftarAkunLengkap", "simpanKuota", "getSemuaKuota", "buatBatchPembayaran", "setInputKecKem", "aturJadwalPeriode", "terbitkanPesanAdmin",
     "tambahRumahIbadah", "ubahRumahIbadah", "hapusRumahIbadah", "sinkronDataSheet2026", "eksporDataKeSpreadsheet", "laporkanPerbaikanBerkas", "simpanCatatanRekomendasiMui",
@@ -96,13 +96,11 @@ test("KABEL: index.ts memasang gerbang SEBELUM menjalankan fungsi aksi, memeriks
   assert.match(s, /if \(!aksiPublikTanpaGerbang\(action\) && !AKSI_HANYA_JALUR_SECRET\.has\(action\)\) \{\s*for \(const tk of/, "aksi publik dan aksi khusus jalur _secret dilewati");
 });
 
-test("HAK: verifikasi satu data boleh UTAMA dan VERIFIKATOR saja; verifikasi massal tidak memakai helper ini", () => {
+test("HAK: verifikasi satu data boleh UTAMA dan VERIFIKATOR saja; daftar WA tidak memakai helper ini", () => {
   for (const ya of ["UTAMA", "VERIFIKATOR", "verifikator"]) assert.equal(bolehVerifikasiSatuData(ya), true, ya);
   for (const tidak of ["KECAMATAN", "MUI", "GURU MAGHRIB MENGAJI", "", null, undefined]) assert.equal(bolehVerifikasiSatuData(tidak), false, String(tidak));
   const v = baca("supabase/functions/api/domains/verifikasi.ts");
-  const iMassal = v.indexOf("export async function verifikasiMassalMemenuhiSyarat");
   const iWA = v.indexOf("export async function getDaftarBerkasTidakLengkapUntukWA");
-  assert.ok(!v.slice(iMassal, iMassal + 1500).includes("bolehVerifikasiSatuData"), "massal tetap khusus UTAMA");
   assert.ok(!v.slice(iWA, iWA + 1200).includes("bolehVerifikasiSatuData"), "daftar WA tetap khusus UTAMA");
 });
 
@@ -297,18 +295,18 @@ test("D9: data sudah berstatus -> VERIFIKATOR mendapat pesan 'perubahan hanya ol
   }
 });
 
-test("VERIFIKASI MASSAL dan daftar WA tetap KHUSUS Admin Utama: VERIFIKATOR ditolak tanpa menulis; UTAMA tetap bisa", async () => {
+test("FITUR VERIFIKASI MASSAL DIHAPUS (2026-11-14): fungsi, rute, tombol, dan modul layar tidak ada lagi; daftar WA tetap KHUSUS Admin Utama", async () => {
+  const v = baca("supabase/functions/api/domains/verifikasi.ts");
+  assert.doesNotMatch(v, /verifikasiMassalMemenuhiSyarat|ringkasanVerifikasiMassal/, "fungsi server dihapus");
+  assert.doesNotMatch(baca("supabase/functions/api/index.ts"), /verifikasiMassalMemenuhiSyarat|ringkasanVerifikasiMassal/, "rute dihapus dari ALLOWED");
+  assert.doesNotMatch(baca("index.html"), /btn-verifikasi-massal/, "tombol dihapus");
+  assert.doesNotMatch(baca("public/js/app-pesan-periode.js"), /app-verifikasi-massal/, "modul tidak lagi dimuat");
+  assert.equal(fs.existsSync(new URL("../../public/js/app-verifikasi-massal.js", import.meta.url)), false, "berkas modul dihapus");
+  assert.doesNotMatch(baca("public/js/app-transaksi.js"), /bukaVerifikasiMassal|btn-verifikasi-massal/, "tidak ada rujukan sisa di app-transaksi.js");
   pakai("VERIF");
-  const m = await verifikasi.verifikasiMassalMemenuhiSyarat(token(), "IMAM MASJID", null, false);
-  assert.equal(m.sukses, false, JSON.stringify(m));
   const w = await verifikasi.getDaftarBerkasTidakLengkapUntukWA(token(), "");
   assert.equal(w.sukses, false, JSON.stringify(w));
-  const r = await verifikasi.ringkasanVerifikasiMassal(token());
-  assert.equal(r.sukses, false);
   assert.equal(tulisan("update penerima set").length, 0);
-  pakai("UTAMA");
-  const mu = await verifikasi.verifikasiMassalMemenuhiSyarat(token(), "IMAM MASJID", null, false);
-  assert.equal(mu.sukses, true, JSON.stringify(mu));
 });
 
 // ====================================================== templat alasan

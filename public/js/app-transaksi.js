@@ -1379,8 +1379,6 @@ let _verifSedangJalan = false; // cegah verifikasi ganda selagi request sebelumn
 
 function inisialisasiMenuLihatData() {
   if (!pastikanLogin()) return;
-  const btnVerifMassal = document.getElementById('btn-verifikasi-massal');
-  if (btnVerifMassal) btnVerifMassal.classList.toggle('hidden', dataPengguna.role !== "UTAMA");
   const btnCekRi = document.getElementById('btn-cek-rumah-ibadah');
   if (btnCekRi) btnCekRi.classList.toggle('hidden', dataPengguna.role !== "UTAMA");
   ['btn-salin-wa-kecamatan', 'btn-salin-wa-kemenag'].forEach(function (idBtn) {
@@ -3448,17 +3446,6 @@ document.getElementById('btn-export-xlsx').addEventListener('click', function ()
       tampilkanToast(pesanErrorRamah(err), "gagal", { durasi: 6000 });
     })
     .eksporDataKeSpreadsheet(dataPengguna.token, dataEkspor, buatNamaFile());
-});
-
-// Verifikasi Massal per layanan: logika ada di app-verifikasi-massal.js (dimuat malas khusus UTAMA oleh app-pesan-periode.js).
-// Bila skrip itu belum/gagal dimuat, beri tahu -- jangan membiarkan tombol mati diam-diam.
-document.getElementById('btn-verifikasi-massal').addEventListener('click', function () {
-  if (!pastikanLogin()) return;
-  if (typeof window.bukaVerifikasiMassal !== 'function') {
-    tampilkanToast('Fitur belum siap dimuat. Muat ulang halaman lalu coba lagi.', 'gagal', { durasi: 6000 });
-    return;
-  }
-  window.bukaVerifikasiMassal();
 });
 
 // Cek Rumah Ibadah (khusus UTAMA): logika di app-cek-rumah-ibadah.js, dimuat malas oleh app-pesan-periode.js.

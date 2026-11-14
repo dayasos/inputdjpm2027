@@ -1,5 +1,7 @@
 # Plan: Verifikasi Massal dengan pilihan layanan ("Verifikasi Semua" → pilih layanan tertentu atau semua layanan)
 
+> **DIHAPUS 2026-11-14 (atas perintah user):** fitur Verifikasi Massal (tombol, modul `app-verifikasi-massal.js`, fungsi server `verifikasiMassalMemenuhiSyarat` dan `ringkasanVerifikasiMassal`) sudah tidak relevan karena verifikasi kini dilakukan tim verifikator satu per satu. Tabel `log_verifikasi_massal` dan baris riwayat bersumber `MASSAL` SENGAJA dipertahankan sebagai arsip (DROP hanya atas izin).
+
 Tanggal: 2026-10-23 · Status: **K1–K8 DISETUJUI 2026-10-23 (K1–K4, K5=ya, K6, K8 ikut rekomendasi; K7=tidak). Sudah dikerjakan LOKAL & teruji; BELUM di-commit/deploy.**
 Bahasa: Indonesia · Pola kerja: bertahap, lokal dulu, uji + review menyeluruh, deploy hanya atas perintah.
 

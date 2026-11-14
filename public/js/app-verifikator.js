@@ -27,7 +27,7 @@
     'btn-retur-kematian', 'btn-data-detail',
     'btn-progres-kuota', 'btn-kelola-kuota', 'tab-tools', 'tab-kelola-data', 'panel-kelola-data',
     'btn-kelola-user', 'btn-kelola-rumah-ibadah', 'btn-sync-sheet-2026',
-    'btn-verifikasi-massal', 'btn-cek-rumah-ibadah', 'btn-salin-wa-kecamatan', 'btn-salin-wa-kemenag'
+    'btn-cek-rumah-ibadah', 'btn-salin-wa-kecamatan', 'btn-salin-wa-kemenag'
   ];
 
   function rapi(v) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().toUpperCase(); }

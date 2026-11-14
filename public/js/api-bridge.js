@@ -328,7 +328,6 @@ const MUTATION_INVALIDATIONS = {
   verifikasiSatuData: ['penerima', 'penerima_detail', 'dashboard', 'data_detail'],
   laporkanPerbaikanBerkas: ['penerima', 'penerima_detail'],
   tandaiSudahDiperbaiki: ['penerima', 'penerima_detail', 'dashboard', 'data_detail'],
-  verifikasiMassalMemenuhiSyarat: ['penerima', 'dashboard', 'data_detail'],
   // Retur: laporan status/aktivasi kembali mengubah data_detail.status (dibaca Data Detail & Pembayaran).
   statusSimpanLaporan: ['data_detail'],
   statusAktivasiKembali: ['data_detail'],
@@ -433,7 +432,6 @@ const AKSI_BACA_AMAN_DIRETRY = new Set([
   'ambilStatusPeriode', // alias statusInputKecKem TANPA cache: jam server selalu segar
   'ambilDetailBatchPembayaran',
   'getDaftarBerkasTidakLengkapUntukWA',
-  'ringkasanVerifikasiMassal', // pratinjau verifikasi massal: SELECT murni, tanpa cache SWR (angka harus segar)
   'getAgregatVerifikasi', // agregat hasil kerja verifikator: SELECT murni, tanpa cache SWR (domains/agregatVerifikasi.ts)
   'getRingkasanVerifikasiSaya', // badge verifikator: SELECT murni (domains/verifikasi.ts)
   // Cek Rumah Ibadah (khusus UTAMA): SELECT murni, SENGAJA tanpa cache SWR -- jawaban "sudah ada pengurusnya?" harus segar, dan jawaban

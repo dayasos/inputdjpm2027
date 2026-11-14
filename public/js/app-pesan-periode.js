@@ -556,7 +556,7 @@
   // (plans/plan-akun-mui-bisa-input.md). Peran lain tidak mengunduh satu pun. Gagal muat satu skrip tidak
   // memengaruhi yang lain, dan masing-masing dicoba lagi pada pemicu berikutnya.
   var SKRIP_PER_PERAN = {
-    UTAMA: ['/js/app-jadwal-pesan.js', '/js/app-laporan-progres.js', '/js/app-capaian-input.js', '/js/app-penanda-mui.js', '/js/app-verifikasi-massal.js', '/js/app-cek-rumah-ibadah.js', '/js/app-templat-alasan.js', '/js/app-pilih-rumah-ibadah.js', '/js/app-agregat-verifikasi.js'],
+    UTAMA: ['/js/app-jadwal-pesan.js', '/js/app-laporan-progres.js', '/js/app-capaian-input.js', '/js/app-penanda-mui.js', '/js/app-cek-rumah-ibadah.js', '/js/app-templat-alasan.js', '/js/app-pilih-rumah-ibadah.js', '/js/app-agregat-verifikasi.js'],
     MUI: ['/js/app-penanda-mui.js'],
     // Tim verifikator (plans/plan-tim-verifikator.md): tampilan khusus + alasan cepat (hanya dibaca/dipakai, tanpa Kelola).
     VERIFIKATOR: ['/js/app-verifikator.js', '/js/app-templat-alasan.js', '/js/app-agregat-verifikasi.js'],
