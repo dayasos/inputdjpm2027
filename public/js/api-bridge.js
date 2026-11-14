@@ -328,6 +328,9 @@ const MUTATION_INVALIDATIONS = {
   verifikasiSatuData: ['penerima', 'penerima_detail', 'dashboard', 'data_detail'],
   laporkanPerbaikanBerkas: ['penerima', 'penerima_detail'],
   tandaiSudahDiperbaiki: ['penerima', 'penerima_detail', 'dashboard', 'data_detail'],
+  // Verifikasi ulang: koreksi status mengubah data penerima (dan data_detail bila turun dari Memenuhi Syarat)
+  simpanHasilUlang: ['penerima', 'penerima_detail', 'dashboard', 'data_detail', 'riwayat'],
+  batalkanKoreksiUlang: ['penerima', 'penerima_detail', 'dashboard', 'data_detail', 'riwayat'],
   // Retur: laporan status/aktivasi kembali mengubah data_detail.status (dibaca Data Detail & Pembayaran).
   statusSimpanLaporan: ['data_detail'],
   statusAktivasiKembali: ['data_detail'],

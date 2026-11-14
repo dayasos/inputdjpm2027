@@ -36,6 +36,11 @@ export const AKSI_VERIFIKATOR: ReadonlySet<string> = new Set([
   "getRingkasanVerifikasiSaya", // badge melayang: agregat verifikasi akun sendiri (hanya membaca)
   "getAgregatVerifikasi",       // agregat hasil kerja (sendiri / tim bila koordinator); cakupan ditentukan server (hanya membaca)
   "unduhRekapLemburVerifikasi", // Excel rekap lembur, cakupan sama seperti di atas (hanya membaca)
+  // Verifikasi ulang (plans/plan-verifikasi-ulang.md): hanya tugas MILIK akun sendiri; pemilik tugas diperiksa di domains/verifikasiUlang.ts
+  "getTugasUlangSaya",
+  "bukaTugasUlang",
+  "catatBerkasDibuka",
+  "simpanHasilUlang",
 ]);
 
 export const PESAN_VERIFIKATOR_DITOLAK =

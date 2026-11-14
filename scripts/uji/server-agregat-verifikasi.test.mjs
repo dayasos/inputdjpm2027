@@ -200,7 +200,8 @@ test("EXCEL: Rekap diurutkan per TIM (I, II, III, IV, tanpa tim) dengan KOORDINA
   const rekap = ex.lembar[0].baris;
   assert.equal(rekap[0][0], "Rekap Hasil Kerja Verifikator - Agregat Semua Tim");
   assert.deepEqual(rekap[4].slice(0, 5), ["No", "Tim", "Username", "Nama Lengkap", "Peran"]);
-  assert.equal(rekap[4][6], "Luar Jam Kerja (Lembur)");
+  assert.equal(rekap[4][6], "Pertama: Luar Jam Kerja");
+  assert.equal(rekap[4][14], "TOTAL PEKERJAAN: Luar Jam Kerja (Lembur)");
   const isi = rekap.slice(5);
   const orang = isi.filter((r) => typeof r[0] === "number");
   assert.deepEqual(orang.map((r) => [r[1], r[2]]), [
@@ -220,12 +221,12 @@ test("EXCEL: Rekap diurutkan per TIM (I, II, III, IV, tanpa tim) dengan KOORDINA
   const baris_total = isi.find((r) => r[1] === "TOTAL");
   assert.deepEqual([baris_total[5], baris_total[6], baris_total[7]], [kerja, luar, total]);
   assert.equal(orang.reduce((s, r) => s + r[7], 0), total, "jumlah per orang = total");
-  assert.equal(rekap[4][11], "Dikoreksi Admin (informasi, per tanggal unduh)");
-  assert.deepEqual(sub.map((r) => r[11]), [3, 0, 0, 1, 0], "subtotal dikoreksi per tim (Tim I a1+a2=3, Tim IV d2=1)");
-  assert.equal(baris_total[11], 4, "total dikoreksi");
-  assert.equal(orang.find((r) => r[2] === "verif_a2")[11], 2);
-  assert.equal(orang.find((r) => r[2] === "verif_b3")[11], 0, "tanpa nilai -> 0 (bukan kosong)");
-  assert.ok(ex.lembar[2].baris.some((r) => /Dikoreksi Admin/.test(String(r[0])) && /tidak memengaruhi angka lembur/.test(String(r[0]))), "penjelasan di sheet Aturan");
+  assert.equal(rekap[4][19], "Dikoreksi (informasi, per tanggal unduh)");
+  assert.deepEqual(sub.map((r) => r[19]), [3, 0, 0, 1, 0], "subtotal dikoreksi per tim (Tim I a1+a2=3, Tim IV d2=1)");
+  assert.equal(baris_total[19], 4, "total dikoreksi");
+  assert.equal(orang.find((r) => r[2] === "verif_a2")[19], 2);
+  assert.equal(orang.find((r) => r[2] === "verif_b3")[19], 0, "tanpa nilai -> 0 (bukan kosong)");
+  assert.ok(ex.lembar[2].baris.some((r) => /Dikoreksi/.test(String(r[0])) && /tidak memengaruhi angka lembur/.test(String(r[0]))), "penjelasan di sheet Aturan");
   assert.equal(sub.reduce((s, r) => s + r[7], 0), total, "jumlah subtotal = total");
   assert.ok(rekap.some((r) => String(r[0]).includes("pekerjaan Admin Utama") && String(r[0]).includes("= 5")), "informasi Admin Utama di luar total");
   // Sheet Per Hari: tim -> koordinator -> username -> tanggal
@@ -235,6 +236,50 @@ test("EXCEL: Rekap diurutkan per TIM (I, II, III, IV, tanpa tim) dengan KOORDINA
     ["Tim III", "verif_c1", "2026-11-09"], ["Tim IV", "verif_d2", "2026-11-10"], ["Tanpa tim", "verif_zz_anonim", "2026-11-09"],
   ]);
   assert.equal(hari[2][5], "Sabtu/Minggu/tanggal merah (seharian luar jam kerja)");
+});
+
+test("EXCEL (T6): kolom Pemeriksaan ulang dan TOTAL PEKERJAAN = pertama + ulang di setiap baris, subtotal, TOTAL, dan sheet Per Hari", async () => {
+  const o = (username, tim, k, koord, kerja, luar) => ({ username, namaLengkap: username.toUpperCase(), tim, koordinator: koord, aktif: true, total: kerja + luar, jamKerja: kerja, luarJamKerja: luar, memenuhiSyarat: kerja + luar, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0, dikoreksi: 0 });
+  const perOrang = [o("verif_a1", "I", 0, true, 3, 1), o("verif_a2", "I", 0, false, 2, 0), o("verif_b1", "II", 0, true, 1, 1)];
+  const u = (username, jam, luar, sesuai, dik, sisa) => ({ username, total: jam + luar, jamKerja: jam, luarJamKerja: luar, sesuai, dikoreksi: dik, sisa });
+  const ulangOrang = [u("verif_a1", 2, 1, 2, 1, 5), u("verif_a2", 0, 3, 3, 0, 0), u("verif_b1", 1, 0, 0, 1, 2)];
+  const ex = excelTiruan();
+  agregat.susunBukuRekap(ex, {
+    cakupan: "SEMUA", timFokus: null, rentang: { dari: "2026-11-09", sampai: "2026-11-10", jumlahHari: 2 }, saya: "ADMIN", ulangTersedia: true,
+    hasil: { ringkasan: { total: 8, jamKerja: 6, luarJamKerja: 2, memenuhiSyarat: 8, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0, dikoreksi: 0 }, perOrang, perHari: [{ tanggal: "2026-11-09", hari: "Senin", libur: false, total: 5, jamKerja: 4, luarJamKerja: 1 }], luarTim: { total: 0, jamKerja: 0, luarJamKerja: 0 } },
+    ulang: { ringkasan: { total: 7, jamKerja: 3, luarJamKerja: 4, sesuai: 5, dikoreksi: 2, sisa: 7 }, perOrang: ulangOrang, perHari: [] },
+    gabungan: { perOrangHari: [
+      { username: "verif_a1", tanggal: "2026-11-09", pertamaJam: 3, pertamaLuar: 1, ulangJam: 1, ulangLuar: 0 },
+      { username: "verif_a2", tanggal: "2026-11-10", pertamaJam: 0, pertamaLuar: 0, ulangJam: 0, ulangLuar: 3 },
+    ] },
+  }, "ADMIN");
+  const rekap = ex.lembar[0].baris, isi = rekap.slice(5);
+  assert.deepEqual(rekap[4].slice(5, 16), ["Pertama: Jam Kerja", "Pertama: Luar Jam Kerja", "Pertama: Total", "Ulang: Jam Kerja", "Ulang: Luar Jam Kerja", "Ulang: Total", "Ulang: Sesuai", "Ulang: Dikoreksi", "TOTAL PEKERJAAN: Jam Kerja", "TOTAL PEKERJAAN: Luar Jam Kerja (Lembur)", "TOTAL PEKERJAAN: Total"]);
+  const orang = isi.filter((r) => typeof r[0] === "number");
+  const a1 = orang.find((r) => r[2] === "verif_a1");
+  assert.deepEqual(a1.slice(5, 16), [3, 1, 4, 2, 1, 3, 2, 1, 5, 2, 7], "a1: pertama 3+1, ulang 2+1 (sesuai 2, dikoreksi 1), TOTAL 5 jam kerja + 2 luar = 7");
+  for (const r of orang) {
+    assert.equal(r[13], r[5] + r[8], "TOTAL jam kerja = pertama + ulang: " + r[2]);
+    assert.equal(r[14], r[6] + r[9], "TOTAL luar jam kerja = pertama + ulang: " + r[2]);
+    assert.equal(r[15], r[7] + r[10], "TOTAL = pertama + ulang: " + r[2]);
+    assert.equal(r[15], r[13] + r[14], "TOTAL = jam kerja + luar jam kerja: " + r[2]);
+  }
+  const sub = isi.filter((r) => String(r[1]).startsWith("Subtotal"));
+  assert.deepEqual(sub.map((r) => [r[1], r[7], r[10], r[15]]), [["Subtotal Tim I", 6, 6, 12], ["Subtotal Tim II", 2, 1, 3]]);
+  const total = isi.find((r) => r[1] === "TOTAL");
+  assert.deepEqual([total[7], total[10], total[11], total[12], total[15]], [8, 7, 5, 2, 15], "TOTAL: pertama 8 + ulang 7... (ringkasan ulang dipakai apa adanya)");
+  assert.equal(orang.reduce((s, r) => s + r[15], 0), sub.reduce((s, r) => s + r[15], 0), "jumlah orang = jumlah subtotal");
+  const hari = ex.lembar[1].baris.slice(4);
+  assert.deepEqual(ex.lembar[1].baris[3].slice(6), ["Pertama: Jam Kerja", "Pertama: Luar Jam Kerja", "Ulang: Jam Kerja", "Ulang: Luar Jam Kerja", "TOTAL: Jam Kerja", "TOTAL: Luar Jam Kerja (Lembur)", "TOTAL: Data"]);
+  assert.deepEqual(hari.map((r) => [r[1], r[3], ...r.slice(6)]), [["verif_a1", "2026-11-09", 3, 1, 1, 0, 4, 1, 5], ["verif_a2", "2026-11-10", 0, 0, 0, 3, 0, 3, 3]], "hari yang hanya punya pemeriksaan ulang tetap tampil");
+});
+
+test("EXCEL (T6): tanpa data pemeriksaan ulang (migrasi belum diterapkan) kolom ulang bernilai 0 dan TOTAL = pertama", async () => {
+  const ex = excelTiruan();
+  const perOrang = [{ username: "verif_a1", namaLengkap: "A", tim: "I", koordinator: true, aktif: true, total: 4, jamKerja: 3, luarJamKerja: 1, memenuhiSyarat: 4, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0 }];
+  agregat.susunBukuRekap(ex, { cakupan: "TIM", timFokus: "I", rentang: { dari: "2026-11-09", sampai: "2026-11-09", jumlahHari: 1 }, saya: "X", hasil: { ringkasan: { total: 4, jamKerja: 3, luarJamKerja: 1, memenuhiSyarat: 4, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0 }, perOrang, perHari: [] } }, "X");
+  const r = ex.lembar[0].baris.slice(5).find((x) => x[2] === "verif_a1");
+  assert.deepEqual(r.slice(5, 16), [3, 1, 4, 0, 0, 0, 0, 0, 3, 1, 4]);
 });
 
 test("EXCEL: cakupan TIM/SAYA tanpa subtotal; urutan tetap koordinator dulu", async () => {
@@ -290,4 +335,38 @@ test("LEMBUR AMAN (server): status sekarang yang berubah-ubah tidak mengubah tot
     pakai("UTAMA", { kejadian: KEJADIAN.map((e) => ({ ...e, status_sekarang: v })) });
     assert.equal(pokok(await ambil(...RENT)), acuan, "status sekarang = " + v);
   }
+});
+
+test("LAYAR (T6): tiga angka utama; server lama tanpa data ulang -> ulang 0 dan total = pertama; gabungan dari server dipakai apa adanya", () => {
+  const layar = createRequire(import.meta.url)("../../public/js/app-agregat-verifikasi.js");
+  const lama = layar.ringkasTiga({ ringkasan: { total: 10, jamKerja: 7, luarJamKerja: 3 } });
+  assert.deepEqual([lama.pertama.total, lama.ulang.total, lama.total.total, lama.total.jamKerja, lama.total.luarJamKerja], [10, 0, 10, 7, 3]);
+  const baru = layar.ringkasTiga({ ringkasan: { total: 10, jamKerja: 7, luarJamKerja: 3 }, ulang: { ringkasan: { total: 4, jamKerja: 1, luarJamKerja: 3, sesuai: 3, dikoreksi: 1, sisa: 9 } }, gabungan: { ringkasan: { total: 14, jamKerja: 8, luarJamKerja: 6 } } });
+  assert.deepEqual([baru.pertama.total, baru.ulang.total, baru.ulang.sesuai, baru.ulang.dikoreksi, baru.ulang.sisa, baru.total.total, baru.total.jamKerja, baru.total.luarJamKerja], [10, 4, 3, 1, 9, 14, 8, 6]);
+  const kosong = layar.ringkasTiga(null);
+  assert.deepEqual([kosong.pertama.total, kosong.ulang.total, kosong.total.total], [0, 0, 0]);
+});
+
+test("LAYAR (T6): baris tabel menggabungkan pertama + ulang menurut username (huruf besar/kecil tak berpengaruh); tanpa data ulang tetap sama dengan pertama", () => {
+  const layar = createRequire(import.meta.url)("../../public/js/app-agregat-verifikasi.js");
+  const d = { perOrang: [{ username: "verif_a1", total: 5, jamKerja: 4, luarJamKerja: 1 }, { username: "verif_b1", total: 2, jamKerja: 2, luarJamKerja: 0 }],
+    ulang: { perOrang: [{ username: "VERIF_A1", total: 3, jamKerja: 1, luarJamKerja: 2, sesuai: 2, dikoreksi: 1, sisa: 6 }] } };
+  const g = layar.gabungPerOrang(d);
+  assert.deepEqual([g[0].ulangTotal, g[0].ulangSisa, g[0].totalPekerjaan, g[0].totalJamKerja, g[0].totalLuarJamKerja], [3, 6, 8, 5, 3]);
+  assert.deepEqual([g[1].ulangTotal, g[1].totalPekerjaan, g[1].totalJamKerja], [0, 2, 2], "tanpa data ulang: total = pertama");
+  const dariServer = layar.gabungPerOrang({ perOrang: d.perOrang, gabungan: { perOrang: [{ username: "VERIF_A1", total: 99, jamKerja: 90, luarJamKerja: 9 }] } });
+  assert.deepEqual([dariServer[0].totalPekerjaan, dariServer[0].totalJamKerja], [99, 90], "angka gabungan dari server dipakai apa adanya");
+  assert.deepEqual(layar.gabungPerOrang({}), []);
+});
+
+test("LAYAR (T6): bagan per hari memakai total pekerjaan tetapi tetap membawa penanda libur; kartu tim memakai total pekerjaan", () => {
+  const layar = createRequire(import.meta.url)("../../public/js/app-agregat-verifikasi.js");
+  const d = { perHari: [{ tanggal: "2026-11-14", hari: "Sabtu", libur: true, total: 1, jamKerja: 0, luarJamKerja: 1 }, { tanggal: "2026-11-15", hari: "Minggu", libur: true, total: 0, jamKerja: 0, luarJamKerja: 0 }],
+    gabungan: { perHari: [{ tanggal: "2026-11-14", total: 4, jamKerja: 0, luarJamKerja: 4 }], perTim: [{ tim: "I", total: 70, jamKerja: 46, luarJamKerja: 24 }] },
+    perTim: [{ tim: "I", anggota: 8, total: 60, jamKerja: 40, luarJamKerja: 20 }, { tim: "II", anggota: 7, total: 5, jamKerja: 5, luarJamKerja: 0 }] };
+  const h = layar.hariGabungan(d);
+  assert.deepEqual([h[0].total, h[0].luarJamKerja, h[0].libur, h[0].hari], [4, 4, true, "Sabtu"]);
+  assert.deepEqual([h[1].total, h[1].libur], [0, true], "hari tanpa angka gabungan tetap tampil");
+  const t = layar.timGabungan(d);
+  assert.deepEqual([t[0].total, t[0].anggota, t[1].total], [70, 8, 5], "anggota tetap dari pertama; tim tanpa gabungan memakai angka pertama");
 });

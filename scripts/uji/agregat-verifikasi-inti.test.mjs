@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  adalahJamKerja, konfigBawaan, bangunKonfig, lokalWib, tafsirRentang, tentukanCakupan, susunAgregat, waktuKeDtk, daftarTanggal, MAKS_HARI_RENTANG,
+  adalahJamKerja, konfigBawaan, bangunKonfig, lokalWib, tafsirRentang, tentukanCakupan, susunAgregat, waktuKeDtk, daftarTanggal, MAKS_HARI_RENTANG, susunUlang, gabungkan,
 } from "../../supabase/functions/api/_shared/agregatInti.ts";
 
 // Waktu WIB yang mudah dibaca. Catatan kalender: 12 Nov 2026 = Kamis.
@@ -236,5 +236,82 @@ test("LEMBUR AMAN: status sekarang TIDAK PERNAH mengubah total, jam kerja, luar 
   for (const v of varian) {
     const a = susunAgregat({ cakupan: "SEMUA", anggota: AKUN, semuaAnggota: AKUN, kejadian: dasar.map((e) => ({ ...e, statusSekarang: v })), rentang, konfig, libur });
     assert.equal(pokok(a), pokok(acuan), "status sekarang = " + JSON.stringify(v));
+  }
+});
+
+// ------------------------------------------------------------------ pemeriksaan ulang (T6)
+const ku = (oleh, s, hasil = "SESUAI") => ({ oleh, waktu: wib(s), hasil });
+const susunU = (cakupan, anggota, kejadian, sisa = {}, ekstra = {}) => susunUlang({ cakupan, anggota, kejadian, sisa, rentang, konfig, libur, ...ekstra });
+
+test("ULANG: jam kerja/luar jam kerja memakai aturan yang SAMA; Sesuai vs Dikoreksi; di luar rentang/cakupan diabaikan; sisa tugas per orang", () => {
+  const u = susunU("TIM", AKUN.filter((x) => x.tim === "I"), [
+    ku("VERIF_A1", "2026-11-09 08:00:00"),                          // jam kerja
+    ku("VERIF_A1", "2026-11-09 16:30:00", "DIKOREKSI"),             // batas -> luar
+    ku("VERIF_A2", "2026-11-14 10:00:00"),                          // Sabtu -> luar
+    ku("VERIF_A2", "2026-11-13 16:45:00", "DIKOREKSI"),             // Jumat 16.45 -> jam kerja
+    ku("VERIF_A2", "2026-11-10 10:00:00"),                          // Selasa -> jam kerja (membuat A2 TIDAK simetris: 2 jam kerja, 1 luar)
+    ku("VERIF_A1", "2026-11-08 23:59:59"),                          // sebelum rentang
+    ku("VERIF_B1", "2026-11-10 10:00:00"),                          // di luar cakupan
+  ], { VERIF_A1: 7, VERIF_B1: 99 });
+  assert.deepEqual(u.ringkasan, { total: 5, jamKerja: 3, luarJamKerja: 2, sesuai: 3, dikoreksi: 2, sisa: 7 }, "sisa hanya anggota cakupan (B1 tidak ikut)");
+  const a2 = u.perOrang.find((o) => o.username === "verif_a2");
+  assert.deepEqual([a2.total, a2.jamKerja, a2.luarJamKerja], [3, 2, 1], "jam kerja dan luar jam kerja per orang tidak tertukar");
+  const a1 = u.perOrang.find((o) => o.username === "verif_a1");
+  assert.deepEqual([a1.total, a1.jamKerja, a1.luarJamKerja, a1.sesuai, a1.dikoreksi, a1.sisa], [2, 1, 1, 1, 1, 7]);
+  assert.deepEqual(u.perHari.filter((h) => h.total).map((h) => [h.tanggal, h.jamKerja, h.luarJamKerja]), [["2026-11-09", 1, 1], ["2026-11-10", 1, 0], ["2026-11-13", 1, 0], ["2026-11-14", 0, 1]]);
+  assert.equal(u.perTim, undefined); assert.equal(u.perOrangHari, undefined);
+});
+
+test("ULANG: kartu per tim (Admin Utama) dari SEMUA verifikator walau tabel disaring; tim tanpa pekerjaan tetap 0", () => {
+  const kejadian = [ku("VERIF_A1", "2026-11-09 09:00:00"), ku("VERIF_B1", "2026-11-10 09:00:00"), ku("VERIF_BARU", "2026-11-14 09:00:00")];
+  const u = susunU("SEMUA", AKUN.filter((x) => x.tim === "II"), kejadian, { VERIF_A2: 3, VERIF_B2: 1 }, { semuaAnggota: AKUN });
+  const t = Object.fromEntries(u.perTim.map((x) => [x.tim, x]));
+  assert.deepEqual([t.I.total, t.II.total, t["-"].total, t.III.total], [1, 1, 1, 0]);
+  assert.deepEqual([t.I.sisa, t.II.sisa], [3, 1]);
+  assert.equal(u.perOrang.length, 2, "tabel hanya Tim II");
+  assert.equal(u.ringkasan.total, 1, "ringkasan hanya cakupan tabel (Tim II)");
+});
+
+test("ULANG: rincian per orang per hari hanya bila diminta (dasar lembur Excel)", () => {
+  const kejadian = [ku("VERIF_A1", "2026-11-09 09:00:00"), ku("VERIF_A1", "2026-11-09 18:00:00"), ku("VERIF_A1", "2026-11-14 09:00:00")];
+  const u = susunU("SAYA", [AKUN[0]], kejadian, {}, { sertakanPerOrangHari: true });
+  assert.deepEqual(u.perOrangHari, [{ username: "verif_a1", tanggal: "2026-11-09", jamKerja: 1, luarJamKerja: 1 }, { username: "verif_a1", tanggal: "2026-11-14", jamKerja: 0, luarJamKerja: 1 }]);
+});
+
+test("GABUNGAN: Total pekerjaan = verifikasi pertama + pemeriksaan ulang, jam kerja dan luar jam kerja dijumlahkan terpisah", () => {
+  const anggota = AKUN.filter((x) => x.tim === "I");
+  const pertama = susunAgregat({ cakupan: "TIM", anggota, kejadian: [kej("VERIF_A1", "2026-11-09 09:00:00"), kej("VERIF_A2", "2026-11-14 09:00:00")], rentang, konfig, libur, sertakanPerOrangHari: true });
+  const ulang = susunU("TIM", anggota, [ku("VERIF_A1", "2026-11-09 17:00:00"), ku("VERIF_A1", "2026-11-10 09:00:00", "DIKOREKSI")], {}, { sertakanPerOrangHari: true });
+  const g = gabungkan(pertama, ulang);
+  assert.deepEqual(g.ringkasan, { total: 4, jamKerja: 2, luarJamKerja: 2 });
+  assert.deepEqual(g.perOrang.find((o) => o.username === "verif_a1"), { username: "verif_a1", total: 3, jamKerja: 2, luarJamKerja: 1 });
+  assert.deepEqual(g.perHari.find((h) => h.tanggal === "2026-11-09"), { tanggal: "2026-11-09", total: 2, jamKerja: 1, luarJamKerja: 1 });
+  assert.deepEqual(g.perOrangHari.find((x) => x.tanggal === "2026-11-09"), { username: "verif_a1", tanggal: "2026-11-09", pertamaJam: 1, pertamaLuar: 0, ulangJam: 0, ulangLuar: 1 });
+  assert.deepEqual(g.perOrangHari.find((x) => x.tanggal === "2026-11-10"), { username: "verif_a1", tanggal: "2026-11-10", pertamaJam: 0, pertamaLuar: 0, ulangJam: 1, ulangLuar: 0 }, "hari yang hanya punya pemeriksaan ulang tetap muncul");
+});
+
+test("GABUNGAN INVARIAN (acak): setiap tingkat (ringkasan, orang, tim, hari) = pertama + ulang persis; hasil pertama TIDAK berubah oleh adanya pemeriksaan ulang", () => {
+  let benih = 12345; const acak = () => { benih = (benih * 1664525 + 1013904223) >>> 0; return benih / 4294967296; };
+  for (let u = 0; u < 300; u++) {
+    const waktuAcak = () => new Date(wib("2026-11-08 12:00:00").getTime() + Math.floor(acak() * 8 * 86400000));
+    const kp = Array.from({ length: Math.floor(acak() * 30) }, () => ({ oleh: AKUN[Math.floor(acak() * 5)].username.toUpperCase(), waktu: waktuAcak(), statusBaru: ["Memenuhi Syarat", "Berkas Tidak Lengkap", "Tidak Memenuhi Syarat"][Math.floor(acak() * 3)] }));
+    const kuAcak = Array.from({ length: Math.floor(acak() * 30) }, () => ({ oleh: AKUN[Math.floor(acak() * 5)].username.toUpperCase(), waktu: waktuAcak(), hasil: acak() < 0.7 ? "SESUAI" : "DIKOREKSI" }));
+    const opsiP = { cakupan: "SEMUA", anggota: AKUN, semuaAnggota: AKUN, kejadian: kp, rentang, konfig, libur, sertakanPerOrangHari: true };
+    const sendiri = susunAgregat(opsiP);
+    const ulang = susunU("SEMUA", AKUN, kuAcak, {}, { semuaAnggota: AKUN, sertakanPerOrangHari: true });
+    const g = gabungkan(sendiri, ulang);
+    assert.deepEqual(sendiri, susunAgregat(opsiP), "susunAgregat tidak terpengaruh");
+    assert.equal(g.ringkasan.total, sendiri.ringkasan.total + ulang.ringkasan.total);
+    assert.equal(g.ringkasan.jamKerja, sendiri.ringkasan.jamKerja + ulang.ringkasan.jamKerja);
+    assert.equal(g.ringkasan.luarJamKerja, sendiri.ringkasan.luarJamKerja + ulang.ringkasan.luarJamKerja);
+    assert.equal(g.ringkasan.total, g.ringkasan.jamKerja + g.ringkasan.luarJamKerja, "total = jam kerja + luar jam kerja");
+    for (const o of g.perOrang) {
+      const a = sendiri.perOrang.find((x) => x.username === o.username), b = ulang.perOrang.find((x) => x.username === o.username);
+      assert.deepEqual([o.total, o.jamKerja, o.luarJamKerja], [a.total + b.total, a.jamKerja + b.jamKerja, a.luarJamKerja + b.luarJamKerja]);
+    }
+    assert.equal(g.perOrang.reduce((s, o) => s + o.total, 0), g.ringkasan.total, "jumlah orang = ringkasan");
+    assert.equal(g.perTim.reduce((s, t) => s + t.total, 0), g.ringkasan.total, "jumlah tim = ringkasan");
+    assert.equal(g.perHari.reduce((s, h) => s + h.total, 0), g.ringkasan.total, "jumlah hari = ringkasan");
+    assert.equal(g.perOrangHari.reduce((s, x) => s + x.pertamaJam + x.pertamaLuar + x.ulangJam + x.ulangLuar, 0), g.ringkasan.total, "jumlah rincian orang-hari = ringkasan");
   }
 });

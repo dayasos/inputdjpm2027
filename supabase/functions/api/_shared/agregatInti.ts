@@ -258,3 +258,100 @@ export function susunAgregat(p: {
     perOrangHari: p.sertakanPerOrangHari ? [...orangHari.values()].sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.username.localeCompare(b.username)) : undefined,
   };
 }
+
+// ------------------------------------------------------------------ pemeriksaan ulang (plans/plan-verifikasi-ulang.md, T6)
+//
+// Pemeriksaan ulang dihitung TERPISAH dari verifikasi pertama (susunAgregat tidak diubah), dengan aturan jam kerja yang SAMA, lalu
+// dijumlahkan oleh gabungkan(): Total pekerjaan = verifikasi pertama + pemeriksaan ulang (keputusan user: ikut lembur, 1 data = 1 hitungan).
+// Satu data dihitung satu kali per pemeriksa: pemanggil (kueri) hanya mengirim satu kejadian per (data, pemeriksa).
+
+export interface KejadianUlang { oleh: string; waktu: Date; hasil: string }   // hasil: SESUAI | DIKOREKSI
+
+export interface BarisOrangUlang { username: string; total: number; jamKerja: number; luarJamKerja: number; sesuai: number; dikoreksi: number; sisa: number }
+const nolUlang = () => ({ total: 0, jamKerja: 0, luarJamKerja: 0, sesuai: 0, dikoreksi: 0, sisa: 0 });
+
+function hitungOrangUlang(
+  anggota: AkunVerif[], kejadian: KejadianUlang[], sisa: Record<string, number>, rentang: Rentang, konfig: KonfigJamKerja, libur: ReadonlySet<string>,
+): Map<string, BarisOrangUlang> {
+  const orang = new Map<string, BarisOrangUlang>();
+  for (const a of anggota) orang.set(rapi(a.username), { username: a.username, ...nolUlang(), sisa: Number(sisa[rapi(a.username)]) || 0 });
+  for (const k of kejadian) {
+    const b = orang.get(rapi(k.oleh));
+    if (!b) continue;
+    if (!(k.waktu >= rentang.awalUtc && k.waktu < rentang.akhirUtcEksklusif)) continue;
+    b.total++;
+    if (adalahJamKerja(k.waktu, konfig, libur)) b.jamKerja++; else b.luarJamKerja++;
+    const h = rapi(k.hasil);
+    if (h === "SESUAI") b.sesuai++; else if (h === "DIKOREKSI") b.dikoreksi++;
+  }
+  return orang;
+}
+
+export function susunUlang(p: {
+  cakupan: Cakupan; anggota: AkunVerif[]; kejadian: KejadianUlang[]; sisa: Record<string, number>; rentang: Rentang; konfig: KonfigJamKerja; libur: ReadonlySet<string>;
+  sertakanPerOrangHari?: boolean; semuaAnggota?: AkunVerif[];
+}) {
+  const orang = hitungOrangUlang(p.anggota, p.kejadian, p.sisa, p.rentang, p.konfig, p.libur);
+  const ringkasan = nolUlang();
+  for (const b of orang.values()) { ringkasan.total += b.total; ringkasan.jamKerja += b.jamKerja; ringkasan.luarJamKerja += b.luarJamKerja; ringkasan.sesuai += b.sesuai; ringkasan.dikoreksi += b.dikoreksi; ringkasan.sisa += b.sisa; }
+
+  const hari = new Map<string, { total: number; jamKerja: number; luarJamKerja: number }>();
+  for (const t of daftarTanggal(p.rentang.dari, p.rentang.sampai)) hari.set(t, { total: 0, jamKerja: 0, luarJamKerja: 0 });
+  const orangHari = new Map<string, { username: string; tanggal: string; jamKerja: number; luarJamKerja: number }>();
+  for (const k of p.kejadian) {
+    const b = orang.get(rapi(k.oleh));
+    if (!b) continue;
+    if (!(k.waktu >= p.rentang.awalUtc && k.waktu < p.rentang.akhirUtcEksklusif)) continue;
+    const jam = adalahJamKerja(k.waktu, p.konfig, p.libur);
+    const tgl = lokalWib(k.waktu).tanggal;
+    const h = hari.get(tgl);
+    if (h) { h.total++; if (jam) h.jamKerja++; else h.luarJamKerja++; }
+    if (p.sertakanPerOrangHari) {
+      const kunci = rapi(k.oleh) + "|" + tgl;
+      const oh = orangHari.get(kunci) ?? { username: b.username, tanggal: tgl, jamKerja: 0, luarJamKerja: 0 };
+      if (jam) oh.jamKerja++; else oh.luarJamKerja++;
+      orangHari.set(kunci, oh);
+    }
+  }
+
+  let perTim: { tim: string; total: number; jamKerja: number; luarJamKerja: number; sisa: number }[] | undefined;
+  if (p.cakupan === "SEMUA") {
+    const dasar = hitungOrangUlang(p.semuaAnggota ?? p.anggota, p.kejadian, p.sisa, p.rentang, p.konfig, p.libur);
+    const akun = new Map((p.semuaAnggota ?? p.anggota).map((a) => [rapi(a.username), a]));
+    perTim = ([...DAFTAR_TIM, "-"] as string[]).map((tm) => {
+      const m = [...dasar.entries()].filter(([u]) => ((akun.get(u)?.tim) || "-") === tm).map(([, o]) => o);
+      return { tim: tm, total: m.reduce((s, o) => s + o.total, 0), jamKerja: m.reduce((s, o) => s + o.jamKerja, 0), luarJamKerja: m.reduce((s, o) => s + o.luarJamKerja, 0), sisa: m.reduce((s, o) => s + o.sisa, 0) };
+    });
+  }
+
+  return {
+    ringkasan,
+    perOrang: [...orang.values()],
+    perHari: [...hari.entries()].map(([tanggal, v]) => ({ tanggal, ...v })),
+    perTim,
+    perOrangHari: p.sertakanPerOrangHari ? [...orangHari.values()].sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.username.localeCompare(b.username)) : undefined,
+  };
+}
+
+/** Total pekerjaan = verifikasi pertama + pemeriksaan ulang (jam kerja dan luar jam kerja dijumlahkan terpisah). Tidak ada angka lain yang ikut. */
+export function gabungkan(pertama: ReturnType<typeof susunAgregat>, ulang: ReturnType<typeof susunUlang>) {
+  const u = new Map(ulang.perOrang.map((o) => [rapi(o.username), o]));
+  const jumlah = (a: { jamKerja: number; luarJamKerja: number }, b?: { jamKerja: number; luarJamKerja: number }) =>
+    ({ total: a.jamKerja + a.luarJamKerja + (b ? b.jamKerja + b.luarJamKerja : 0), jamKerja: a.jamKerja + (b?.jamKerja ?? 0), luarJamKerja: a.luarJamKerja + (b?.luarJamKerja ?? 0) });
+  const ut = new Map((ulang.perTim ?? []).map((t) => [t.tim, t]));
+  const uh = new Map(ulang.perHari.map((h) => [h.tanggal, h]));
+  const kunciOh = (x: { username: string; tanggal: string }) => rapi(x.username) + "|" + x.tanggal;
+  const gabOh = new Map<string, { username: string; tanggal: string; pertamaJam: number; pertamaLuar: number; ulangJam: number; ulangLuar: number }>();
+  for (const x of pertama.perOrangHari ?? []) gabOh.set(kunciOh(x), { username: x.username, tanggal: x.tanggal, pertamaJam: x.jamKerja, pertamaLuar: x.luarJamKerja, ulangJam: 0, ulangLuar: 0 });
+  for (const x of ulang.perOrangHari ?? []) {
+    const e = gabOh.get(kunciOh(x)) ?? { username: x.username, tanggal: x.tanggal, pertamaJam: 0, pertamaLuar: 0, ulangJam: 0, ulangLuar: 0 };
+    e.ulangJam = x.jamKerja; e.ulangLuar = x.luarJamKerja; gabOh.set(kunciOh(x), e);
+  }
+  return {
+    ringkasan: jumlah(pertama.ringkasan, ulang.ringkasan),
+    perOrang: pertama.perOrang.map((o) => ({ username: o.username, ...jumlah(o, u.get(rapi(o.username))) })),
+    perTim: pertama.perTim?.map((t) => ({ tim: t.tim, ...jumlah(t, ut.get(t.tim)) })),
+    perHari: pertama.perHari.map((h) => ({ tanggal: h.tanggal, ...jumlah(h, uh.get(h.tanggal)) })),
+    perOrangHari: pertama.perOrangHari || ulang.perOrangHari ? [...gabOh.values()].sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.username.localeCompare(b.username)) : undefined,
+  };
+}

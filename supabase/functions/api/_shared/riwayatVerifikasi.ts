@@ -5,7 +5,7 @@ import { sql } from "./db.ts";
 // NON-BLOCKING: kegagalan menulis riwayat (mis. tabel belum ada) hanya dicatat di log fungsi dan TIDAK menggagalkan verifikasi.
 // Jejak utama tetap ada di penerima.diverifikasi_oleh; riwayat adalah tambahan agar pemverifikasi sebelumnya tidak hilang.
 
-export type SumberRiwayat = "SATU" | "DIPERBAIKI" | "MASSAL" | "OTOMATIS";
+export type SumberRiwayat = "SATU" | "DIPERBAIKI" | "MASSAL" | "OTOMATIS" | "ULANG" | "BATAL_ULANG";
 
 export interface RiwayatVerifikasi {
   penerimaId: number;

@@ -1,5 +1,6 @@
 import { adalahVerifikator, bolehVerifikasiSatuData } from "../_shared/gerbangPeran.ts";
 import { catatRiwayatVerifikasi, catatRiwayatVerifikasiBanyak, catatRiwayatVerifikasiWajib } from "../_shared/riwayatVerifikasi.ts";
+import { nilaiStatusVerifikasi } from "../_shared/statusVerifikasi.ts";
 
 /** Nama lengkap akun pemverifikator (untuk tampilan segera sesudah verifikasi). Gagal/kosong -> "" (layar menampilkan username saja). */
 async function namaLengkapAkun(akunId: unknown): Promise<string> {
@@ -97,18 +98,19 @@ export async function verifikasiSatuData(
 
   // "Memenuhi Syarat": keterangan tidak dipakai (dikosongkan) dan laporan perbaikan ikut direset,
   // sama seperti tandaiSudahDiperbaiki. Dua status lain tetap wajib berketerangan.
+  const nilaiStatus = nilaiStatusVerifikasi(statusBaru, keterangan, BATAS_PERBAIKAN_SERAGAM);
   const memenuhi = statusBaru === "Memenuhi Syarat";
   // Putaran perbaikan baru: "Memenuhi Syarat" (selesai) ATAU "Berkas Tidak Lengkap" (admin menolak perbaikan sebelumnya / menetapkan
   // ulang) -> tanda laporan lama dikosongkan supaya user bisa melapor lagi dan Detail tidak lagi menampilkan "sudah dilaporkan".
   // Dulu hanya Memenuhi Syarat yang mengosongkannya, jadi admin harus memutar lewat Tandai Sudah Diperbaiki (K9, 2026-10-22).
-  const putaranBaru = memenuhi || statusBaru === "Berkas Tidak Lengkap";
-  const keteranganBersih = memenuhi ? "" : (keterangan || "").toString().trim();
+  const putaranBaru = nilaiStatus.putaranBaru;
+  const keteranganBersih = nilaiStatus.keterangan;
   if (!memenuhi && !keteranganBersih) return { sukses: false, pesan: "Keterangan hasil verifikasi wajib diisi." };
 
   // Batas waktu perbaikan Berkas Tidak Lengkap DISERAGAMKAN (BATAS_PERBAIKAN_SERAGAM); nilai `batasWaktu` dari browser
   // diabaikan supaya tidak ada data yang batasnya berbeda (tab lama / pemanggilan langsung).
   void batasWaktu;
-  const batasWaktuBersih = statusBaru === "Berkas Tidak Lengkap" ? BATAS_PERBAIKAN_SERAGAM : "";
+  const batasWaktuBersih = nilaiStatus.batasWaktu;
 
   try {
     // Dihitung sekali di JS (bukan now() di SQL) supaya nilai yang DISIMPAN dan yang DIKEMBALIKAN

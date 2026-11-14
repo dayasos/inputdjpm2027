@@ -59,6 +59,19 @@ import { buatTokenSSORetur } from "./domains/sso.ts";
 import { ambilDataTahunHakAkses, ambilRiwayatEdit, ambilTahunTersedia } from "./domains/riwayat.ts";
 import { getDashboardProgresVerifikasi } from "./domains/dashboard.ts";
 import { getAgregatVerifikasi, unduhRekapLemburVerifikasi } from "./domains/agregatVerifikasi.ts";
+import {
+  batalkanBatchUlang,
+  batalkanKoreksiUlang,
+  bukaTugasUlang,
+  buatBatchUlang,
+  catatBerkasDibuka,
+  cekPembagianBatchUlang,
+  daftarBatchUlang,
+  getDaftarKoreksiUlang,
+  getTugasUlangSaya,
+  pratinjauBatchUlang,
+  simpanHasilUlang,
+} from "./domains/verifikasiUlang.ts";
 import { getCapaianInput, getProgresKuota, getSemuaKuota, simpanKuota } from "./domains/kuota.ts";
 import {
   getTemplatAlasan,
@@ -176,6 +189,18 @@ const ALLOWED: Record<string, Handler> = {
   verifikasiSatuData,
   getAgregatVerifikasi,
   unduhRekapLemburVerifikasi,
+  // Verifikasi ulang: aksi Admin Utama dan verifikator (peran dicek di domains/verifikasiUlang.ts; verifikator juga lewat daftar-putih)
+  pratinjauBatchUlang,
+  buatBatchUlang,
+  daftarBatchUlang,
+  batalkanBatchUlang,
+  cekPembagianBatchUlang,
+  getDaftarKoreksiUlang,
+  batalkanKoreksiUlang,
+  getTugasUlangSaya,
+  bukaTugasUlang,
+  catatBerkasDibuka,
+  simpanHasilUlang,
   getRingkasanVerifikasiSaya,
   laporkanPerbaikanBerkas,
   tandaiSudahDiperbaiki,

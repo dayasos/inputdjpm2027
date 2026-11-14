@@ -32,7 +32,7 @@ function buatDetail({ status = "Proses Verifikasi", ket = "", tgl = "", oleh = "
 let modeKoordinator = false, agregatGagal = false, agregatKosong = false, agregatNamaJahat = false;
 function datesAntara(dari, sampai) { const out = []; const a = new Date(dari + "T00:00:00Z"); const b = new Date(sampai + "T00:00:00Z"); for (let d = a; d <= b && out.length < 45; d = new Date(d.getTime() + 86400000)) out.push(d.toISOString().slice(0, 10)); return out; }
 const NAMA_HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-function buatAgregat(args) {
+function buatAgregatDasar(args) {
   const [, dari, sampai, tim] = args;
   const cakupan = peran === "UTAMA" ? "SEMUA" : (modeKoordinator ? "TIM" : "SAYA");
   const perHari = datesAntara(dari, sampai).map((t, i) => { const dow = new Date(t + "T12:00:00Z").getUTCDay(); const lib = dow === 0 || dow === 6; return { tanggal: t, hari: NAMA_HARI[dow], libur: lib, total: lib ? 3 : 10, jamKerja: lib ? 0 : 8, luarJamKerja: lib ? 3 : 2 }; });
@@ -45,6 +45,23 @@ function buatAgregat(args) {
   return { ...dasar, perOrang: [o("verif_zz4", "Zed Empat", "IV", 0, 90, 60, 30), o("verif_budi", nama, "II", 0, 50, 30, 20), o("verif_baru", "", null, 0, 32, 26, 6), o("verif_b2", "Bela Koordinator", "II", 0, 41, 31, 10, true), o("verif_andi", "Andi Saputra", "I", 0, 60, 40, 20, true), o("verif_a2", "Ani", "I", 0, 20, 10, 10), o("verif_c1", "Citra Tiga", "III", 0, 5, 5, 0)],
     perTim: [{ tim: "I", anggota: 8, total: 60, jamKerja: 40, luarJamKerja: 20 }, { tim: "II", anggota: 7, total: 50, jamKerja: 30, luarJamKerja: 20 }, { tim: "III", anggota: 8, total: 0, jamKerja: 0, luarJamKerja: 0 }, { tim: "IV", anggota: 8, total: 0, jamKerja: 0, luarJamKerja: 0 }, { tim: "-", anggota: 1, total: 32, jamKerja: 26, luarJamKerja: 6 }],
     luarTim: { total: 6, jamKerja: 4, luarJamKerja: 2 } };
+}
+// T6: pemeriksaan ulang (terpisah) dan gabungan (total pekerjaan = pertama + ulang) ditambahkan di atas hasil verifikasi pertama
+function buatAgregat(args) {
+  const d = buatAgregatDasar(args);
+  const nolU = { total: 0, jamKerja: 0, luarJamKerja: 0, sesuai: 0, dikoreksi: 0, sisa: 0 };
+  const u = agregatKosong ? nolU : { total: 20, jamKerja: 12, luarJamKerja: 8, sesuai: 17, dikoreksi: 3, sisa: 5 };
+  const perOrangU = d.perOrang.map((o) => (agregatKosong ? { username: o.username, ...nolU } : { username: o.username, total: 10, jamKerja: 6, luarJamKerja: 4, sesuai: 8, dikoreksi: 2, sisa: 3 }));
+  const tambah = (a, b) => ({ total: a.total + b.total, jamKerja: a.jamKerja + b.jamKerja, luarJamKerja: a.luarJamKerja + b.luarJamKerja });
+  d.ulangTersedia = true;
+  d.ulang = { ringkasan: u, perOrang: perOrangU, perHari: [] };
+  d.gabungan = {
+    ringkasan: tambah(d.ringkasan, u),
+    perOrang: d.perOrang.map((o, i) => ({ username: o.username, ...tambah(o, perOrangU[i]) })),
+    perTim: d.perTim ? d.perTim.map((x) => ({ tim: x.tim, ...tambah(x, agregatKosong ? nolU : { total: 10, jamKerja: 6, luarJamKerja: 4 }) })) : undefined,
+    perHari: d.perHari.map((h) => ({ tanggal: h.tanggal, ...tambah(h, agregatKosong ? nolU : { total: 2, jamKerja: 1, luarJamKerja: 1 }) })),
+  };
+  return d;
 }
 function jawab(aksi, args) {
   if (aksi === "pulihkanSesi") return { sukses: true, token: "TOKEN-UJI", username: peran === "VERIFIKATOR" ? "verif_andi" : "petugas", role: peran, kecamatan: peran === "GURU MAGHRIB MENGAJI" ? "MEDAN MARELAN" : "", userId: "", profileBelumDiisi: false, profil: { namaLengkap: "ANDI SAPUTRA", nomorHp: "0800", jabatan: "Verifikator" } };
@@ -151,11 +168,15 @@ try {
   const q1 = terakhir("getAgregatVerifikasi");
   cek("SAYA: panel terbuka berjudul 'Hasil Kerja Saya'", /Hasil Kerja Saya/.test(teks), teks.slice(0, 120));
   cek("SAYA: permintaan memuat token sesi, rentang bulan ini (WIB), dan tim kosong", !!q1 && q1.args[0] === "TOKEN-UJI" && q1.args[1] === harapan.dari && q1.args[2] === harapan.sampai && q1.args[3] === "", JSON.stringify({ q1, harapan }));
-  cek("SAYA: angka dari server tampil (142 data; 96 jam kerja; 46 luar jam kerja)", /Data diverifikasi\s*142/.test(teks) && /Jam kerja\s*96/.test(teks) && /Luar jam kerja \(lembur\)\s*46/.test(teks), teks.slice(0, 300));
+  cek("SAYA: tiga angka utama: Verifikasi pertama 142 (96 jam kerja, 46 luar), Pemeriksaan ulang 20 (12, 8), Total pekerjaan 162 (108, 54 lembur)",
+    /Verifikasi pertama\s*142\s*jam kerja 96\s*luar jam kerja 46/.test(teks) && /Pemeriksaan ulang\s*20\s*jam kerja 12\s*luar jam kerja 8/.test(teks) && /Total pekerjaan\s*162\s*jam kerja 108\s*luar jam kerja \(lembur\) 54/.test(teks), teks.slice(0, 500));
+  cek("SAYA: baris pemeriksaan ulang: Sesuai 17, Dikoreksi pemeriksa 3, Sisa tugas 5", /Pemeriksaan ulang\s*Sesuai\s*17\s*Dikoreksi pemeriksa\s*3\s*Sisa tugas\s*5/.test(teks), teks.slice(300, 900));
+  cek("SAYA: penjelasan Total pekerjaan = pertama + ulang tampil", /Total pekerjaan = hasil verifikasi pertama \(1 kali per data\) \+ pemeriksaan ulang/.test(teks));
   cek("SAYA: rincian per status tampil", /Memenuhi Syarat 101/.test(teks) && /Berkas Tidak Lengkap 29/.test(teks) && /Tidak Memenuhi Syarat 12/.test(teks));
   cek("SAYA: dua baris status: 'Hasil verifikator' (dasar hitungan) dan 'Status data sekarang' (informasi), lengkap dengan 'Dikoreksi Admin 8' dan catatan bahwa lembur tidak berubah",
-    /Hasil verifikator\s*Memenuhi Syarat\s*101/.test(teks) && /Status data sekarang\s*Memenuhi Syarat\s*105/.test(teks) && /Tidak Memenuhi Syarat\s*5/.test(teks) && /Lainnya\s*2/.test(teks) && /Dikoreksi Admin\s*8/.test(teks) && /lembur dihitung dari hasil verifikator/.test(teks), teks.slice(300, 900));
+    /Hasil verifikator\s*Memenuhi Syarat\s*101/.test(teks) && /Status data sekarang\s*Memenuhi Syarat\s*105/.test(teks) && /Tidak Memenuhi Syarat\s*5/.test(teks) && /Lainnya\s*2/.test(teks) && /Dikoreksi\s*8/.test(teks) && /lembur dihitung dari hasil verifikator/.test(teks), teks.slice(300, 900));
   cek("SAYA: aturan jam kerja selalu terlihat", /Senin.Kamis 08\.00.16\.30/.test(teks) && /Jumat 08\.00.17\.00/.test(teks));
+  cek("SAYA: bagan per hari memakai TOTAL PEKERJAAN (Senin 2 Nov: pertama 8+2, ulang +1+1 = 9 jam kerja, 3 luar jam kerja)", (await js("(() => { const e = Array.from(" + OV + ".querySelectorAll('.agr-hari')).find((x) => /Senin 2026-11-02/.test(x.getAttribute('title'))); return e ? e.getAttribute('title') : ''; })()")) === "Senin 2026-11-02: 9 jam kerja, 3 luar jam kerja");
   cek("SAYA: TANPA tabel anggota/tim (hanya dirinya)", !/Anggota tim/.test(teks) && !/Semua verifikator/.test(teks) && !/Per tim/.test(teks));
   await cekPonselTerbuka("verifikator biasa / SAYA");
   cek("SAYA: tabel harian dan bagan ada", /Rincian harian/.test(teks) && (await js("!!" + OV + ".querySelector('.agr-bagan')")) === true);
@@ -192,15 +213,15 @@ try {
   // keadaan kosong dan galat
   agregatKosong = true;
   await klik("#djpm-badge-verifikasi [data-agr]"); await tungguPanel();
-  cek("Keadaan kosong: pesan 'Belum ada data yang diberi hasil verifikasi' dan angka 0", /Belum ada data yang diberi hasil verifikasi/.test(await teksPanel()) && /Data diverifikasi\s*0/.test(await teksPanel()));
+  cek("Keadaan kosong: pesan 'Belum ada pekerjaan verifikasi' dan angka 0", /Belum ada pekerjaan verifikasi/.test(await teksPanel()) && /Verifikasi pertama\s*0/.test(await teksPanel()) && /Total pekerjaan\s*0/.test(await teksPanel()));
   await tutupPanel(); agregatKosong = false;
   agregatGagal = true;
   await klik("#djpm-badge-verifikasi [data-agr]");
   await tungguSampai("!!document.getElementById('agr-ulang')", "tombol coba lagi", 40);
-  cek("Galat server: pesan galat dan tombol 'Coba lagi' tampil (tanpa angka palsu)", /Galat uji dari server/.test(await teksPanel()) && !/Data diverifikasi/.test(await teksPanel()));
+  cek("Galat server: pesan galat dan tombol 'Coba lagi' tampil (tanpa angka palsu)", /Galat uji dari server/.test(await teksPanel()) && !/Verifikasi pertama/.test(await teksPanel()));
   agregatGagal = false;
   await klik("#agr-ulang"); await tungguPanel();
-  cek("'Coba lagi' memulihkan tampilan setelah server normal", /Data diverifikasi\s*142/.test(await teksPanel()));
+  cek("'Coba lagi' memulihkan tampilan setelah server normal", /Verifikasi pertama\s*142/.test(await teksPanel()));
   await tutupPanel();
 
   const luarDaftar = [...aksiDipanggil.keys()].filter((a) => !AKSI_VERIFIKATOR.has(a));
@@ -232,6 +253,11 @@ try {
   cek("SEMUA: tabel verifikator DIURUTKAN per tim (I, II, III, IV, tanpa tim), koordinator di atas tiap tim, lalu username", JSON.stringify(urutan.slice(0, 7)) === JSON.stringify(["verif_andi", "verif_a2", "verif_b2", "verif_budi", "verif_c1", "verif_zz4", "verif_baru"]), JSON.stringify(urutan));
   cek("SEMUA: garis pemisah di awal tiap tim (bukan di baris pertama)", (await js(OV + ".querySelectorAll('tr.agr-awal-tim').length")) === 4 && (await js("!" + OV + ".querySelector('tbody tr:first-child').classList.contains('agr-awal-tim')")) === true);
   cek("SEMUA: kolom 'Dikoreksi' ada di tabel dan menampilkan jumlah per verifikator (Andi = 3)", (await js("(() => { const th = Array.from(" + OV + ".querySelector('.agr-gulir table').querySelectorAll('thead th')).map((x) => x.textContent); const tr = Array.from(" + OV + ".querySelectorAll('tbody tr')).find((r) => /verif_andi/.test(r.textContent)); return th[th.length - 1] === 'Dikoreksi' && !!tr && tr.cells[tr.cells.length - 1].textContent.trim() === '3'; })()")) === true);
+  cek("SEMUA: tabel memuat kolom Pertama, Ulang, Total pekerjaan, Jam kerja, Luar jam kerja, Sisa ulang, Dikoreksi (urutan tetap, Dikoreksi terakhir)",
+    JSON.stringify(await js("Array.from(" + OV + ".querySelectorAll('.agr-gulir table')[0].querySelectorAll('thead th')).map((x) => x.textContent)")) === JSON.stringify(["Verifikator", "Tim", "Pertama", "Ulang", "Total pekerjaan", "Jam kerja", "Luar jam kerja", "MS", "BTL", "TMS", "Sisa ulang", "Dikoreksi"]));
+  cek("SEMUA: baris Andi = pertama 60, ulang 10, TOTAL 70 (jam kerja 46 + luar 24 = 70), sisa tugas ulang 3, dikoreksi 3",
+    JSON.stringify(await js("(() => { const tr = Array.from(" + OV + ".querySelectorAll('tbody tr')).find((r) => /verif_andi/.test(r.textContent)); return [2, 3, 4, 5, 6, 10, 11].map((i) => tr.cells[i].textContent.trim()); })()")) === JSON.stringify(["60", "10", "70", "46", "24", "3", "3"]));
+  cek("SEMUA: kartu Tim I memakai TOTAL PEKERJAAN (60 pertama + 10 ulang = 70)", /70/.test(await js(OV + ".querySelector('button[data-tim=\"I\"]').textContent")) && !/\b60\b/.test(await js(OV + ".querySelector('button[data-tim=\"I\"] .agr-angka').textContent")));
   cek("SEMUA: akun tanpa tim tampil dengan strip", (await js("Array.from(" + OV + ".querySelectorAll('tbody tr')).some((r) => /verif_baru/.test(r.textContent) && /–/.test(r.cells[1].textContent))")) === true);
   await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(os.tmpdir(), "djpm_agregat_semua.png"), Buffer.from(s.result.data, "base64")));
   await klik("button[data-tim='II']"); await tidur(800);
