@@ -1,6 +1,6 @@
 # Plan: Verifikasi Ulang Data yang Sudah Terverifikasi (penugasan acak merata, pekerjaan nyata, masuk agregat/lembur sebagai kategori terpisah)
 
-> Versi **1.2 (draf)** · 2026-11-14 · Status: **RENCANA; belum ada kode verifikasi ulang.** KEPUTUSAN USER: (1) seluruh hasil verifikasi termasuk BTL dan TMS; (2) pemeriksa mengoreksi sendiri (MS -> BTL dst.), Admin tidak dibebani; (3) masuk data lembur dan mengikuti ketentuan lembur; (4) **semua data BTL dan TMS HANYA ke akun `verif_uga_deba`**; (5) **lima akun pimpinan tidak menerima tugas**: `verif_ronald_fredy`, `verif_fery_suhery`, `verif_khoiruddin`, `verif_amy_pratiwi`, `verif_netty_abdiati`; (6) fitur **Verifikasi Massal DIHAPUS** (selesai lokal 2026-11-14, belum tayang).
+> Versi **1.4 (draf)** · 2026-11-14 · Status: **RENCANA; belum ada kode verifikasi ulang.** KEPUTUSAN USER: (1) seluruh hasil verifikasi termasuk BTL dan TMS; (2) pemeriksa mengoreksi sendiri (MS -> BTL dst.), Admin tidak dibebani; (3) masuk data lembur dan mengikuti ketentuan lembur; (4) **semua data BTL dan TMS HANYA ke akun `verif_uga_deba`**; (5) **lima akun pimpinan tidak menerima tugas**: `verif_ronald_fredy`, `verif_fery_suhery`, `verif_khoiruddin`, `verif_amy_pratiwi`, `verif_netty_abdiati`; (6) fitur **Verifikasi Massal DIHAPUS** (selesai lokal 2026-11-14, belum tayang); (7) **K16: `verif_uga_deba` HANYA BTL/TMS** (tidak ikut bagian acak MS; pemeriksa data MS = 28 akun); (8) **K13 disetujui** (semua turun/naik seperti verifikasi biasa, kecuali naik ke Memenuhi Syarat tetap hanya Admin); (9) **daftar periksa = seluruh berkas yang diunggah** pada data itu; (10) **K14 DIJAWAB: TANPA audit sampel.** Koreksi berjalan dua arah: petugas kelurahan dan Admin Utama sudah terhubung bila ada kesalahan verifikator, jadi tidak ada beban pemeriksaan tambahan dan fitur audit tidak dibangun.
 > Berlanjut dari `plans/plan-agregat-verifikator.md` (D2, D8, D9, agregat) dan menggantikan bagian 3 `plans/plan-pemeriksaan-ulang-data-lama.md` (bagian pengakuan pekerjaan lama di sana tetap terpisah).
 > Prinsip proyek: bertahap, lokal dulu, mudah dibatalkan, migrasi/deploy/push hanya atas izin.
 
@@ -34,8 +34,8 @@ Hasil "Sesuai" **tetap pekerjaan yang dihitung**: yang dinilai adalah pemeriksaa
 **V5. Pencatatan atomik.** Menyimpan hasil = satu transaksi (tugas + riwayat). Jika riwayat gagal, hasil tidak tersimpan (pola D8).
 **V6. Waktu = waktu server saat tersimpan.** Tidak ada jalur untuk mengisi tanggal/jam secara manual.
 **V7. Pencatatan.** Riwayat bersumber `ULANG` dengan status lama/baru; verifikasi pertama (`SATU`) tidak tercampur. **Perhitungan lembur (keputusan user):** pemeriksaan ulang MASUK data lembur dan mengikuti ketentuan lembur yang sama (jam kerja / luar jam kerja menurut waktu server saat tersimpan, 1 kali per data per pemeriksa). Panel dan Excel menampilkan **tiga angka**: Verifikasi pertama, Pemeriksaan ulang, dan **Total pekerjaan** (jumlah keduanya) dengan pembagian jam kerja/luar jam kerja untuk masing-masing, supaya setiap angka dapat ditelusuri.
-**V8. Pemeriksaan nyata, bukan klik massal** (bagian 6): detail harus dibuka, daftar periksa diisi, jeda minimal per data, dan audit sampel oleh Admin Utama.
-**V10. BTL dan TMS khusus satu akun.** Semua data berstatus Berkas Tidak Lengkap dan Tidak Memenuhi Syarat (saat ini 128 data) ditugaskan HANYA ke `verif_uga_deba`, tidak diacak ke petugas lain. Tidak ada benturan V1 (tidak satu pun dari 128 data itu pernah diverifikasi akun tersebut).
+**V8. Pemeriksaan nyata, bukan klik massal** (bagian 6): detail harus dibuka, seluruh berkas yang diunggah ditandai satu per satu, dan centang per berkas baru aktif setelah berkas diklik (tanpa jeda waktu). **Tanpa audit sampel** (keputusan user); kesalahan koreksi ditangkap lewat umpan balik petugas kelurahan ke Admin Utama, yang dapat membatalkan koreksi.
+**V10. BTL dan TMS khusus satu akun (dan akun itu tidak ikut bagian MS).** Semua data berstatus Berkas Tidak Lengkap dan Tidak Memenuhi Syarat (saat ini 128 data) ditugaskan HANYA ke `verif_uga_deba`, tidak diacak ke petugas lain. Tidak ada benturan V1 (tidak satu pun dari 128 data itu pernah diverifikasi akun tersebut).
 **V11. Akun yang dikecualikan.** `verif_ronald_fredy`, `verif_fery_suhery`, `verif_khoiruddin`, `verif_amy_pratiwi`, `verif_netty_abdiati` (pimpinan) tidak masuk daftar pemeriksa mana pun. Daftar pengecualian disimpan di batch (snapshot) dan ditegakkan SERVER; tidak dapat ditimpa dari layar.
 **V9. Pembatalan batch hanya untuk tugas yang belum dikerjakan.** Tugas yang sudah selesai tidak pernah dihapus atau dipindah.
 
@@ -80,13 +80,6 @@ create table pembatalan_koreksi_ulang (
   dibatalkan_oleh text not null, dibatalkan_pada timestamptz not null default now(), alasan text not null
 );
 
--- Audit sampel hasil "Sesuai"
-create table audit_verifikasi_ulang (
-  tugas_id bigint primary key references tugas_verifikasi_ulang(id),
-  auditor text not null, diaudit_pada timestamptz not null default now(),
-  hasil text not null check (hasil in ('LOLOS','TIDAK_LOLOS')), catatan text not null default ''
-);
-```
 Riwayat: baris `riwayat_verifikasi` dengan `sumber = 'ULANG'` (kolom `sumber` sudah teks bebas; tanpa perubahan skema), `status_lama = status_baru =` status data saat diperiksa, `keterangan` = "SESUAI" atau "DIKOREKSI: alasan". Pemicu hanya-tambah yang ada tetap berlaku.
 
 ## 5. Pembagian acak merata (algoritme)
@@ -102,23 +95,24 @@ Riwayat: baris `riwayat_verifikasi` dengan `sumber = 'ULANG'` (kolom `sumber` su
 | Pengaman | Cara kerja |
 |---|---|
 | Detail wajib dibuka | Server mencatat `dibuka_pada` saat pemeriksa membuka detail tugas; simpan hasil **ditolak** bila belum dibuka. |
-| Jeda minimal | Simpan ditolak bila selisih `now() - dibuka_pada` < N detik (K5; usul 20 dtk). Pesan jelas ke pemeriksa. |
-| Daftar periksa | Beberapa butir wajib dicentang sebelum "Sesuai" (isi butir ditetapkan Anda, K6). |
+| ~~Jeda minimal~~ | **Tidak dibangun (keputusan user 2026-11-14).** Ukurannya adalah **centang per berkas**: kotak centang sebuah berkas baru aktif setelah berkas itu diklik/dibuka (server mencatat berkas mana yang dibuka); "Sesuai" hanya bisa disimpan bila semua berkas sudah dicentang. Tanpa hitung detik. |
+| 1 data = 1 hitungan | Satu data yang diperiksa ulang dihitung **satu kali** untuk lembur, berapa kali pun dibuka atau disimpan ulang (kunci unik per data per pemeriksa; tidak ada hitungan ganda). |
+| Daftar periksa = **seluruh berkas yang diunggah** | Untuk data itu, SETIAP berkas yang diunggah (slot berkas sesuai layanan: mis. KTP, KK, dst.) harus diperiksa satu per satu: pemeriksa menandai tiap berkas **Sesuai / Bermasalah / Tidak ada**; "Sesuai" (tanpa koreksi) hanya bisa disimpan bila SEMUA berkas yang ada sudah ditandai. Server mencatat berkas mana yang dibuka (daftar berkas diambil dari data, bukan dari layar). Berkas Bermasalah atau Tidak ada mengarahkan pemeriksa ke Koreksi status. |
 | Tidak bisa dua kali | Tugas yang sudah selesai tidak bisa disimpan ulang; koreksi hanya oleh Admin Utama. |
 | Hanya tugas sendiri | Server memeriksa pemilik tugas; pemeriksa lain/peran lain ditolak. |
-| Audit sampel | Admin Utama mengambil sampel acak (usul 5%) dari hasil "Sesuai" dan menandai LOLOS/TIDAK_LOLOS; angka lolos per pemeriksa tampil di laporan. |
+| ~~Audit sampel~~ | **Tidak dibangun (keputusan user).** Gantinya: setiap koreksi tercatat lengkap (siapa, kapan, dari status apa ke apa, alasan) dan **Admin Utama dapat membatalkan koreksi** kapan saja bila petugas kelurahan melaporkan kesalahan. |
 | Pemantauan | Laporan: median detik per data, lonjakan jumlah per jam, jam penyimpanan; pola janggal terlihat (informasi, bukan hukuman otomatis). |
 
 ## 7. Aksi server baru (semua di daftar-putih sesuai peran; cakupan ditentukan server)
-**Admin Utama:** `pratinjauBatchUlang`, `buatBatchUlang`, `daftarBatchUlang`, `batalkanBatchUlang`, `cekPembagianBatchUlang`, `getDaftarKoreksiUlang`, `batalkanKoreksiUlang`, `ambilSampelAuditUlang`, `simpanAuditUlang`, `unduhRekapUlang`.
+**Admin Utama:** `pratinjauBatchUlang`, `buatBatchUlang`, `daftarBatchUlang`, `batalkanBatchUlang`, `cekPembagianBatchUlang`, `getDaftarKoreksiUlang`, `batalkanKoreksiUlang`, `unduhRekapUlang`.
 **Verifikator (dan koordinator):** `getTugasUlangSaya` (hanya miliknya; halaman 50 data), `bukaTugasUlang` (mencatat `dibuka_pada`, mengembalikan detail), `simpanHasilUlang` (validasi V3, V5, V6, pengaman bagian 6).
-**Agregat:** blok "pemeriksaan ulang" di `getAgregatVerifikasi` (per orang: ditugaskan, selesai, sesuai, perlu dikoreksi, jam kerja, luar jam kerja, audit lolos), cakupan SAYA/TIM/SEMUA sama seperti agregat yang ada. Tanpa data pribadi penerima.
+**Agregat:** blok "pemeriksaan ulang" di `getAgregatVerifikasi` (per orang: ditugaskan, selesai, sesuai, dikoreksi, jam kerja, luar jam kerja), cakupan SAYA/TIM/SEMUA sama seperti agregat yang ada. Tanpa data pribadi penerima.
 
 ## 8. Rancangan UI/UX (ringkas; mockup visual dapat dibuat setelah plan disetujui)
 **Verifikator:** tombol/tab **"Tugas Ulang (sisa N)"** → daftar tugas + bilah kemajuan → "Mulai" membuka Detail data dengan panel **Pemeriksaan Ulang**: status data (hanya baca), daftar periksa, pilihan **Sesuai** atau **Koreksi status** (pilih status baru; alasan wajib untuk BTL/TMS dengan templat alasan; MS yang kurang diturunkan ke Berkas Tidak Lengkap), disertai ringkasan dampak ("data keluar dari calon pembayaran; batas perbaikan 30-11-2026"), tombol **Simpan & berikutnya**. Pesan jelas bila ditolak (belum cukup lama dibuka, daftar periksa belum lengkap).
 **Koordinator:** kemajuan timnya (angka saja) di panel agregat.
-**Admin Utama:** menu **"Verifikasi Ulang"**: Buat batch (kriteria, pemeriksa, batas, pratinjau jumlah per orang + benih) → Pantau → **Daftar koreksi** (dapat dibatalkan Admin; tidak wajib diperiksa satu per satu) → Audit sampel → Unduh Excel. Kartu baru "Pemeriksaan ulang" dengan **garis warna dan label terpisah** dari verifikasi pertama.
-**Panel agregat & Excel:** kolom/sheet **Verifikasi pertama, Pemeriksaan ulang, dan Total pekerjaan** (masing-masing jam kerja dan luar jam kerja), serta sesuai, dikoreksi, dan audit; kolom "Dikoreksi Admin" yang ada diganti "Dikoreksi" (Admin atau pemeriksa ulang); keterangan aturan tampil selalu.
+**Admin Utama:** menu **"Verifikasi Ulang"**: Buat batch (kriteria, pemeriksa, batas, pratinjau jumlah per orang + benih) → Pantau → **Daftar koreksi** (dapat dibatalkan Admin; tidak wajib diperiksa satu per satu) → Unduh Excel. Kartu baru "Pemeriksaan ulang" dengan **garis warna dan label terpisah** dari verifikasi pertama.
+**Panel agregat & Excel:** kolom/sheet **Verifikasi pertama, Pemeriksaan ulang, dan Total pekerjaan** (masing-masing jam kerja dan luar jam kerja), serta sesuai dan dikoreksi; kolom "Dikoreksi Admin" yang ada diganti "Dikoreksi" (Admin atau pemeriksa ulang); keterangan aturan tampil selalu.
 Ponsel 320–390 px dan mode terang/gelap mengikuti pola yang sudah ada; tanpa penambahan isi ke `index.html` / `app-transaksi.js` (modul baru dimuat malas per peran).
 
 ## 9. Tahapan (semua lokal dulu, tiap tahap bisa dibatalkan)
@@ -131,7 +125,7 @@ Ponsel 320–390 px dan mode terang/gelap mengikuti pola yang sudah ada; tanpa p
 | T4a | **Refactor aman** logika penerapan status (satu fungsi bersama dipakai verifikasi biasa dan pemeriksaan ulang: UPDATE bersyarat, riwayat, sinkron/arsip `data_detail`) + uji regresi menyeluruh sebelum dipakai ulang | lokal |
 | T4 | Aksi server verifikator (daftar, buka, simpan atomik dengan pengaman, **koreksi status**) + gerbang daftar-putih | lokal |
 | T5 | Tampilan verifikator + Admin (layar uji Chrome tiap peran dan ponsel) | lokal |
-| T6 | Agregat + Excel: Verifikasi pertama + Pemeriksaan ulang + **Total pekerjaan** (jam kerja/luar jam kerja); daftar koreksi; audit sampel | lokal |
+| T6 | Agregat + Excel: Verifikasi pertama + Pemeriksaan ulang + **Total pekerjaan** (jam kerja/luar jam kerja); daftar koreksi | lokal |
 | T7 | Uji berlapis: logika murni, server tiruan, **Postgres sungguhan (PGlite)**, layar; percobaan merusak kode; tinjauan menyeluruh | lokal |
 | T8 | Penayangan bertahap: migrasi → deploy → push; **batch percobaan kecil (mis. 40 data, 4 orang)**, dipantau, baru batch penuh | produksi (izin Anda) |
 
@@ -139,8 +133,10 @@ Ponsel 320–390 px dan mode terang/gelap mengikuti pola yang sudah ada; tanpa p
 
 | No | Pertanyaan BARU akibat keputusan user | Usul saya |
 |---|---|---|
-| K13 | Perubahan status yang diizinkan saat dikoreksi: hanya MS -> BTL (yang Anda sebut), atau juga MS -> TMS, BTL -> TMS/MS, TMS -> BTL/MS? | Izinkan semua turun/naik seperti verifikasi biasa, kecuali naik ke MS (naik ke MS tetap Admin Utama) |
-| K14 | **Pengaman koreksi** (turun MS -> BTL berdampak nyata: data keluar dari `data_detail` dan BTL punya batas 2026-11-30, lewat batas otomatis menjadi TMS): audit sampel koreksi oleh Admin Utama (usul 20%), pemberitahuan ke kecamatan/Kemenag, dan/atau persetujuan koordinator sebelum berlaku ("dua mata") | Audit sampel 20% + koreksi tercatat lengkap; dua mata hanya bila Anda menghendaki |
+| K13 | ~~Perubahan status~~ **DIJAWAB: setuju usul** | (dilaksanakan) |
+| K13-lama | Perubahan status yang diizinkan saat dikoreksi: hanya MS -> BTL (yang Anda sebut), atau juga MS -> TMS, BTL -> TMS/MS, TMS -> BTL/MS? | Izinkan semua turun/naik seperti verifikasi biasa, kecuali naik ke MS (naik ke MS tetap Admin Utama) |
+| K14 | ~~Pengaman koreksi~~ **DIJAWAB: tanpa audit sampel.** Koreksi dua arah: petugas kelurahan dan Admin Utama sudah terhubung bila ada kesalahan verifikator | (dilaksanakan: alasan wajib, seluruh berkas dicentang setelah diklik, log lengkap, Admin dapat membatalkan koreksi) |
+| K14-lama | **Pengaman koreksi** (turun MS -> BTL berdampak nyata: data keluar dari `data_detail` dan BTL punya batas 2026-11-30, lewat batas otomatis menjadi TMS): audit sampel koreksi oleh Admin Utama (usul 20%), pemberitahuan ke kecamatan/Kemenag, dan/atau persetujuan koordinator sebelum berlaku ("dua mata") | Audit sampel 20% + koreksi tercatat lengkap; dua mata hanya bila Anda menghendaki |
 | K15 | Bila pemeriksa mengoreksi data yang kemudian terlanjur dibayar/diproses di Tools Pembayaran: boleh? | Ditolak oleh sistem bila data sudah masuk batch pembayaran |
 
 
@@ -148,12 +144,13 @@ Ponsel 320–390 px dan mode terang/gelap mengikuti pola yang sudah ada; tanpa p
 |---|---|---|
 | K1 | ~~Ruang lingkup~~ **DIJAWAB:** seluruh hasil verifikasi termasuk BTL dan TMS (7.667 MS + 121 BTL + 3 TMS = **7.861 data per 2026-11-14 (bertambah seiring verifikasi tim)**) | (dilaksanakan; batch dipecah per tahap, mis. 500–1.000 data per batch) |
 | K2 | ~~Pemeriksa~~ **DIJAWAB:** 34 verifikator aktif dikurangi 5 pimpinan = **29 pemeriksa** (termasuk `verif_uga_deba`); BTL/TMS khusus `verif_uga_deba` | (dilaksanakan) |
-| K16 | Apakah `verif_uga_deba` **juga ikut mendapat bagian acak data Memenuhi Syarat** (selain 128 data BTL/TMS), atau hanya BTL/TMS? Bila ikut, beban akun itu lebih besar (≈ 7.733/29 ≈ 267 data MS + 128 BTL/TMS ≈ 395) dibanding yang lain (≈ 267). | Ikut dengan bagian MS yang LEBIH KECIL (mis. sisa dibagi rata sehingga total jumlah semua petugas seimbang), atau hanya BTL/TMS bila itu tugas khususnya |
+| K16 | ~~Apakah `verif_uga_deba` juga ikut bagian MS?~~ **DIJAWAB: hanya BTL dan TMS (tugas khusus)** | (dilaksanakan: pemeriksa data MS = 28 akun, dibagi merata ±1) |
+| K16-lama | Apakah `verif_uga_deba` **juga ikut mendapat bagian acak data Memenuhi Syarat** (selain 128 data BTL/TMS), atau hanya BTL/TMS? Bila ikut, beban akun itu lebih besar (≈ 7.733/29 ≈ 267 data MS + 128 BTL/TMS ≈ 395) dibanding yang lain (≈ 267). | Ikut dengan bagian MS yang LEBIH KECIL (mis. sisa dibagi rata sehingga total jumlah semua petugas seimbang), atau hanya BTL/TMS bila itu tugas khususnya |
 | K3 | Pembagian: rata per orang (±1), distratifikasi per layanan | Setuju |
 | K4 | **Batas waktu** per batch (tanggal) dan apa yang terjadi bila lewat | Batas per batch; sisa dapat dialihkan Admin ke petugas lain |
-| K5 | **Jeda minimal** per data sebelum boleh disimpan | 20 detik |
+| K5 | ~~Jeda minimal~~ **DIJAWAB: tanpa jeda waktu**; ukuran = centang per berkas yang aktif setelah berkas diklik | (dilaksanakan) |
 | K6 | **Daftar periksa** (butir yang harus dicentang) — perlu dari Anda, per layanan atau seragam | Seragam dulu: berkas utama terbaca, NIK sesuai, foto/lokasi sesuai, status sesuai ketentuan |
-| K7 | **Audit sampel**: persen dan pelaksana | 5%, Admin Utama |
+| K7 | ~~Audit sampel~~ **DIJAWAB: tidak dibangun** | (dihapus dari lingkup) |
 | K8 | ~~Alur temuan~~ **DIJAWAB:** pemeriksa mengoreksi sendiri; Admin tidak memeriksa temuan. Perlu diputuskan: pengamanan koreksi (K14) dan apakah Admin boleh membatalkan koreksi | Koreksi langsung berlaku; Admin dapat membatalkan; audit sampel koreksi lebih tinggi |
 | K9 | ~~Ikut dasar lembur?~~ **DIJAWAB:** ya, masuk data lembur dan mengikuti ketentuan lembur | (dilaksanakan: Total pekerjaan = verifikasi pertama + pemeriksaan ulang, jam kerja/luar jam kerja) |
 | K10 | Aturan V1 (pemeriksa ≠ pemverifikasi pertama) | Setuju |
@@ -162,9 +159,9 @@ Ponsel 320–390 px dan mode terang/gelap mengikuti pola yang sudah ada; tanpa p
 
 ## 11. Risiko dan catatan
 - **Beban kerja**: seluruh 7.861 data per 2026-11-14 (bertambah seiring verifikasi tim) akan memakan waktu lama (hasil verifikasi pertama tim ±400 data dalam dua hari); karena itu dibagi per batch dan kecepatan per jam dihitung dari batch percobaan.
-- **Dampak koreksi turun status**: MS -> BTL mengeluarkan data dari `data_detail` (calon pembayaran) dan memulai tenggat BTL; salah koreksi merugikan penerima. Karena Admin tidak lagi memeriksa setiap temuan, pengaman K14, alasan wajib, jeda minimal, dan kemampuan Admin membatalkan koreksi menjadi penting.
+- **Dampak koreksi turun status**: MS -> BTL mengeluarkan data dari `data_detail` (calon pembayaran) dan memulai tenggat BTL; salah koreksi merugikan penerima. Karena Admin tidak lagi memeriksa setiap temuan, pengaman K14, alasan wajib, centang per berkas, dan kemampuan Admin membatalkan koreksi menjadi penting.
 - **Amandemen D9** adalah satu-satunya jalur verifikator mengubah status; harus dijaga uji yang membuktikan jalur lain tetap tertutup (percobaan merusak kode).
-- **Kualitas pemeriksaan** bergantung pada pengaman bagian 6 dan audit sampel; tidak ada angka "otomatis benar".
+- **Kualitas pemeriksaan** bergantung pada pengaman bagian 6 dan umpan balik petugas kelurahan ke Admin Utama; tidak ada angka "otomatis benar".
 - **Beban basis data (paket gratis)**: pembuatan batch memakai satu pernyataan massal; daftar tugas dipaginasi; agregat tetap satu kueri per pembukaan panel.
 - **Data berubah saat batch berjalan**: ditangani K11; hasil tugas yang sudah selesai tidak pernah diubah.
-- **Jejak hukum/audit**: seed, kriteria, daftar pemeriksa, waktu server, dan hasil audit tersimpan sehingga setiap angka dapat ditelusuri.
+- **Jejak hukum/audit**: seed, kriteria, daftar pemeriksa, waktu server, dan seluruh koreksi tersimpan sehingga setiap angka dapat ditelusuri.
