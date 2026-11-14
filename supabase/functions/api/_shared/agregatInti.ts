@@ -135,14 +135,34 @@ export function tentukanCakupan(
 
 // ------------------------------------------------------------------ agregat
 
-export interface Kejadian { oleh: string; waktu: Date; statusBaru: string }
+/**
+ * statusBaru = hasil yang DIBERIKAN verifikator (dasar hitungan). statusSekarang = status data saat panel dibuka (hanya informasi):
+ * undefined = tidak diketahui (tidak dihitung), null = data sudah tidak ada. Status sekarang TIDAK PERNAH memengaruhi total/jam kerja/lembur.
+ */
+export interface Kejadian { oleh: string; waktu: Date; statusBaru: string; statusSekarang?: string | null }
 
 export interface BarisOrang {
   username: string; namaLengkap: string; tim: string | null; koordinator: boolean; aktif: boolean;
   total: number; jamKerja: number; luarJamKerja: number; memenuhiSyarat: number; berkasTidakLengkap: number; tidakMemenuhiSyarat: number;
+  /** Informasi saja: status data SEKARANG dari data yang diberi hasil oleh verifikator, dan berapa yang berbeda dari hasil verifikator (dikoreksi Admin). */
+  sekarangMemenuhiSyarat: number; sekarangBerkasTidakLengkap: number; sekarangTidakMemenuhiSyarat: number; sekarangLainnya: number; dikoreksi: number;
 }
 
-const nol = () => ({ total: 0, jamKerja: 0, luarJamKerja: 0, memenuhiSyarat: 0, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0 });
+const nol = () => ({
+  total: 0, jamKerja: 0, luarJamKerja: 0, memenuhiSyarat: 0, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0,
+  sekarangMemenuhiSyarat: 0, sekarangBerkasTidakLengkap: 0, sekarangTidakMemenuhiSyarat: 0, sekarangLainnya: 0, dikoreksi: 0,
+});
+
+/** Catat status SEKARANG sebuah data (informasi). Tidak menyentuh total, jam kerja, maupun luar jam kerja. */
+function catatStatusSekarang(x: BarisOrang | ReturnType<typeof nol>, hasil: string, sekarang: string | null | undefined): void {
+  if (sekarang === undefined) return;                       // tidak diketahui: lewati
+  const s = rapi(sekarang);
+  if (s === "MEMENUHI SYARAT") x.sekarangMemenuhiSyarat++;
+  else if (s === "BERKAS TIDAK LENGKAP") x.sekarangBerkasTidakLengkap++;
+  else if (s === "TIDAK MEMENUHI SYARAT") x.sekarangTidakMemenuhiSyarat++;
+  else x.sekarangLainnya++;                                  // mis. data sudah dihapus (null) atau kembali ke Proses Verifikasi
+  if (s !== hasil) x.dikoreksi++;                            // berbeda dari hasil verifikator = dikoreksi (oleh Admin Utama; verifikator tak dapat mengubahnya)
+}
 
 /** Tabulasi per orang saja (tanpa rincian harian): dipakai kartu per tim agar tidak bergantung pada saringan tabel. Bukan rekursif (tipe hasil eksplisit). */
 export function hitungPerOrang(
@@ -191,6 +211,7 @@ export function susunAgregat(p: {
       if (st === "MEMENUHI SYARAT") x.memenuhiSyarat++;
       else if (st === "BERKAS TIDAK LENGKAP") x.berkasTidakLengkap++;
       else if (st === "TIDAK MEMENUHI SYARAT") x.tidakMemenuhiSyarat++;
+      catatStatusSekarang(x, st, k.statusSekarang);
     }
     const h = hari.get(tgl);
     if (h) { h.total++; if (jam) h.jamKerja++; else h.luarJamKerja++; }

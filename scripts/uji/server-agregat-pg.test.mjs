@@ -216,3 +216,31 @@ test("AGREGAT: tahun/riwayat tidak ada isi -> semua nol tanpa galat; rentang tak
   assert.equal(k.perHari.length, 7);
   assert.equal((await AG.getAgregatVerifikasi(TOKEN.admin, "2026-11-15", "2026-11-09")).sukses, false);
 });
+
+test("STATUS SEKARANG + LEMBUR AMAN (SQL nyata): Admin mengubah/menghapus data sesudah diverifikasi -> dikoreksi bertambah, tetapi total, jam kerja, luar jam kerja, dan hasil verifikator TIDAK berubah", async () => {
+  const db = await siap();
+  await tambahData(db, 3);
+  assert.equal((await VF.verifikasiSatuData(TOKEN.a1, 1, "Tidak Memenuhi Syarat", "alasan", "", "Proses Verifikasi")).sukses, true);
+  assert.equal((await VF.verifikasiSatuData(TOKEN.a1, 2, "Memenuhi Syarat", "", "", "Proses Verifikasi")).sukses, true);
+  assert.equal((await VF.verifikasiSatuData(TOKEN.a1, 3, "Berkas Tidak Lengkap", "alasan", "", "Proses Verifikasi")).sukses, true);
+  const pokok = (h) => JSON.stringify([h.ringkasan.total, h.ringkasan.jamKerja, h.ringkasan.luarJamKerja, h.ringkasan.memenuhiSyarat, h.ringkasan.berkasTidakLengkap, h.ringkasan.tidakMemenuhiSyarat]);
+
+  const awal = await AG.getAgregatVerifikasi(TOKEN.a1);
+  assert.equal(awal.sukses, true, JSON.stringify(awal));
+  assert.equal(awal.ringkasan.total, 3);
+  assert.deepEqual([awal.ringkasan.dikoreksi, awal.ringkasan.sekarangTidakMemenuhiSyarat, awal.ringkasan.sekarangMemenuhiSyarat, awal.ringkasan.sekarangBerkasTidakLengkap], [0, 1, 1, 1], "belum ada koreksi: status sekarang = hasil verifikator");
+
+  // Admin Utama menaikkan data 1 dari Tidak Memenuhi Syarat ke Berkas Tidak Lengkap (kasus nyata user)
+  assert.equal((await VF.verifikasiSatuData(TOKEN.admin, 1, "Berkas Tidak Lengkap", "dinaikkan", "", "Tidak Memenuhi Syarat")).sukses, true);
+  const sesudah = await AG.getAgregatVerifikasi(TOKEN.a1);
+  assert.equal(pokok(sesudah), pokok(awal), "total/jam kerja/lembur/hasil verifikator IDENTIK");
+  assert.deepEqual([sesudah.ringkasan.tidakMemenuhiSyarat, sesudah.ringkasan.dikoreksi, sesudah.ringkasan.sekarangTidakMemenuhiSyarat, sesudah.ringkasan.sekarangBerkasTidakLengkap], [1, 1, 0, 2], "hasil verifikator tetap TMS 1; sekarang BTL 2; dikoreksi 1");
+  const ron = sesudah.perOrang.find((o) => o.username === "verif_ronald_fredy");
+  assert.deepEqual([ron.total, ron.dikoreksi], [3, 1]);
+
+  // Data 2 dihapus Admin: ikut selisih (lainnya), total tetap
+  await db.query("delete from penerima where id = 2");
+  const hapus = await AG.getAgregatVerifikasi(TOKEN.a1);
+  assert.equal(pokok(hapus), pokok(awal), "data dihapus tidak mengurangi hitungan verifikator");
+  assert.deepEqual([hapus.ringkasan.dikoreksi, hapus.ringkasan.sekarangLainnya], [2, 1]);
+});

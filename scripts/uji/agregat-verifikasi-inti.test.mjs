@@ -130,7 +130,7 @@ test("AGREGAT: jam kerja vs luar jam kerja, per status, per hari, per orang (ada
     kej("VERIF_B1", "2026-11-10 10:00:00"),                                  // di luar cakupan -> diabaikan
   ];
   const a = susunAgregat({ cakupan: "TIM", anggota: AKUN.filter((x) => x.tim === "I"), kejadian, rentang, konfig, libur });
-  assert.deepEqual(a.ringkasan, { total: 5, jamKerja: 3, luarJamKerja: 2, memenuhiSyarat: 3, berkasTidakLengkap: 1, tidakMemenuhiSyarat: 1 });
+  assert.deepEqual(a.ringkasan, { total: 5, jamKerja: 3, luarJamKerja: 2, memenuhiSyarat: 3, berkasTidakLengkap: 1, tidakMemenuhiSyarat: 1, sekarangMemenuhiSyarat: 0, sekarangBerkasTidakLengkap: 0, sekarangTidakMemenuhiSyarat: 0, sekarangLainnya: 0, dikoreksi: 0 }, "status sekarang tidak diketahui (tak dikirim) -> tidak dihitung");
   const o1 = a.perOrang.find((o) => o.username === "verif_a1");
   assert.deepEqual([o1.total, o1.jamKerja, o1.luarJamKerja], [3, 2, 1]);
   assert.equal(a.perOrang[0].username, "verif_a1", "urut menurun menurut total");
@@ -200,4 +200,41 @@ test("AGREGAT: kartu per tim memakai aturan yang SAMA dengan tabel (rentang, jam
   // Kartu tanpa saringan = tabel (konsisten)
   const b = susunAgregat({ cakupan: "SEMUA", anggota: AKUN, semuaAnggota: AKUN, kejadian, rentang, konfig, libur });
   assert.deepEqual(b.perTim.map((x) => [x.tim, x.total, x.jamKerja, x.luarJamKerja]), a.perTim.map((x) => [x.tim, x.total, x.jamKerja, x.luarJamKerja]), "kartu sama dengan atau tanpa saringan");
+});
+
+test("STATUS SEKARANG: dikoreksi = status sekarang berbeda dari hasil verifikator; data dihapus (null) ikut selisih; undefined dilewati", () => {
+  const k = (oleh, s, hasil, sekarang) => ({ oleh, waktu: wib(s), statusBaru: hasil, statusSekarang: sekarang });
+  const kejadian = [
+    k("VERIF_A1", "2026-11-09 09:00:00", "Tidak Memenuhi Syarat", "Berkas Tidak Lengkap"),   // dinaikkan Admin -> dikoreksi
+    k("VERIF_A1", "2026-11-09 10:00:00", "Memenuhi Syarat", "Memenuhi Syarat"),             // sama
+    k("VERIF_A1", "2026-11-09 11:00:00", "Berkas Tidak Lengkap", "memenuhi syarat "),       // beda huruf/spasi pada status sekarang tetap dinormalkan (beda isi -> dikoreksi)
+    k("VERIF_A2", "2026-11-10 09:00:00", "Memenuhi Syarat", null),                           // data sudah dihapus
+    k("VERIF_A2", "2026-11-10 10:00:00", "Memenuhi Syarat", undefined),                      // tidak diketahui
+    k("VERIF_A2", "2026-11-10 11:00:00", "Memenuhi Syarat", "Proses Verifikasi"),            // dikembalikan ke Proses Verifikasi
+  ];
+  const a = susunAgregat({ cakupan: "TIM", anggota: AKUN.filter((x) => x.tim === "I"), kejadian, rentang, konfig, libur });
+  const o1 = a.perOrang.find((o) => o.username === "verif_a1"), o2 = a.perOrang.find((o) => o.username === "verif_a2");
+  assert.deepEqual([o1.sekarangMemenuhiSyarat, o1.sekarangBerkasTidakLengkap, o1.sekarangTidakMemenuhiSyarat, o1.sekarangLainnya, o1.dikoreksi], [2, 1, 0, 0, 2]);
+  assert.deepEqual([o2.sekarangLainnya, o2.dikoreksi], [2, 2], "null dan Proses Verifikasi = lainnya; undefined dilewati");
+  assert.deepEqual([a.ringkasan.dikoreksi, a.ringkasan.total], [4, 6]);
+});
+
+test("LEMBUR AMAN: status sekarang TIDAK PERNAH mengubah total, jam kerja, luar jam kerja, maupun hasil verifikator (uji invarian)", () => {
+  const dasar = [
+    { oleh: "VERIF_A1", waktu: wib("2026-11-09 09:00:00"), statusBaru: "Tidak Memenuhi Syarat" },
+    { oleh: "VERIF_A1", waktu: wib("2026-11-09 17:00:00"), statusBaru: "Memenuhi Syarat" },
+    { oleh: "VERIF_A2", waktu: wib("2026-11-14 09:00:00"), statusBaru: "Berkas Tidak Lengkap" },
+    { oleh: "VERIF_B1", waktu: wib("2026-11-12 16:30:00"), statusBaru: "Memenuhi Syarat" },
+  ];
+  const varian = [undefined, null, "Memenuhi Syarat", "Berkas Tidak Lengkap", "Tidak Memenuhi Syarat", "Proses Verifikasi", "APA SAJA"];
+  const acuan = susunAgregat({ cakupan: "SEMUA", anggota: AKUN, semuaAnggota: AKUN, kejadian: dasar, rentang, konfig, libur });
+  const pokok = (a) => JSON.stringify({
+    ringkasan: [a.ringkasan.total, a.ringkasan.jamKerja, a.ringkasan.luarJamKerja, a.ringkasan.memenuhiSyarat, a.ringkasan.berkasTidakLengkap, a.ringkasan.tidakMemenuhiSyarat],
+    orang: a.perOrang.map((o) => [o.username, o.total, o.jamKerja, o.luarJamKerja, o.memenuhiSyarat, o.berkasTidakLengkap, o.tidakMemenuhiSyarat]),
+    hari: a.perHari.map((h) => [h.tanggal, h.total, h.jamKerja, h.luarJamKerja]), tim: a.perTim.map((x) => [x.tim, x.total, x.jamKerja, x.luarJamKerja]),
+  });
+  for (const v of varian) {
+    const a = susunAgregat({ cakupan: "SEMUA", anggota: AKUN, semuaAnggota: AKUN, kejadian: dasar.map((e) => ({ ...e, statusSekarang: v })), rentang, konfig, libur });
+    assert.equal(pokok(a), pokok(acuan), "status sekarang = " + JSON.stringify(v));
+  }
 });

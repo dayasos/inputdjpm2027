@@ -77,17 +77,18 @@ async function hitung(token: string, dari: unknown, sampai: unknown, timDiminta:
   let kejadian: Kejadian[] = [];
   if (usernames.length > 0) {
     const rowsKej = await sql`
-      select oleh, waktu, status_baru from (
-        select distinct on (penerima_id, oleh) penerima_id, oleh, waktu, status_baru
-        from riwayat_verifikasi
-        where sumber = 'SATU' and tahun = ${TAHUN_AKTIF}
-          and oleh = any(${literalArrayTeks(usernames)}::text[])
-          and coalesce(nullif(trim(status_lama), ''), 'Proses Verifikasi') = 'Proses Verifikasi'
-        order by penerima_id, oleh, waktu
+      select oleh, waktu, status_baru, status_sekarang from (
+        select distinct on (r.penerima_id, r.oleh) r.penerima_id, r.oleh, r.waktu, r.status_baru, p.status_verifikasi as status_sekarang
+        from riwayat_verifikasi r
+        left join penerima p on p.id = r.penerima_id and p.tahun = r.tahun
+        where r.sumber = 'SATU' and r.tahun = ${TAHUN_AKTIF}
+          and r.oleh = any(${literalArrayTeks(usernames)}::text[])
+          and coalesce(nullif(trim(r.status_lama), ''), 'Proses Verifikasi') = 'Proses Verifikasi'
+        order by r.penerima_id, r.oleh, r.waktu
       ) x
       where waktu >= ${r.rentang.awalUtc} and waktu < ${r.rentang.akhirUtcEksklusif}
     `;
-    kejadian = rowsKej.map((x: Record<string, unknown>) => ({ oleh: String(x.oleh), waktu: new Date(x.waktu as string), statusBaru: String(x.status_baru || "") }));
+    kejadian = rowsKej.map((x: Record<string, unknown>) => ({ oleh: String(x.oleh), waktu: new Date(x.waktu as string), statusBaru: String(x.status_baru || ""), statusSekarang: x.status_sekarang == null ? null : String(x.status_sekarang) }));
   }
 
   // Hanya Admin Utama: pekerjaan Admin Utama sendiri sebagai informasi terpisah (tidak masuk angka tim).
@@ -159,7 +160,7 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   const judulCakupan = h.cakupan === "SAYA" ? "Hasil Kerja Saya" : h.cakupan === "TIM" ? `Hasil Tim ${h.timFokus}` : (h.timFokus ? `Agregat Tim ${h.timFokus}` : "Agregat Semua Tim");
   const rentangTeks = `${h.rentang.dari} s/d ${h.rentang.sampai}`;
   const urut = urutkanPerTim(h.hasil.perOrang);
-  const kolom = 11;
+  const kolom = 12;
 
   // Sheet 1: rekap per orang, DIURUTKAN per tim (Admin Utama: dengan subtotal tiap tim)
   const ws = wb.addWorksheet("Rekap");
@@ -168,7 +169,7 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   ws.addRow([TEKS_ATURAN]);
   ws.addRow([]);
   const barisHeader = 5;
-  ws.addRow(["No", "Tim", "Username", "Nama Lengkap", "Peran", "Jam Kerja", "Luar Jam Kerja (Lembur)", "Total Data", "Memenuhi Syarat", "Berkas Tidak Lengkap", "Tidak Memenuhi Syarat"]);
+  ws.addRow(["No", "Tim", "Username", "Nama Lengkap", "Peran", "Jam Kerja", "Luar Jam Kerja (Lembur)", "Total Data", "Memenuhi Syarat", "Berkas Tidak Lengkap", "Tidak Memenuhi Syarat", "Dikoreksi Admin (informasi, per tanggal unduh)"]);
   let baris = barisHeader;
   let no = 0;
   const barisSubtotal: number[] = [];
@@ -177,17 +178,17 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   for (const [k, anggota] of kelompok) {
     for (const o of anggota) {
       no++; baris++;
-      ws.addRow([no, labelTim(o.tim), o.username, namaTampil(o.namaLengkap), o.koordinator ? "Koordinator" : "Anggota", o.jamKerja, o.luarJamKerja, o.total, o.memenuhiSyarat, o.berkasTidakLengkap, o.tidakMemenuhiSyarat]);
+      ws.addRow([no, labelTim(o.tim), o.username, namaTampil(o.namaLengkap), o.koordinator ? "Koordinator" : "Anggota", o.jamKerja, o.luarJamKerja, o.total, o.memenuhiSyarat, o.berkasTidakLengkap, o.tidakMemenuhiSyarat, o.dikoreksi ?? 0]);
     }
     if (h.cakupan === "SEMUA") {
       const s = (f: (o: (typeof urut)[number]) => number) => anggota.reduce((x, o) => x + f(o), 0);
       baris++; barisSubtotal.push(baris);
-      ws.addRow(["", "Subtotal " + labelTim(k === "-" ? null : k), "", "", `${anggota.length} orang`, s((o) => o.jamKerja), s((o) => o.luarJamKerja), s((o) => o.total), s((o) => o.memenuhiSyarat), s((o) => o.berkasTidakLengkap), s((o) => o.tidakMemenuhiSyarat)]);
+      ws.addRow(["", "Subtotal " + labelTim(k === "-" ? null : k), "", "", `${anggota.length} orang`, s((o) => o.jamKerja), s((o) => o.luarJamKerja), s((o) => o.total), s((o) => o.memenuhiSyarat), s((o) => o.berkasTidakLengkap), s((o) => o.tidakMemenuhiSyarat), s((o) => o.dikoreksi ?? 0)]);
     }
   }
   const r = h.hasil.ringkasan;
   baris++;
-  ws.addRow(["", "TOTAL", "", "", `${urut.length} orang`, r.jamKerja, r.luarJamKerja, r.total, r.memenuhiSyarat, r.berkasTidakLengkap, r.tidakMemenuhiSyarat]);
+  ws.addRow(["", "TOTAL", "", "", `${urut.length} orang`, r.jamKerja, r.luarJamKerja, r.total, r.memenuhiSyarat, r.berkasTidakLengkap, r.tidakMemenuhiSyarat, r.dikoreksi ?? 0]);
   const barisTotal = baris;
   if (h.cakupan === "SEMUA" && h.hasil.luarTim) {
     const a = h.hasil.luarTim;
@@ -199,7 +200,7 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   terapkanBorderData(ws, barisHeader + 1, barisTotal, kolom);
   for (const b of barisSubtotal) ws.getRow(b).font = { bold: true };
   terapkanGayaBarisTotal(ws, barisTotal, kolom);
-  [6, 12, 28, 30, 13, 11, 22, 12, 16, 20, 22].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  [6, 12, 28, 30, 13, 11, 22, 12, 16, 20, 22, 26].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   ws.views = [{ state: "frozen", ySplit: barisHeader }];
 
   // Sheet 2: per orang per hari (dasar lembur), diurutkan per tim -> orang -> tanggal
@@ -232,7 +233,8 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   const wa = wb.addWorksheet("Aturan");
   wa.addRow(["Aturan perhitungan"]);
   wa.getRow(1).font = { bold: true };
-  [TEKS_ATURAN, `Dihitung sejak ${MULAI_DIHITUNG} (awal pencatatan riwayat). Dibuat oleh ${namaPembuat}.`, "Urutan: per tim (I, II, III, IV, tanpa tim), koordinator lebih dulu, lalu menurut username."].forEach((x) => wa.addRow([x]));
+  [TEKS_ATURAN, `Dihitung sejak ${MULAI_DIHITUNG} (awal pencatatan riwayat). Dibuat oleh ${namaPembuat}.`, "Urutan: per tim (I, II, III, IV, tanpa tim), koordinator lebih dulu, lalu menurut username.",
+    "Jam kerja, luar jam kerja, dan total dihitung dari HASIL VERIFIKATOR saat diberikan (dasar lembur). Kolom \"Dikoreksi Admin\" hanya informasi: jumlah data yang statusnya SEKARANG berbeda dari hasil verifikator (diubah Admin Utama atau dihapus), dihitung per tanggal unduh, dan tidak memengaruhi angka lembur."].forEach((x) => wa.addRow([x]));
   wa.getColumn(1).width = 120;
   return wb;
 }

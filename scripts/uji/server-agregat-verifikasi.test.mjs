@@ -27,11 +27,11 @@ const AKUN = [
 ];
 // Kejadian "pertama" yang dikembalikan basis data tiruan (waktu ISO UTC). 2026-11-09 Senin; 09.00 WIB = 02.00Z.
 const KEJADIAN = [
-  { oleh: "VERIF_A1", waktu: "2026-11-09T02:00:00Z", status_baru: "Memenuhi Syarat" },          // jam kerja
-  { oleh: "VERIF_A1", waktu: "2026-11-09T09:30:00Z", status_baru: "Berkas Tidak Lengkap" },     // 16.30 WIB -> luar
-  { oleh: "VERIF_A2", waktu: "2026-11-14T03:00:00Z", status_baru: "Tidak Memenuhi Syarat" },    // Sabtu -> luar
-  { oleh: "VERIF_B1", waktu: "2026-11-10T03:00:00Z", status_baru: "Memenuhi Syarat" },
-  { oleh: "VERIF_BARU", waktu: "2026-11-10T04:00:00Z", status_baru: "Memenuhi Syarat" },
+  { oleh: "VERIF_A1", waktu: "2026-11-09T02:00:00Z", status_baru: "Memenuhi Syarat", status_sekarang: "Memenuhi Syarat" },          // jam kerja
+  { oleh: "VERIF_A1", waktu: "2026-11-09T09:30:00Z", status_baru: "Berkas Tidak Lengkap", status_sekarang: "Tidak Memenuhi Syarat" },     // 16.30 WIB -> luar; dikoreksi Admin
+  { oleh: "VERIF_A2", waktu: "2026-11-14T03:00:00Z", status_baru: "Tidak Memenuhi Syarat", status_sekarang: "Tidak Memenuhi Syarat" },    // Sabtu -> luar
+  { oleh: "VERIF_B1", waktu: "2026-11-10T03:00:00Z", status_baru: "Memenuhi Syarat", status_sekarang: "Memenuhi Syarat" },
+  { oleh: "VERIF_BARU", waktu: "2026-11-10T04:00:00Z", status_baru: "Memenuhi Syarat", status_sekarang: "Berkas Tidak Lengkap" },  // dikoreksi Admin
 ];
 let sesiAktif = SESI.UTAMA;
 function pasang({ jam = [], libur = [], kejadian = KEJADIAN, admin = [] } = {}) {
@@ -41,7 +41,7 @@ function pasang({ jam = [], libur = [], kejadian = KEJADIAN, admin = [] } = {}) 
     if (q.includes("from akun a left join tim_verifikator")) return AKUN;
     if (q.includes("from jam_kerja_verifikasi")) return jam;
     if (q.includes("from hari_libur_verifikasi")) return libur;
-    if (q.includes("distinct on (penerima_id, oleh)")) return kejadian;
+    if (q.includes("distinct on (r.penerima_id, r.oleh)")) return kejadian;
     if (q.includes("from riwayat_verifikasi") && q.includes("role = 'UTAMA'")) return admin;
     return [];
   };
@@ -80,7 +80,7 @@ test("CAKUPAN: Admin Utama melihat semua tim, perTim, dan baris luarTim terpisah
   assert.equal(h.perOrang.length, 5);
   assert.deepEqual(h.perTim.map((t) => [t.tim, t.total]).filter((t) => t[1] > 0), [["I", 3], ["II", 1], ["-", 1]]);
   assert.deepEqual(h.luarTim, { total: 2, jamKerja: 1, luarJamKerja: 1 });
-  assert.deepEqual(h.ringkasan, { total: 5, jamKerja: 3, luarJamKerja: 2, memenuhiSyarat: 3, berkasTidakLengkap: 1, tidakMemenuhiSyarat: 1 });
+  assert.deepEqual(h.ringkasan, { total: 5, jamKerja: 3, luarJamKerja: 2, memenuhiSyarat: 3, berkasTidakLengkap: 1, tidakMemenuhiSyarat: 1, sekarangMemenuhiSyarat: 2, sekarangBerkasTidakLengkap: 1, sekarangTidakMemenuhiSyarat: 2, sekarangLainnya: 0, dikoreksi: 2 });
   const t2 = await ambil(...RENT, "II");
   assert.deepEqual(t2.perOrang.map((o) => o.username).sort(), ["verif_b1", "verif_b2"]);
   assert.equal(t2.tim, "II");
@@ -179,12 +179,13 @@ test("EXCEL: Rekap diurutkan per TIM (I, II, III, IV, tanpa tim) dengan KOORDINA
     o("verif_d2", "IV", true, 9, 1), o("verif_b3", "II", false, 8, 2), o("verif_a2", "I", false, 7, 3), o("verif_zz_anonim", null, false, 4, 1),
     o("verif_c1", "III", false, 3, 3), o("verif_b1", "II", false, 2, 2), o("verif_a1", "I", false, 1, 1), o("verif_d1", "IV", false, 1, 0), o("verif_b2", "II", true, 1, 1), o("verif_a3", "I", true, 0, 2),
   ];
+  perOrang.find((x) => x.username === "verif_a2").dikoreksi = 2; perOrang.find((x) => x.username === "verif_d2").dikoreksi = 1; perOrang.find((x) => x.username === "verif_a1").dikoreksi = 1;
   const ex = excelTiruan();
   const total = perOrang.reduce((s, x) => s + x.total, 0), kerja = perOrang.reduce((s, x) => s + x.jamKerja, 0), luar = perOrang.reduce((s, x) => s + x.luarJamKerja, 0);
   const hasil = {
     cakupan: "SEMUA", timFokus: null, rentang: { dari: "2026-11-09", sampai: "2026-11-15", jumlahHari: 7 }, saya: "ADMIN",
     hasil: {
-      ringkasan: { total, jamKerja: kerja, luarJamKerja: luar, memenuhiSyarat: total, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0 }, perOrang,
+      ringkasan: { total, jamKerja: kerja, luarJamKerja: luar, memenuhiSyarat: total, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0, dikoreksi: 4 }, perOrang,
       perHari: [{ tanggal: "2026-11-09", hari: "Senin", libur: false, total: 1, jamKerja: 1, luarJamKerja: 0 }, { tanggal: "2026-11-14", hari: "Sabtu", libur: true, total: 1, jamKerja: 0, luarJamKerja: 1 }],
       perOrangHari: [
         { username: "verif_d2", tanggal: "2026-11-10", jamKerja: 1, luarJamKerja: 0 }, { username: "verif_a2", tanggal: "2026-11-14", jamKerja: 0, luarJamKerja: 1 },
@@ -219,6 +220,12 @@ test("EXCEL: Rekap diurutkan per TIM (I, II, III, IV, tanpa tim) dengan KOORDINA
   const baris_total = isi.find((r) => r[1] === "TOTAL");
   assert.deepEqual([baris_total[5], baris_total[6], baris_total[7]], [kerja, luar, total]);
   assert.equal(orang.reduce((s, r) => s + r[7], 0), total, "jumlah per orang = total");
+  assert.equal(rekap[4][11], "Dikoreksi Admin (informasi, per tanggal unduh)");
+  assert.deepEqual(sub.map((r) => r[11]), [3, 0, 0, 1, 0], "subtotal dikoreksi per tim (Tim I a1+a2=3, Tim IV d2=1)");
+  assert.equal(baris_total[11], 4, "total dikoreksi");
+  assert.equal(orang.find((r) => r[2] === "verif_a2")[11], 2);
+  assert.equal(orang.find((r) => r[2] === "verif_b3")[11], 0, "tanpa nilai -> 0 (bukan kosong)");
+  assert.ok(ex.lembar[2].baris.some((r) => /Dikoreksi Admin/.test(String(r[0])) && /tidak memengaruhi angka lembur/.test(String(r[0]))), "penjelasan di sheet Aturan");
   assert.equal(sub.reduce((s, r) => s + r[7], 0), total, "jumlah subtotal = total");
   assert.ok(rekap.some((r) => String(r[0]).includes("pekerjaan Admin Utama") && String(r[0]).includes("= 5")), "informasi Admin Utama di luar total");
   // Sheet Per Hari: tim -> koordinator -> username -> tanggal
@@ -262,4 +269,25 @@ test("KONSISTEN: urutan tabel di layar (app-agregat-verifikasi.js) SAMA dengan u
   assert.deepEqual(dariLayar, ["verif_a3", "verif_a1", "verif_a2", "verif_b2", "verif_b1", "verif_b3", "verif_c1", "verif_d2", "verif_d1", "verif_zz"]);
   assert.deepEqual(daftar.map((x) => x.username)[0], "verif_zz", "data asli tidak diubah (salinan diurutkan)");
   assert.deepEqual(layar.urutkanPerTim(null), []);
+});
+
+test("STATUS SEKARANG: kueri menggabungkan status data sekarang (left join penerima) dan hasilnya hanya informasi; per orang memuat dikoreksi", async () => {
+  pakai("UTAMA");
+  const h = await ambil(...RENT);
+  const kueri = db().panggilan.find((p) => p.teks.includes("distinct on"));
+  assert.ok(kueri.teks.includes("left join penerima p on p.id = r.penerima_id and p.tahun = r.tahun"), "status sekarang dari data penerima (data dihapus tetap terbaca lewat left join)");
+  const a1 = h.perOrang.find((o) => o.username === "verif_a1");
+  assert.deepEqual([a1.total, a1.dikoreksi, a1.sekarangTidakMemenuhiSyarat], [2, 1, 1]);
+  assert.equal(h.perOrang.find((o) => o.username === "verif_baru").dikoreksi, 1);
+  assert.equal(h.perOrang.find((o) => o.username === "verif_b1").dikoreksi, 0);
+});
+
+test("LEMBUR AMAN (server): status sekarang yang berubah-ubah tidak mengubah total/jam kerja/luar jam kerja hasil aksi", async () => {
+  const pokok = (h) => JSON.stringify([h.ringkasan.total, h.ringkasan.jamKerja, h.ringkasan.luarJamKerja, h.ringkasan.memenuhiSyarat, h.ringkasan.berkasTidakLengkap, h.ringkasan.tidakMemenuhiSyarat, h.perOrang.map((o) => [o.username, o.total, o.jamKerja, o.luarJamKerja])]);
+  pakai("UTAMA");
+  const acuan = pokok(await ambil(...RENT));
+  for (const v of [null, "Proses Verifikasi", "Memenuhi Syarat", "Tidak Memenuhi Syarat"]) {
+    pakai("UTAMA", { kejadian: KEJADIAN.map((e) => ({ ...e, status_sekarang: v })) });
+    assert.equal(pokok(await ambil(...RENT)), acuan, "status sekarang = " + v);
+  }
 });

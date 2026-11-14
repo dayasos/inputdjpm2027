@@ -36,8 +36,8 @@ function buatAgregat(args) {
   const [, dari, sampai, tim] = args;
   const cakupan = peran === "UTAMA" ? "SEMUA" : (modeKoordinator ? "TIM" : "SAYA");
   const perHari = datesAntara(dari, sampai).map((t, i) => { const dow = new Date(t + "T12:00:00Z").getUTCDay(); const lib = dow === 0 || dow === 6; return { tanggal: t, hari: NAMA_HARI[dow], libur: lib, total: lib ? 3 : 10, jamKerja: lib ? 0 : 8, luarJamKerja: lib ? 3 : 2 }; });
-  const o = (u, n, t, k, tot, kerja, luar, koord = false) => ({ username: u, namaLengkap: n, tim: t, koordinator: koord, aktif: true, total: tot, jamKerja: kerja, luarJamKerja: luar, memenuhiSyarat: Math.round(tot * 0.7), berkasTidakLengkap: Math.round(tot * 0.2), tidakMemenuhiSyarat: tot - Math.round(tot * 0.7) - Math.round(tot * 0.2) });
-  const ringkasan = agregatKosong ? { total: 0, jamKerja: 0, luarJamKerja: 0, memenuhiSyarat: 0, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0 } : { total: 142, jamKerja: 96, luarJamKerja: 46, memenuhiSyarat: 101, berkasTidakLengkap: 29, tidakMemenuhiSyarat: 12 };
+  const o = (u, n, t, k, tot, kerja, luar, koord = false) => ({ username: u, namaLengkap: n, tim: t, koordinator: koord, aktif: true, total: tot, jamKerja: kerja, luarJamKerja: luar, dikoreksi: Math.round(tot / 20), memenuhiSyarat: Math.round(tot * 0.7), berkasTidakLengkap: Math.round(tot * 0.2), tidakMemenuhiSyarat: tot - Math.round(tot * 0.7) - Math.round(tot * 0.2) });
+  const ringkasan = agregatKosong ? { total: 0, jamKerja: 0, luarJamKerja: 0, memenuhiSyarat: 0, berkasTidakLengkap: 0, tidakMemenuhiSyarat: 0, sekarangMemenuhiSyarat: 0, sekarangBerkasTidakLengkap: 0, sekarangTidakMemenuhiSyarat: 0, sekarangLainnya: 0, dikoreksi: 0 } : { total: 142, jamKerja: 96, luarJamKerja: 46, memenuhiSyarat: 101, berkasTidakLengkap: 29, tidakMemenuhiSyarat: 12, sekarangMemenuhiSyarat: 105, sekarangBerkasTidakLengkap: 30, sekarangTidakMemenuhiSyarat: 5, sekarangLainnya: 2, dikoreksi: 8 };
   const nama = agregatNamaJahat ? '<img src=x onerror="window.__xss=1">Budi' : "Budi Santoso";
   const dasar = { sukses: true, cakupan, tim: cakupan === "SEMUA" ? (tim || null) : (cakupan === "TIM" ? "II" : "III"), saya: "VERIF_ANDI", rentang: { dari, sampai, jumlahHari: perHari.length }, ringkasan, perHari, mulaiDihitung: "2026-11-12", diperbaruiPada: "2026-11-12T12:00:00Z" };
   if (cakupan === "SAYA") return { ...dasar, perOrang: [o("verif_andi", "Andi Saputra", "III", 0, 142, 96, 46)] };
@@ -153,6 +153,8 @@ try {
   cek("SAYA: permintaan memuat token sesi, rentang bulan ini (WIB), dan tim kosong", !!q1 && q1.args[0] === "TOKEN-UJI" && q1.args[1] === harapan.dari && q1.args[2] === harapan.sampai && q1.args[3] === "", JSON.stringify({ q1, harapan }));
   cek("SAYA: angka dari server tampil (142 data; 96 jam kerja; 46 luar jam kerja)", /Data diverifikasi\s*142/.test(teks) && /Jam kerja\s*96/.test(teks) && /Luar jam kerja \(lembur\)\s*46/.test(teks), teks.slice(0, 300));
   cek("SAYA: rincian per status tampil", /Memenuhi Syarat 101/.test(teks) && /Berkas Tidak Lengkap 29/.test(teks) && /Tidak Memenuhi Syarat 12/.test(teks));
+  cek("SAYA: dua baris status: 'Hasil verifikator' (dasar hitungan) dan 'Status data sekarang' (informasi), lengkap dengan 'Dikoreksi Admin 8' dan catatan bahwa lembur tidak berubah",
+    /Hasil verifikator\s*Memenuhi Syarat\s*101/.test(teks) && /Status data sekarang\s*Memenuhi Syarat\s*105/.test(teks) && /Tidak Memenuhi Syarat\s*5/.test(teks) && /Lainnya\s*2/.test(teks) && /Dikoreksi Admin\s*8/.test(teks) && /lembur dihitung dari hasil verifikator/.test(teks), teks.slice(300, 900));
   cek("SAYA: aturan jam kerja selalu terlihat", /Senin.Kamis 08\.00.16\.30/.test(teks) && /Jumat 08\.00.17\.00/.test(teks));
   cek("SAYA: TANPA tabel anggota/tim (hanya dirinya)", !/Anggota tim/.test(teks) && !/Semua verifikator/.test(teks) && !/Per tim/.test(teks));
   await cekPonselTerbuka("verifikator biasa / SAYA");
@@ -229,6 +231,7 @@ try {
   const urutan = await js("Array.from(" + OV + ".querySelectorAll('tbody tr')).map((r) => (r.cells[0].querySelector('.agr-tag') || {}).textContent)");
   cek("SEMUA: tabel verifikator DIURUTKAN per tim (I, II, III, IV, tanpa tim), koordinator di atas tiap tim, lalu username", JSON.stringify(urutan.slice(0, 7)) === JSON.stringify(["verif_andi", "verif_a2", "verif_b2", "verif_budi", "verif_c1", "verif_zz4", "verif_baru"]), JSON.stringify(urutan));
   cek("SEMUA: garis pemisah di awal tiap tim (bukan di baris pertama)", (await js(OV + ".querySelectorAll('tr.agr-awal-tim').length")) === 4 && (await js("!" + OV + ".querySelector('tbody tr:first-child').classList.contains('agr-awal-tim')")) === true);
+  cek("SEMUA: kolom 'Dikoreksi' ada di tabel dan menampilkan jumlah per verifikator (Andi = 3)", (await js("(() => { const th = Array.from(" + OV + ".querySelector('.agr-gulir table').querySelectorAll('thead th')).map((x) => x.textContent); const tr = Array.from(" + OV + ".querySelectorAll('tbody tr')).find((r) => /verif_andi/.test(r.textContent)); return th[th.length - 1] === 'Dikoreksi' && !!tr && tr.cells[tr.cells.length - 1].textContent.trim() === '3'; })()")) === true);
   cek("SEMUA: akun tanpa tim tampil dengan strip", (await js("Array.from(" + OV + ".querySelectorAll('tbody tr')).some((r) => /verif_baru/.test(r.textContent) && /–/.test(r.cells[1].textContent))")) === true);
   await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(os.tmpdir(), "djpm_agregat_semua.png"), Buffer.from(s.result.data, "base64")));
   await klik("button[data-tim='II']"); await tidur(800);

@@ -292,3 +292,8 @@ Hal yang dikerjakan di luar daftar awal:
 Pengujian: `uji:agregat-inti` (14), `uji:agregat-server` (10), `uji:verifikator` (32), `uji:agregat-pg` (6, Postgres sungguhan lewat PGlite: migrasi asli, rollback nyata, batas jam, tanggal merah, hak per peran), uji layar `agregat-verifikasi.mjs` (3 peran + keadaan kosong/galat + keamanan HTML) dan `verifikator.mjs`; percobaan merusak kode (lihat laporan akhir).
 
 Urutan penayangan yang disarankan (menunggu izin Anda): (1) terapkan migrasi; (2) deploy fungsi `api`; (3) push (frontend). Fungsi baru bergantung pada tabel baru, jadi migrasi harus lebih dulu.
+
+### Pembaruan 2026-11-14: "Status data sekarang" + "Dikoreksi Admin" (pilihan 3 user)
+- Panel menampilkan DUA baris status: **Hasil verifikator** (dasar hitungan, dari riwayat) dan **Status data sekarang** (informasi, dari `penerima` lewat left join) beserta chip **Dikoreksi Admin** (jumlah data yang status sekarangnya berbeda dari hasil verifikator, termasuk data yang sudah dihapus). Tabel mendapat kolom "Dikoreksi"; Excel mendapat kolom "Dikoreksi Admin (informasi, per tanggal unduh)" dengan subtotal per tim dan penjelasan di sheet Aturan.
+- **Lembur aman:** total, jam kerja, luar jam kerja, dan hasil verifikator TIDAK dihitung dari status sekarang. Dijaga uji invarian di tiga lapis (logika murni, server tiruan, Postgres sungguhan: kasus TMS -> Admin naikkan ke BTL -> total/jam/lembur identik, dikoreksi = 1) dan percobaan merusak kode.
+- Status sekarang berubah mengikuti koreksi berikutnya; jangan dipakai sebagai dasar pembayaran.

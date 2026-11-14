@@ -102,6 +102,10 @@
       '#' + ID + ' .agr-sw{display:inline-block;width:14px;height:14px;border-radius:3px;flex:none}',
       '#' + ID + ' .agr-sw.kerja,#' + ID + ' .agr-b-kerja{background:#0f766e}',
       '#' + ID + ' .agr-sw.luar,#' + ID + ' .agr-b-luar{background:repeating-linear-gradient(135deg,#b45309 0 3px,#fdebd3 3px 6px);border:1px solid #b45309}',
+      '#' + ID + ' .agr-status-blok{display:grid;gap:8px}',
+      '#' + ID + ' .agr-judul-pil{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#5a6879;align-self:center;min-width:150px}',
+      '#' + ID + ' .agr-pil.koreksi{border-color:#b45309;background:#fff8ee}#' + ID + ' .agr-pil.koreksi b{color:#b45309}',
+      '#' + ID + ' .agr-catatan{font-size:.76rem;color:#5a6879}',
       '#' + ID + ' .agr-pil-baris{display:flex;flex-wrap:wrap;gap:8px}',
       '#' + ID + ' .agr-pil{display:inline-flex;gap:6px;align-items:baseline;border:1px solid #dbe1ea;border-radius:999px;padding:4px 12px;font-size:.85rem}',
       '#' + ID + ' .agr-pil.ms b{color:#15803d}#' + ID + ' .agr-pil.btl b{color:#b45309}#' + ID + ' .agr-pil.tms b{color:#b91c1c}',
@@ -156,7 +160,15 @@
       '<div class="agr-kartu luar"><div class="agr-lbl"><span class="agr-sw luar"></span>Luar jam kerja (lembur)</div><div class="agr-angka">' + fmt(luar) + '</div><div class="agr-ket">' + persen(luar, total) + ' dari total</div></div></div>';
   }
   function pil(r) {
-    return '<div class="agr-pil-baris"><span class="agr-pil ms">Memenuhi Syarat <b>' + fmt(r.memenuhiSyarat) + '</b></span><span class="agr-pil btl">Berkas Tidak Lengkap <b>' + fmt(r.berkasTidakLengkap) + '</b></span><span class="agr-pil tms">Tidak Memenuhi Syarat <b>' + fmt(r.tidakMemenuhiSyarat) + '</b></span></div>';
+    var n = function (v) { return fmt(v || 0); };
+    var hasil = '<div class="agr-pil-baris"><span class="agr-judul-pil">Hasil verifikator</span>' +
+      '<span class="agr-pil ms">Memenuhi Syarat <b>' + n(r.memenuhiSyarat) + '</b></span><span class="agr-pil btl">Berkas Tidak Lengkap <b>' + n(r.berkasTidakLengkap) + '</b></span><span class="agr-pil tms">Tidak Memenuhi Syarat <b>' + n(r.tidakMemenuhiSyarat) + '</b></span></div>';
+    var sekarang = '<div class="agr-pil-baris"><span class="agr-judul-pil">Status data sekarang</span>' +
+      '<span class="agr-pil ms">Memenuhi Syarat <b>' + n(r.sekarangMemenuhiSyarat) + '</b></span><span class="agr-pil btl">Berkas Tidak Lengkap <b>' + n(r.sekarangBerkasTidakLengkap) + '</b></span><span class="agr-pil tms">Tidak Memenuhi Syarat <b>' + n(r.sekarangTidakMemenuhiSyarat) + '</b></span>' +
+      (r.sekarangLainnya ? '<span class="agr-pil">Lainnya <b>' + n(r.sekarangLainnya) + '</b></span>' : '') +
+      '<span class="agr-pil koreksi">Dikoreksi Admin <b>' + n(r.dikoreksi) + '</b></span></div>' +
+      '<div class="agr-catatan">Status sekarang berubah bila Admin mengoreksi dan hanya informasi. Jumlah data, jam kerja, dan lembur dihitung dari <b>hasil verifikator</b>, sehingga koreksi tidak mengubahnya.</div>';
+    return '<div class="agr-status-blok">' + hasil + sekarang + '</div>';
   }
   function bagan(perHari) {
     var maks = 1; perHari.forEach(function (h) { if (h.total > maks) maks = h.total; });
@@ -182,10 +194,10 @@
       var awalTim = (sebelumnya !== null && String(o.tim || '-') !== sebelumnya);   // garis pemisah antar tim
       sebelumnya = String(o.tim || '-');
       return '<tr class="' + (ini ? 'agr-saya' : '') + (awalTim ? ' agr-awal-tim' : '') + '"><td>' + esc(o.namaLengkap || o.username) + '<span class="agr-tag">' + esc(o.username) + '</span>' + (o.koordinator ? '<span class="agr-tag">koordinator</span>' : '') + (ini ? '<span class="agr-tag">saya</span>' : '') + (o.aktif ? '' : '<span class="agr-tag">nonaktif</span>') +
-        '</td><td>' + (o.tim ? 'Tim ' + esc(o.tim) : '–') + '</td><td>' + fmt(o.total) + '</td><td>' + fmt(o.jamKerja) + '</td><td>' + fmt(o.luarJamKerja) + '</td><td>' + fmt(o.memenuhiSyarat) + '</td><td>' + fmt(o.berkasTidakLengkap) + '</td><td>' + fmt(o.tidakMemenuhiSyarat) + '</td></tr>';
+        '</td><td>' + (o.tim ? 'Tim ' + esc(o.tim) : '–') + '</td><td>' + fmt(o.total) + '</td><td>' + fmt(o.jamKerja) + '</td><td>' + fmt(o.luarJamKerja) + '</td><td>' + fmt(o.memenuhiSyarat) + '</td><td>' + fmt(o.berkasTidakLengkap) + '</td><td>' + fmt(o.tidakMemenuhiSyarat) + '</td><td>' + fmt(o.dikoreksi || 0) + '</td></tr>';
     }).join('');
-    if (luarTim) rows += '<tr class="agr-luartim"><td>Admin Utama (informasi, tidak dihitung ke tim)</td><td>–</td><td>' + fmt(luarTim.total) + '</td><td>' + fmt(luarTim.jamKerja) + '</td><td>' + fmt(luarTim.luarJamKerja) + '</td><td>–</td><td>–</td><td>–</td></tr>';
-    return '<div class="agr-gulir"><table><thead><tr><th>Verifikator</th><th>Tim</th><th>Data</th><th>Jam kerja</th><th>Luar jam kerja</th><th>MS</th><th>BTL</th><th>TMS</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    if (luarTim) rows += '<tr class="agr-luartim"><td>Admin Utama (informasi, tidak dihitung ke tim)</td><td>–</td><td>' + fmt(luarTim.total) + '</td><td>' + fmt(luarTim.jamKerja) + '</td><td>' + fmt(luarTim.luarJamKerja) + '</td><td>–</td><td>–</td><td>–</td><td>–</td></tr>';
+    return '<div class="agr-gulir"><table><thead><tr><th>Verifikator</th><th>Tim</th><th>Data</th><th>Jam kerja</th><th>Luar jam kerja</th><th>MS</th><th>BTL</th><th>TMS</th><th title="Data yang statusnya sekarang berbeda dari hasil verifikator (diubah Admin Utama); hanya informasi">Dikoreksi</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
   function kartuTim(perTim, timAktif) {
     var tombolSemua = (timAktif ? '<button type="button" class="agr-chip agr-semua" data-semua="1">\u2715 Tampilkan semua tim</button>' : '');
