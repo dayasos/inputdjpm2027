@@ -395,6 +395,17 @@ test("ADMIN: batal paket hanya menghapus tugas BELUM selesai; batal koreksi menc
   assert.ok(r.nilai.includes("BATAL_ULANG"));
 });
 
+test("PENJAGA: tidak ada parameter jsonb yang dibuat dengan JSON.stringify(...)::jsonb di kode server (terenkode GANDA oleh postgres.js; pakai sql.json / trx.json)", () => {
+  const dirs = ["supabase/functions/api/domains", "supabase/functions/api/_shared"];
+  const berkas = dirs.flatMap((d) => fs.readdirSync(new URL("../../" + d, import.meta.url)).filter((f) => f.endsWith(".ts")).map((f) => d + "/" + f));
+  assert.ok(berkas.length > 20, "berkas yang diperiksa: " + berkas.length);
+  const pola = /\$\{\s*JSON\.stringify\([\s\S]{0,800}?\)\s*\}\s*::jsonb/;
+  const melanggar = berkas.filter((f) => pola.test(baca(f).split("\n").filter((b) => !b.trim().startsWith("//")).join("\n")));
+  assert.deepEqual(melanggar, [], "gunakan sql.json(x) / trx.json(x): " + melanggar.join(", "));
+  const v = baca("supabase/functions/api/domains/verifikasiUlang.ts");
+  assert.ok((v.match(/\.json\(/g) || []).length >= 4, "kriteria, pemeriksa, pengecualian, dan daftar_periksa memakai .json()");
+});
+
 test("SKEMA: migrasi memuat pagar tugas selesai (pemicu) dan RLS tanpa kebijakan + hak anon dicabut", () => {
   const m = baca("supabase/migrations/20261114100000_verifikasi_ulang.sql");
   assert.match(m, /unique \(batch_id, penerima_id\)/);

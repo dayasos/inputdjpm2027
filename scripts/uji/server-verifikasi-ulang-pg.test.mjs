@@ -345,6 +345,41 @@ test("ADMIN melihat angka jujur: tugas yang datanya sudah berubah ikut ditarik s
   assert.equal(l.batch[0].perAkun.find((a) => a.username === "verif_p4").ditarik, 1);
 });
 
+test("JSON di Postgres: kriteria/pemeriksa/pengecualian/daftar_periksa tersimpan sebagai OBJEK/LARIK; paket yang terlanjur terenkode ganda (seperti di produksi) tetap bisa dicek ulang", opsi, async () => {
+  const db = await siap({ ms: 60, btl: 4, verifOleh: { VERIF_P1: 20 } });
+  const h = await buat();
+  const jenis = async () => (await db.query("select jsonb_typeof(kriteria) k, jsonb_typeof(pemeriksa) p, jsonb_typeof(pengecualian) e from batch_verifikasi_ulang")).rows[0];
+  assert.deepEqual(await jenis(), { k: "object", p: "array", e: "array" }, "bukan string");
+  const tg = await tugasSatu(db, "verif_p2");
+  await UL.bukaTugasUlang(TOKEN.verif_p2, tg.id);
+  await UL.catatBerkasDibuka(TOKEN.verif_p2, tg.id, "link_ktp"); await UL.catatBerkasDibuka(TOKEN.verif_p2, tg.id, "link_buku_rekening");
+  assert.equal((await UL.simpanHasilUlang(TOKEN.verif_p2, tg.id, { hasil: "SESUAI", centang: { link_ktp: true, link_buku_rekening: true } })).sukses, true);
+  const dp = (await db.query("select jsonb_typeof(daftar_periksa) j, daftar_periksa from tugas_verifikasi_ulang where id = $1", [tg.id])).rows[0];
+  assert.equal(dp.j, "object"); assert.deepEqual(dp.daftar_periksa, { link_ktp: true, link_buku_rekening: true });
+  assert.equal((await UL.cekPembagianBatchUlang(TOKEN.admin, h.batchId)).sama, true);
+  // meniru keadaan produksi (paket pertama): jsonb berisi TEKS JSON
+  await db.query("update batch_verifikasi_ulang set kriteria = to_jsonb(kriteria::text), pemeriksa = to_jsonb(pemeriksa::text), pengecualian = to_jsonb(pengecualian::text)");
+  assert.deepEqual(await jenis(), { k: "string", p: "string", e: "string" });
+  const cek = await UL.cekPembagianBatchUlang(TOKEN.admin, h.batchId);
+  assert.equal(cek.sukses, true, JSON.stringify(cek)); assert.equal(cek.sama, true, "paket terenkode ganda tetap sama saat dicek ulang");
+  const l = await UL.daftarBatchUlang(TOKEN.admin);
+  assert.equal(l.sukses, true); assert.equal(l.batch[0].jumlahTugas, 64);
+  await db.query("update batch_verifikasi_ulang set pemeriksa = '[]'::jsonb");   // daftar pemeriksa rusak/kosong: ditolak dengan pesan jelas, bukan "berbeda" yang menyesatkan
+  const rusak = await UL.cekPembagianBatchUlang(TOKEN.admin, h.batchId);
+  assert.equal(rusak.sukses, false); assert.match(rusak.pesan, /Daftar pemeriksa paket tidak terbaca/);
+});
+
+test("JSON di Postgres: data tak terbagi pada paket terenkode ganda tetap ikut hitung ulang (kriteria terbaca dari teks)", opsi, async () => {
+  const db = await siap({ ms: 60, btl: 0, verifOleh: { VERIF_P1: 30 } });
+  const ids = (await db.query("select id from penerima where diverifikasi_oleh = 'VERIF_P1' order by id limit 12")).rows.map((r) => r.id);
+  for (const i of ids) await db.query("insert into riwayat_verifikasi (penerima_id, tahun, status_lama, status_baru, oleh, sumber) values ($1, 2027, 'Proses Verifikasi', 'Memenuhi Syarat', 'VERIF_P2', 'SATU')", [i]);
+  const h = await UL.buatBatchUlang(TOKEN.admin, { benih: "ENKODE", nama: "Dua", pemeriksa: ["verif_p1", "verif_p2"] });
+  assert.equal(h.tidakTerbagi, 12);
+  await db.query("update batch_verifikasi_ulang set kriteria = to_jsonb(kriteria::text), pemeriksa = to_jsonb(pemeriksa::text), pengecualian = to_jsonb(pengecualian::text)");
+  const cek = await UL.cekPembagianBatchUlang(TOKEN.admin, h.batchId);
+  assert.equal(cek.sama, true, JSON.stringify(cek));
+});
+
 test("DAFTAR PAKET: kemajuan benar (selesai/sesuai/dikoreksi/ditarik/sisa) dan per akun", opsi, async () => {
   const db = await siap({ ms: 60, btl: 0 });
   await buat();

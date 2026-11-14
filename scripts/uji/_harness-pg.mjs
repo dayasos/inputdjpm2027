@@ -48,11 +48,14 @@ const STUB_DB = `
   function fabrik(pegangan) {
     const jalankan = async (teks, nilai) => {
       globalThis.__ujiPanggilan.push({ teks, nilai });
-      const r = await pegangan().query(teks, nilai || []);
+      // sql.json(x) pada postgres.js = parameter terketik jsonb yang diserialisasi SEKALI; di sini menjadi teks JSON untuk PGlite
+      const param = (nilai || []).map((v) => (v && typeof v === 'object' && v.__json !== undefined ? JSON.stringify(v.__json) : v));
+      const r = await pegangan().query(teks, param);
       return samakan(r.rows);
     };
     const f = (strings, ...nilai) => jalankan(strings.reduce((t, s, i) => t + (i ? '$' + i : '') + s, ''), nilai);
     f.unsafe = (teks, nilai) => jalankan(teks, nilai);
+    f.json = (x) => ({ __json: x });
     return f;
   }
   globalThis.__ujiPanggilan = globalThis.__ujiPanggilan || [];

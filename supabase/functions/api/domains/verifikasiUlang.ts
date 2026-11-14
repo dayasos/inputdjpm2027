@@ -30,6 +30,12 @@ const besar = (v: unknown) => huruf(v).toUpperCase();
 const literalAngka = (a: number[]) => "{" + a.join(",") + "}";
 
 class KonflikUlang extends Error {}
+// jsonb yang terlanjur tersimpan sebagai teks JSON (terenkode ganda; paket pertama, 2026-11-14) dibaca apa adanya sebagai objek/larik.
+function keObjek(v: unknown): unknown {
+  let x = v;
+  for (let i = 0; i < 3 && typeof x === "string"; i++) { try { x = JSON.parse(x); } catch (_e) { break; } }
+  return x;
+}
 // Kolom jsonb berisi larik teks: postgres.js mengembalikannya sebagai array JS; cadangan: urai teks.
 const keDaftar = (v: unknown): string[] => (Array.isArray(v) ? (v as unknown[]).map(String) : daftarDariPg(v));
 
@@ -208,8 +214,8 @@ export async function buatBatchUlang(token: string, kriteria: KriteriaUlang) {
       const b = await trx`
         insert into batch_verifikasi_ulang (nama, dibuat_oleh, benih, kriteria, pemeriksa, pengecualian, akun_khusus, jumlah_tugas, batas_selesai)
         values (${nama}, ${oleh}, ${r.benih},
-                ${JSON.stringify({ status: r.status, layanan: r.layanan, sertakanSudahDiperiksa: r.sertakanSudahDiperiksa, jumlah: r.jumlah, tidakTerbagi: r.hasil.tidakTerbagi.length, tidakTerbagiButir: r.hasil.tidakTerbagi.map((x) => ({ id: x.id, tahun: x.tahun, layanan: x.layanan, status: x.status, pernahMemverifikasi: terpilihPeta.get(x.tahun + ":" + x.id)?.pernahMemverifikasi || [] })) })}::jsonb,
-                ${JSON.stringify(r.pemeriksa)}::jsonb, ${JSON.stringify(PENGECUALIAN_ULANG)}::jsonb, ${r.akunKhusus},
+                ${trx.json({ status: r.status, layanan: r.layanan, sertakanSudahDiperiksa: r.sertakanSudahDiperiksa, jumlah: r.jumlah, tidakTerbagi: r.hasil.tidakTerbagi.length, tidakTerbagiButir: r.hasil.tidakTerbagi.map((x) => ({ id: x.id, tahun: x.tahun, layanan: x.layanan, status: x.status, pernahMemverifikasi: terpilihPeta.get(x.tahun + ":" + x.id)?.pernahMemverifikasi || [] })) })},
+                ${trx.json([...r.pemeriksa])}, ${trx.json([...PENGECUALIAN_ULANG])}, ${r.akunKhusus},
                 ${t.length}, ${r.batasSelesai})
         returning id`;
       const id = Number(b[0].id);
@@ -305,12 +311,15 @@ export async function cekPembagianBatchUlang(token: string, batchId: number) {
       id: Number(r.penerima_id), tahun: Number(r.tahun), layanan: huruf(r.layanan), status: huruf(r.status_saat_dibagi), pernahMemverifikasi: daftarDariPg(r.pemverifikasi_awal),
     }));
     // data yang waktu itu tidak terbagi ikut dalam pengacakan; tanpa mereka hasil hitung ulang bisa berbeda
-    const kriteria = (paket.kriteria && typeof paket.kriteria === "object" ? paket.kriteria : {}) as Baris;
+    const kriteriaMentah = keObjek(paket.kriteria);
+    const kriteria = (kriteriaMentah && typeof kriteriaMentah === "object" ? kriteriaMentah : {}) as Baris;
     for (const b of Array.isArray(kriteria.tidakTerbagiButir) ? (kriteria.tidakTerbagiButir as Baris[]) : []) {
       kolam.push({ id: Number(b.id), tahun: Number(b.tahun), layanan: huruf(b.layanan), status: huruf(b.status), pernahMemverifikasi: Array.isArray(b.pernahMemverifikasi) ? (b.pernahMemverifikasi as unknown[]).map(String) : [] });
     }
-    const pemeriksa = Array.isArray(paket.pemeriksa) ? (paket.pemeriksa as unknown[]).map(huruf) : [];
-    const pengecualian = Array.isArray(paket.pengecualian) ? (paket.pengecualian as unknown[]).map(huruf) : [];
+    const pemeriksaMentah = keObjek(paket.pemeriksa), pengecualianMentah = keObjek(paket.pengecualian);
+    const pemeriksa = Array.isArray(pemeriksaMentah) ? (pemeriksaMentah as unknown[]).map(huruf) : [];
+    const pengecualian = Array.isArray(pengecualianMentah) ? (pengecualianMentah as unknown[]).map(huruf) : [];
+    if (pemeriksa.length === 0) return { sukses: false, pesan: "Daftar pemeriksa paket tidak terbaca; pembagian tidak dapat dicek ulang." };
     const cek = samaDenganTersimpan(
       { benih: huruf(paket.benih), kolam, pemeriksa, pengecualian, akunKhusus: paket.akun_khusus ? huruf(paket.akun_khusus) : null },
       (rows as Baris[]).map((r) => ({ id: Number(r.penerima_id), tahun: Number(r.tahun), akun: huruf(r.akun) })),
@@ -548,7 +557,7 @@ export async function simpanHasilUlang(token: string, tugasId: number, masuk: Ha
     await sql.begin(async (trx: any) => {
       const selesai = await trx`
         update tugas_verifikasi_ulang set selesai_pada = now(), hasil = ${cek.hasil}, status_sebelum = ${statusSebelum}, status_sesudah = ${cek.statusSesudah},
-          alasan = ${cek.alasan}, daftar_periksa = ${JSON.stringify(cek.daftarPeriksa)}::jsonb
+          alasan = ${cek.alasan}, daftar_periksa = ${trx.json(cek.daftarPeriksa)}
         where id = ${Number(t.id)} and selesai_pada is null and ditarik_pada is null returning id`;
       if (selesai.length === 0) throw new KonflikUlang("Tugas ini sudah selesai atau ditarik.");
       if (cek.hasil === "DIKOREKSI") {
