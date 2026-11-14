@@ -40,7 +40,7 @@ function jawab(aksi, args) {
   if (aksi === "bukaTugasUlang") {
     const t = tugas.find((x) => x.tugasId === a1); if (!t || t.selesaiDi) return { sukses: false, pesan: "Tugas tidak ditemukan." };
     t.dibuka = true;
-    return { sukses: true, tugasId: t.tugasId, penerimaId: t.penerimaId, status: MS, keteranganVerifikasi: "", diverifikasiOleh: "ADMIN", data: { nama: t.nama, nik: "1201000000000" + (t.tugasId % 10), layanan: t.layanan, tempatTugas: "MASJID AL IKHLAS", kecamatan: t.kecamatan, kelurahan: t.kelurahan }, berkas: berkas[t.tugasId].map((b) => ({ ...b })) };
+    return { sukses: true, tugasId: t.tugasId, penerimaId: t.penerimaId, status: MS, keteranganVerifikasi: "", diverifikasiOleh: "ADMIN", data: { nama: t.nama, nik: "1201000000000" + (t.tugasId % 10), jenisKelamin: "PEREMPUAN", tempatLahir: "MEDAN", tanggalLahir: "04-02-1989", umur: "37", alamat: "JL MARELAN NO 5", namaRekening: "SITI AMINAH", nomorRekening: "1234567890", kantorCabang: t.tugasId === 102 ? "" : "SUMUT", layanan: t.layanan, tempatTugas: "MASJID AL IKHLAS", alamatTugas: "JL MESJID 1", kecamatan: t.kecamatan, kelurahan: t.kelurahan, noKontak: "0812345678", koordinat: "https://maps.app.goo.gl/abc" }, berkas: berkas[t.tugasId].map((b) => ({ ...b })) };
   }
   if (aksi === "catatBerkasDibuka") { const b = (berkas[a1] || []).find((x) => x.kunci === a2); if (!b) return { sukses: false, pesan: "Berkas tidak dikenal pada data ini." }; b.dibuka = true; return { sukses: true }; }
   if (aksi === "simpanHasilUlang") {
@@ -144,6 +144,10 @@ try {
   await tungguSampai("!!document.querySelector('#djpm-tul-overlay') && document.querySelectorAll('#djpm-tul-overlay .tul-berkas li').length === 3", "tugas pertama terbuka dengan 3 berkas");
   cek("PETUGAS: daftar memuat 4 tugas dan tugas pertama langsung terbuka (bukaTugasUlang dipanggil)", (await js("document.querySelectorAll('#djpm-tul-overlay .tul-daftar li').length")) === 4 && hitung("bukaTugasUlang") === 1);
   cek("PETUGAS: nama berbahaya tampil sebagai teks, tidak dieksekusi", (await js("window.__xss === undefined && !document.querySelector('#djpm-tul-overlay img')")) === true);
+  cek("PETUGAS: panel 'Data input untuk dicocokkan' tampil dengan tiga kelompok (Identitas/KTP, Rekening/Buku Rekening, Penugasan) dan nilai dari server",
+    JSON.stringify(await js("Array.from(document.querySelectorAll('#djpm-tul-overlay .tul-grup h4')).map((h) => h.textContent.replace(/\\s+/g, ' ').trim())")) === JSON.stringify(["Identitas · cocokkan dengan KTP", "Rekening · cocokkan dengan Buku Rekening", "Penugasan · cocokkan dengan surat, foto, dan rekomendasi"]), await teks("#tul-detail"));
+  cek("PETUGAS: tanggal lahir 04-02-1989, alamat, nama rekening, nomor rekening, alamat tugas, dan tautan peta tampil",
+    /Tanggal lahir\s*04-02-1989/.test(await teks("#tul-detail")) && /Alamat\s*JL MARELAN NO 5/.test(await teks("#tul-detail")) && /Nama rekening\s*SITI AMINAH/.test(await teks("#tul-detail")) && /Nomor rekening\s*1234567890/.test(await teks("#tul-detail")) && /Alamat tugas\s*JL MESJID 1/.test(await teks("#tul-detail")) && (await js("!!document.querySelector('#djpm-tul-overlay .tul-grup a[href=\"https://maps.app.goo.gl/abc\"][rel*=noopener]')")) === true, await teks("#tul-detail"));
   cek("PETUGAS: semua centang NONAKTIF sebelum berkas dibuka; Simpan nonaktif; pesan menyebut berkas yang belum dibuka",
     (await js("Array.from(document.querySelectorAll('#djpm-tul-overlay .tul-berkas input[type=checkbox]')).every((c) => c.disabled)")) === true && (await nonaktif("#tul-simpan")) === true && /Belum dibuka: KTP, BUKU REKENING, SURAT PERMOHONAN/i.test(await teks("#tul-valid")), await teks("#tul-valid"));
 
@@ -183,6 +187,7 @@ try {
   cek("PETUGAS: simpan 'Sesuai' mengirim hasil SESUAI + centang; daftar tinggal 3; tugas berikutnya otomatis terbuka; kemajuan 1 dari 4",
     simpan1.args[2].hasil === "SESUAI" && simpan1.args[2].centang.link_ktp === true && /Selesai 1 dari 4/.test(await teks("#tul-kemajuan")), JSON.stringify(simpan1.args));
 
+  cek("PETUGAS: isian KOSONG ditulis 'kosong' berwarna merah (kantor cabang pada tugas kedua)", /Kantor cabang\s*kosong/.test(await teks("#tul-detail")) && (await js("Array.from(document.querySelectorAll('#djpm-tul-overlay .tul-grup dd.kosong')).some((e) => e.textContent.trim() === 'kosong')")) === true, await teks("#tul-detail"));
   // koreksi
   await js("document.querySelector('#djpm-tul-overlay input[name=tul-mode][value=koreksi]').click(); true");
   await tungguSampai("!!document.querySelector('#tul-status')", "form koreksi");

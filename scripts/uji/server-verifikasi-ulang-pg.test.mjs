@@ -27,6 +27,7 @@ async function siap({ ms = 60, btl = 4, proses = 5, verifOleh = {} } = {}) {
       id serial, tahun int not null, nik text, nama text, layanan text, kecamatan text, kelurahan text, tempat_tugas text,
       status_verifikasi text, keterangan_verifikasi text default '', tanggal_verifikasi timestamptz, diverifikasi_oleh text,
       batas_waktu_perbaikan date, tanggal_lapor_perbaikan timestamptz, dilapor_oleh text, tanggal_berkas_diubah timestamptz,
+      jenis_kelamin text, tempat_lahir text, tanggal_lahir date, alamat text, umur int, nama_rekening text, nomor_rekening text, kantor_cabang text, alamat_tugas text, no_kontak text,
       ${LINK.map((l) => l + " text").join(", ")}, link_koordinat_lokasi text, primary key (id, tahun));
     create table pembayaran_baris (id serial primary key, tahun int not null, nik text not null);
   `);
@@ -181,6 +182,23 @@ test("ALUR VERIFIKATOR: daftar -> buka -> klik berkas -> SESUAI; riwayat ULANG; 
   assert.equal(lagi.sukses, false); assert.match(lagi.pesan, /sudah selesai/);
   assert.equal((await db.query("select count(*)::int n from riwayat_verifikasi where penerima_id = $1 and sumber = 'ULANG'", [tg.penerimaId])).rows[0].n, 1, "1 data = 1 hitungan");
   assert.equal((await UL.getTugasUlangSaya(TOKEN.verif_p2)).selesai, 1);
+});
+
+test("DATA UNTUK DICOCOKKAN di Postgres: bukaTugasUlang mengirim data input lengkap (tanggal lahir dd-mm-yyyy, no kontak tanpa kutip depan) dan HANYA untuk tugas milik sendiri", opsi, async () => {
+  const db = await siap({ ms: 60, btl: 0 });
+  await buat();
+  const tg = await tugasSatu(db, "verif_p2");
+  await db.query("update penerima set jenis_kelamin='PEREMPUAN', tempat_lahir='MEDAN', tanggal_lahir='1989-02-04', alamat='JL MARELAN NO 5', umur=37, nama_rekening='SITI AMINAH', nomor_rekening='1234567890', kantor_cabang='SUMUT', alamat_tugas='JL MESJID 1', no_kontak=$2, tempat_tugas='MASJID AL IKHLAS', link_koordinat_lokasi='https://maps.app.goo.gl/abc' where id = $1", [tg.penerima_id, "'0812345678"]);
+  const b = await UL.bukaTugasUlang(TOKEN.verif_p2, tg.id);
+  assert.equal(b.sukses, true, JSON.stringify(b));
+  assert.deepEqual(
+    [b.data.jenisKelamin, b.data.tempatLahir, b.data.tanggalLahir, b.data.umur, b.data.alamat, b.data.namaRekening, b.data.nomorRekening, b.data.kantorCabang, b.data.alamatTugas, b.data.noKontak, b.data.tempatTugas, b.data.koordinat],
+    ["PEREMPUAN", "MEDAN", "04-02-1989", "37", "JL MARELAN NO 5", "SITI AMINAH", "1234567890", "SUMUT", "JL MESJID 1", "0812345678", "MASJID AL IKHLAS", "https://maps.app.goo.gl/abc"]);
+  const kosong = await tugasSatu(db, "verif_p3");
+  const b3 = await UL.bukaTugasUlang(TOKEN.verif_p3, kosong.id);
+  assert.equal(b3.data.tanggalLahir, "", "data tanpa tanggal lahir -> kosong, bukan galat"); assert.equal(b3.data.umur, "");
+  const orang = await UL.bukaTugasUlang(TOKEN.verif_p4, tg.id);
+  assert.equal(orang.sukses, false, "tugas orang lain tidak membuka datanya"); assert.ok(!JSON.stringify(orang).includes("1234567890"));
 });
 
 test("BERKAS DIGANTI di Postgres: kelurahan mengganti berkas sesudah petugas mengklik -> klik lama tidak sah; klik ulang berkas baru sah lagi", opsi, async () => {

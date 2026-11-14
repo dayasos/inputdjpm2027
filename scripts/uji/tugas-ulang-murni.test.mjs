@@ -53,6 +53,17 @@ test("PESAN layar menyebut berkas yang kurang; Sesuai butuh centang, Koreksi cuk
   assert.equal(T.validasiPeriksa({ berkas: [], centang: {}, mode: "sesuai", statusSaatIni: MS }).ok, true, "tanpa berkas unggahan boleh Sesuai");
 });
 
+test("DATA UNTUK DICOCOKKAN: tiga kelompok menurut berkas pembanding; kolom kosong tetap muncul sebagai kosong; spasi dipangkas", () => {
+  const g = T.kelompokData({ nama: " SITI ", nik: "1271", tempatLahir: "MEDAN", tanggalLahir: "04-02-1989", umur: "37", jenisKelamin: "PEREMPUAN", alamat: "JL X", namaRekening: "SITI AMINAH", nomorRekening: "123", kantorCabang: "", layanan: "IMAM MASJID", tempatTugas: "MASJID A", alamatTugas: null, kecamatan: "MEDAN KOTA", kelurahan: "X", noKontak: "0812" });
+  assert.deepEqual(g.map((x) => x.judul), ["Identitas", "Rekening", "Penugasan"]);
+  assert.match(g[0].petunjuk, /KTP/); assert.match(g[1].petunjuk, /Buku Rekening/);
+  const peta = (k) => Object.fromEntries(g[k].baris.map((r) => [r.label, r.nilai]));
+  assert.deepEqual(peta(0), { Nama: "SITI", NIK: "1271", "Tempat lahir": "MEDAN", "Tanggal lahir": "04-02-1989", Umur: "37", "Jenis kelamin": "PEREMPUAN", Alamat: "JL X" });
+  assert.deepEqual(peta(1), { "Nama rekening": "SITI AMINAH", "Nomor rekening": "123", "Kantor cabang": "" }, "kosong tetap ada (nilai kosong), tidak disembunyikan");
+  assert.equal(peta(2)["Alamat tugas"], "", "null menjadi kosong");
+  assert.equal(T.kelompokData(null).reduce((s, x) => s + x.baris.length, 0), 16, "tanpa data: semua baris tetap ada, kosong");
+});
+
 test("URL berkas: hanya http(s) yang dibuka", () => {
   assert.equal(T.urlBolehDibuka("https://drive.google.com/x"), true);
   assert.equal(T.urlBolehDibuka("http://x"), true);

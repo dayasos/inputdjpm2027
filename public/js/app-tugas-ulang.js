@@ -77,8 +77,19 @@
     return { total: total, persen: total ? Math.round((Number(selesai) || 0) * 100 / total) : 0 };
   }
 
+  /** Data input yang harus dicocokkan petugas, dikelompokkan menurut berkas pembandingnya. Nilai kosong ditampilkan sebagai kosong (bukan disembunyikan). */
+  function kelompokData(d) {
+    d = d || {};
+    function b(label, nilai) { return { label: label, nilai: String(nilai == null ? '' : nilai).trim() }; }
+    return [
+      { judul: 'Identitas', petunjuk: 'cocokkan dengan KTP', baris: [b('Nama', d.nama), b('NIK', d.nik), b('Tempat lahir', d.tempatLahir), b('Tanggal lahir', d.tanggalLahir), b('Umur', d.umur), b('Jenis kelamin', d.jenisKelamin), b('Alamat', d.alamat)] },
+      { judul: 'Rekening', petunjuk: 'cocokkan dengan Buku Rekening', baris: [b('Nama rekening', d.namaRekening), b('Nomor rekening', d.nomorRekening), b('Kantor cabang', d.kantorCabang)] },
+      { judul: 'Penugasan', petunjuk: 'cocokkan dengan surat, foto, dan rekomendasi', baris: [b('Layanan', d.layanan), b('Tempat tugas', d.tempatTugas), b('Alamat tugas', d.alamatTugas), b('Kecamatan', d.kecamatan), b('Kelurahan', d.kelurahan), b('No. kontak', d.noKontak)] }
+    ];
+  }
+
   var api = {
-    statusTujuan: statusTujuan, kelasStatus: kelasStatus, urlBolehDibuka: urlBolehDibuka, dampakKoreksi: dampakKoreksi, templatUntuk: templatUntuk,
+    kelompokData: kelompokData, statusTujuan: statusTujuan, kelasStatus: kelasStatus, urlBolehDibuka: urlBolehDibuka, dampakKoreksi: dampakKoreksi, templatUntuk: templatUntuk,
     isiTemplat: isiTemplat, validasiPeriksa: validasiPeriksa, kemajuan: kemajuan, esc: esc, buka: function () { /* diganti di browser */ }
   };
   if (!akar || !akar.document) return api;   // lingkungan uji Node: hanya bagian murni
@@ -161,6 +172,14 @@
       '#' + ID + ' .tul-radio label{display:flex;gap:6px;align-items:center;min-height:40px}',
       '#' + ID + ' .tul-radio input{width:18px;height:18px}',
       '#' + ID + ' .tul-data{font-size:.85rem;color:#475569;overflow-wrap:anywhere}',
+      '#' + ID + ' .tul-banding{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}',
+      '#' + ID + ' .tul-grup{border:1px solid #dbe1ea;border-radius:10px;padding:10px 12px;background:#f8fafc;min-width:0}',
+      '#' + ID + ' .tul-grup h4{margin:0 0 6px;font-size:.8rem;font-weight:700}',
+      '#' + ID + ' .tul-grup h4 span{font-weight:400;color:#5a6879}',
+      '#' + ID + ' .tul-grup dl{margin:0;display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:3px 10px;font-size:.85rem}',
+      '#' + ID + ' .tul-grup dt{color:#5a6879}',
+      '#' + ID + ' .tul-grup dd{margin:0;font-weight:600;overflow-wrap:anywhere}',
+      '#' + ID + ' .tul-grup dd.kosong{color:#b3261e;font-weight:500;font-style:italic}',
       '#' + ID_PIL + '{position:fixed;left:16px;bottom:76px;z-index:60;background:#17365d;color:#fff;border:1px solid #0f2744;border-radius:14px;padding:8px 14px;font:600 13px/1.35 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.3);cursor:pointer;max-width:calc(100vw - 32px);min-height:40px}',
       '#' + ID_PIL + ':focus-visible{outline:3px solid #0f766e;outline-offset:2px}'
     ].join('\n');
@@ -204,6 +223,15 @@
     return validasiPeriksa({ berkas: berkasDetail(), centang: st.centang, mode: st.mode, statusSaatIni: st.detail ? st.detail.status : '', statusBaru: st.statusBaru, alasan: st.alasan });
   }
 
+  function htmlBanding(data) {
+    var koord = String((data && data.koordinat) || '').trim();
+    return '<div class="tul-banding">' + kelompokData(data).map(function (g) {
+      return '<div class="tul-grup"><h4>' + esc(g.judul) + ' <span>· ' + esc(g.petunjuk) + '</span></h4><dl>' + g.baris.map(function (r) {
+        return '<dt>' + esc(r.label) + '</dt><dd' + (r.nilai ? '' : ' class="kosong"') + '>' + (r.nilai ? esc(r.nilai) : 'kosong') + '</dd>';
+      }).join('') + (g.judul === 'Penugasan' ? '<dt>Koordinat</dt><dd' + (koord ? '' : ' class="kosong"') + '>' + (koord ? (urlBolehDibuka(koord) ? '<a href="' + esc(koord) + '" target="_blank" rel="noopener noreferrer">Buka peta ↗</a>' : esc(koord)) : 'kosong') + '</dd>' : '') + '</dl></div>';
+    }).join('') + '</div>';
+  }
+
   function gambarDetail() {
     var w = dok.getElementById('tul-detail'); if (!w) return;
     var t = aktifTugas();
@@ -213,7 +241,8 @@
     var d = st.detail; if (!d) { w.innerHTML = ''; return; }
     var v = cekValid(), tujuan = statusTujuan(d.status);
     if (st.mode === 'koreksi' && !st.statusBaru) st.statusBaru = tujuan[0] || '';
-    var h = '<div class="tul-baris"><div><h2 style="margin:0;font-size:1.05rem">' + esc(d.data.nama) + '</h2><div class="tul-data">' + esc(d.data.layanan) + ' · ' + esc(d.data.kelurahan) + ', ' + esc(d.data.kecamatan) + '<br>NIK ' + esc(d.data.nik) + (d.data.tempatTugas ? ' · ' + esc(d.data.tempatTugas) : '') + '</div></div>' + pilStatus(d.status) + '</div>' +
+    var h = '<div class="tul-baris"><div><h2 style="margin:0;font-size:1.05rem">' + esc(d.data.nama) + '</h2><div class="tul-data">' + esc(d.data.layanan) + ' · ' + esc(d.data.kelurahan) + ', ' + esc(d.data.kecamatan) + '</div></div>' + pilStatus(d.status) + '</div>' +
+      '<h3 style="margin-top:14px">Data input untuk dicocokkan</h3><div class="tul-cat">Bandingkan setiap isian dengan isi berkas yang dibuka. Isian yang kosong ditulis merah.</div>' + htmlBanding(d.data) +
       '<div class="tul-cat" style="margin-top:6px">Diverifikasi pertama oleh ' + esc(d.diverifikasiOleh || '-') + (d.keteranganVerifikasi ? ' · keterangan: ' + esc(d.keteranganVerifikasi) : '') + '. Status hanya bisa diubah lewat tugas ini.</div>' +
       '<h3 style="margin-top:16px">Berkas yang diunggah (' + fmt(d.berkas.length) + ')</h3><div class="tul-cat">Klik "Buka berkas" lebih dulu. Kotak centang baru aktif setelah berkasnya dibuka.</div>';
     h += d.berkas.length ? '<ul class="tul-berkas">' + d.berkas.map(function (b) {

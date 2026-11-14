@@ -11,6 +11,7 @@ import { adalahVerifikator } from "../_shared/gerbangPeran.ts";
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
 import { BATAS_PERBAIKAN_SERAGAM, TAHUN_AKTIF } from "../_shared/config.ts";
+import { formatTanggalDDMMYYYY } from "../_shared/tanggal.ts";
 import { catatRiwayatVerifikasiWajib } from "../_shared/riwayatVerifikasi.ts";
 import { nilaiStatusVerifikasi } from "../_shared/statusVerifikasi.ts";
 import { ambilSampel, bagiTugasUlang, layakMasukKolam, samaDenganTersimpan, type ButirKolam } from "../_shared/pembagianUlang.ts";
@@ -479,7 +480,14 @@ export async function bukaTugasUlang(token: string, tugasId: number) {
       status: huruf(p.status_verifikasi),
       keteranganVerifikasi: huruf(p.keterangan_verifikasi),
       diverifikasiOleh: huruf(p.diverifikasi_oleh),
-      data: { nama: huruf(p.nama), nik: huruf(p.nik), layanan: huruf(p.layanan), tempatTugas: huruf(p.tempat_tugas), kecamatan: huruf(p.kecamatan), kelurahan: huruf(p.kelurahan) },
+      // Data input yang harus dicocokkan petugas dengan isi berkas (hak yang sama dengan Detail data yang sudah boleh dilihat verifikator)
+      data: {
+        nama: huruf(p.nama), nik: huruf(p.nik), jenisKelamin: huruf(p.jenis_kelamin), tempatLahir: huruf(p.tempat_lahir),
+        tanggalLahir: p.tanggal_lahir ? huruf(formatTanggalDDMMYYYY(p.tanggal_lahir as Date | string)) : "", umur: p.umur == null ? "" : huruf(p.umur), alamat: huruf(p.alamat),
+        namaRekening: huruf(p.nama_rekening), nomorRekening: huruf(p.nomor_rekening), kantorCabang: huruf(p.kantor_cabang),
+        layanan: huruf(p.layanan), tempatTugas: huruf(p.tempat_tugas), alamatTugas: huruf(p.alamat_tugas), kecamatan: huruf(p.kecamatan), kelurahan: huruf(p.kelurahan),
+        noKontak: huruf(p.no_kontak).replace(/^'+/, "").trim(), koordinat: huruf(p.link_koordinat_lokasi),
+      },
       berkas: berkas.map((b) => ({ kunci: b.kunci, label: b.label, url: b.url, dibuka: dibuka.has(b.kunci) })),
     };
   } catch (e) {
