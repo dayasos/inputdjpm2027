@@ -45,7 +45,7 @@
 
   /** Pesan kesalahan isian (kosong = sah). `untukBagi` menambah syarat nama dan benih. */
   function validasiKriteria(k, untukBagi) {
-    if (!k.status.length) return 'Pilih minimal satu status yang diperiksa ulang.';
+    if (!k.status.length) return 'Pilih minimal satu status yang diverifikasi ulang.';
     if (k.jumlah < 0 || k.jumlah > MAKS_JUMLAH) return 'Jumlah data per paket maksimal ' + MAKS_JUMLAH + '.';
     if (k.batasSelesai && !/^\d{4}-\d{2}-\d{2}$/.test(k.batasSelesai)) return 'Batas selesai tidak valid.';
     if (untukBagi) {
@@ -175,11 +175,11 @@
     var lay = (st.daftarLayanan || []).map(function (n) { return '<label class="vua-cek"><input type="checkbox" data-layanan="' + esc(n) + '"' + (f.layanan.indexOf(n) !== -1 ? ' checked' : '') + '> ' + esc(n) + '</label>'; }).join('');
     var h = '<div class="vua-dua"><div class="vua-panel"><h3>Buat paket tugas</h3><div class="vua-cat">Pembagian acak dan merata (selisih antar petugas maksimal 1). Pemverifikasi pertama sebuah data tidak pernah menjadi pemeriksanya.</div><div class="vua-form">' +
       '<label>Nama paket<input type="text" id="vua-nama" value="' + esc(f.nama) + '" maxlength="80" placeholder="mis. Tahap 1"></label>' +
-      '<div><div class="vua-cat" style="font-weight:600">Status yang diperiksa ulang</div>' + STATUS_SEMUA.map(function (s) { return '<label class="vua-cek"><input type="checkbox" data-status="' + esc(s) + '"' + (f.status.indexOf(s) !== -1 ? ' checked' : '') + '> ' + esc(s) + '</label>'; }).join('') + '</div>' +
+      '<div><div class="vua-cat" style="font-weight:600">Status yang diverifikasi ulang</div>' + STATUS_SEMUA.map(function (s) { return '<label class="vua-cek"><input type="checkbox" data-status="' + esc(s) + '"' + (f.status.indexOf(s) !== -1 ? ' checked' : '') + '> ' + esc(s) + '</label>'; }).join('') + '</div>' +
       '<details class="vua-lay"' + (f.layanan.length ? ' open' : '') + '><summary>Layanan: ' + (f.layanan.length ? fmt(f.layanan.length) + ' dipilih' : 'semua') + '</summary><div class="vua-lay-isi">' + (lay || '<span class="vua-cat">Daftar layanan belum termuat (semua layanan dipakai).</span>') + '</div></details>' +
       '<label>Jumlah data Memenuhi Syarat dalam paket<input type="number" id="vua-jumlah" min="0" max="' + MAKS_JUMLAH + '" value="' + esc(f.jumlah) + '"><span class="vua-cat" style="font-weight:400">0 = semua. Data BTL/TMS selalu ikut seluruhnya.</span></label>' +
       '<label>Batas selesai (opsional)<input type="date" id="vua-batas" value="' + esc(f.batasSelesai) + '"></label>' +
-      '<label class="vua-cek"><input type="checkbox" id="vua-sertakan"' + (f.sertakan ? ' checked' : '') + '> Sertakan data yang pernah diperiksa ulang</label>' +
+      '<label class="vua-cek"><input type="checkbox" id="vua-sertakan"' + (f.sertakan ? ' checked' : '') + '> Sertakan data yang pernah diverifikasi ulang</label>' +
       '<label>Benih pengacakan<span class="vua-baris" style="flex-wrap:nowrap"><input type="text" id="vua-benih" value="' + esc(f.benih) + '" placeholder="kosong = dibuat otomatis"><button type="button" class="vua-btn kecil" data-aksi="acak">Acak baru</button></span></label>' +
       '</div><div class="vua-baris" style="margin-top:12px"><button type="button" class="vua-btn utama" data-aksi="pratinjau"' + (st.status === 'muat' ? ' disabled' : '') + '>' + (st.status === 'muat' ? 'Menghitung…' : 'Pratinjau pembagian') + '</button>' +
       '<button type="button" class="vua-btn" data-aksi="bagikan"' + (pratinjauSah && !salah && !st.bagi && st.pratinjau.jumlahTugas > 0 ? '' : ' disabled') + '>' + (st.bagi ? 'Membagikan…' : 'Bagikan') + '</button></div>' +
@@ -195,7 +195,7 @@
     return '<div class="vua-kartu3"><div class="vua-kartu"><div class="vua-cat">Total tugas</div><b>' + fmt(p.jumlahTugas) + '</b></div>' +
       '<div class="vua-kartu"><div class="vua-cat">Petugas data MS</div><b>' + fmt(p.jumlahPemeriksa) + '</b><div class="vua-cat">selisih maksimal ' + fmt(p.selisihMS) + '</div></div>' +
       '<div class="vua-kartu"><div class="vua-cat">Pemeriksa khusus BTL/TMS</div><b style="font-size:1rem;overflow-wrap:anywhere">' + esc(p.akunKhusus || 'tidak ada') + '</b></div></div>' +
-      '<div class="vua-pesan info">Akun pimpinan tidak menerima tugas. Kolam sesuai kriteria: ' + fmt(p.kolamCocok) + ' data. Tidak ikut: sudah masuk batch pembayaran ' + fmt(dk.sudahDibayar) + ', sedang di paket lain ' + fmt(dk.sedangDitugaskan) + ', sudah pernah diperiksa ulang ' + fmt(dk.sudahDiperiksaUlang) + '.</div>' +
+      '<div class="vua-pesan info">Akun pimpinan tidak menerima tugas. Kolam sesuai kriteria: ' + fmt(p.kolamCocok) + ' data. Tidak ikut: sudah masuk batch pembayaran ' + fmt(dk.sudahDibayar) + ', sedang di paket lain ' + fmt(dk.sedangDitugaskan) + ', sudah pernah diverifikasi ulang ' + fmt(dk.sudahDiperiksaUlang) + '.</div>' +
       (tt.jumlah ? '<div class="vua-pesan peringatan">' + fmt(tt.jumlah) + ' data tidak dapat dibagikan: ' + esc((tt.contoh || []).slice(0, 3).map(function (c) { return c.alasan; }).filter(function (x, i, a) { return a.indexOf(x) === i; }).join('; ')) + '</div>' : '') +
       '<div class="vua-dist" role="list">' + (p.perAkun || []).map(function (a) { return '<div role="listitem"><span title="' + esc(a.username) + '">' + esc(a.username) + '</span><div class="vua-bar"><i style="width:' + persen(a.jumlah, maks) + '%"></i></div><b style="text-align:right">' + fmt(a.jumlah) + '</b></div>'; }).join('') + '</div>' +
       '<div class="vua-cat" style="margin-top:8px">Benih ' + esc(p.benih) + '</div>';
@@ -227,7 +227,7 @@
     var d = st.koreksi || { koreksi: [], adaBerikutnya: false };
     var h = '<div class="vua-cat">Koreksi berlaku langsung. Anda tidak wajib memeriksa satu per satu; batalkan bila petugas kelurahan melaporkan kesalahan. Membatalkan mengembalikan status data seperti sebelum dikoreksi.</div>';
     if (st.pesanKoreksi) h += '<div class="vua-pesan info" role="status">' + esc(st.pesanKoreksi) + '</div>';
-    if (!d.koreksi.length) return h + '<div class="vua-kosong" style="margin-top:10px">Belum ada koreksi dari pemeriksaan ulang.</div>';
+    if (!d.koreksi.length) return h + '<div class="vua-kosong" style="margin-top:10px">Belum ada koreksi dari verifikasi ulang.</div>';
     h += '<div class="vua-gulir"><table><thead><tr><th>Penerima</th><th>Pemeriksa</th><th>Perubahan</th><th>Alasan</th><th>Waktu</th><th></th></tr></thead><tbody>';
     d.koreksi.forEach(function (k) {
       h += '<tr><td><b>' + esc(k.nama) + '</b><br><span class="vua-cat">' + esc(k.layanan) + ' · ' + esc(k.kelurahan) + '</span></td><td>' + esc(k.pemeriksa) + '</td>' +
@@ -339,7 +339,7 @@
     if (dok.getElementById(ID)) return;
     st.pembuka = pembuka || dok.activeElement; st.tab = 'buat'; st.pratinjau = null; st.sidikPratinjau = ''; st.status = 'idle'; st.pesan = ''; st.paket = null; st.koreksi = null; st.info = {}; st.konfirmasiBatal = 0; st.bukaBatalKoreksi = 0; st.pesanKoreksi = '';
     var o = dok.createElement('div'); o.id = ID; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-labelledby', 'vua-judul');
-    o.innerHTML = '<div class="vua-kotak"><div class="vua-kepala"><div><h2 id="vua-judul">Verifikasi Ulang</h2><div class="vua-sub">Paket tugas pemeriksaan ulang data yang sudah terverifikasi</div></div><button type="button" class="vua-tutup" id="vua-tutup" aria-label="Tutup">✕</button></div><div class="vua-tab" id="vua-tab" role="tablist"></div><div class="vua-isi" id="vua-isi"></div></div>';
+    o.innerHTML = '<div class="vua-kotak"><div class="vua-kepala"><div><h2 id="vua-judul">Verifikasi Ulang</h2><div class="vua-sub">Paket tugas verifikasi ulang data yang sudah terverifikasi</div></div><button type="button" class="vua-tutup" id="vua-tutup" aria-label="Tutup">✕</button></div><div class="vua-tab" id="vua-tab" role="tablist"></div><div class="vua-isi" id="vua-isi"></div></div>';
     dok.body.appendChild(o);
     o.addEventListener('mousedown', function (e) { if (e.target === o) tutup(); });
     o.addEventListener('click', function (e) {

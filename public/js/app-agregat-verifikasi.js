@@ -57,7 +57,7 @@
 
   var NOL_ULANG = { total: 0, jamKerja: 0, luarJamKerja: 0, sesuai: 0, dikoreksi: 0, sisa: 0 };
   function kunci(u) { return String(u || '').toUpperCase(); }
-  /** Tiga angka utama: verifikasi pertama, pemeriksaan ulang, dan TOTAL PEKERJAAN (= pertama + ulang). Server lama (tanpa data ulang) -> ulang 0. */
+  /** Tiga angka utama: Verifikasi Awal, Verifikasi Ulang, dan TOTAL PEKERJAAN (= awal + ulang). Server lama (tanpa data ulang) -> ulang 0. */
   function ringkasTiga(d) {
     var r = (d && d.ringkasan) || {}, u = (d && d.ulang && d.ulang.ringkasan) || NOL_ULANG, g = d && d.gabungan && d.gabungan.ringkasan;
     var total = g || { total: (r.total || 0) + (u.total || 0), jamKerja: (r.jamKerja || 0) + (u.jamKerja || 0), luarJamKerja: (r.luarJamKerja || 0) + (u.luarJamKerja || 0) };
@@ -73,7 +73,7 @@
       return Object.assign({}, o, { ulangTotal: u.total || 0, ulangSisa: u.sisa || 0, totalPekerjaan: g ? g.total : (o.total + (u.total || 0)), totalJamKerja: g ? g.jamKerja : (o.jamKerja + (u.jamKerja || 0)), totalLuarJamKerja: g ? g.luarJamKerja : (o.luarJamKerja + (u.luarJamKerja || 0)) });
     });
   }
-  /** Per hari untuk bagan/tabel: hari dan penanda libur dari verifikasi pertama, angka dari TOTAL PEKERJAAN. */
+  /** Per hari untuk bagan/tabel: hari dan penanda libur dari Verifikasi Awal, angka dari TOTAL PEKERJAAN. */
   function hariGabungan(d) {
     var gMap = {};
     ((d && d.gabungan && d.gabungan.perHari) || []).forEach(function (h) { gMap[h.tanggal] = h; });
@@ -93,7 +93,7 @@
   var dok = akar.document;
   var ID = 'djpm-agr-overlay', ID_STYLE = 'djpm-agr-style', ID_TOMBOL = 'btn-agregat-verifikasi';
   var TEKS_ATURAN = 'Jam kerja (WIB): Senin–Kamis 08.00–16.30 · Jumat 08.00–17.00. Sabtu, Minggu, dan tanggal merah dihitung luar jam kerja.';
-  var TEKS_HITUNG = ' Total pekerjaan = hasil verifikasi pertama (1 kali per data) + pemeriksaan ulang (1 kali per data per pemeriksa). Perbaikan oleh Admin Utama tidak dihitung.';
+  var TEKS_HITUNG = ' Total pekerjaan = Verifikasi Awal (1 kali per data) + Verifikasi Ulang (1 kali per data per petugas). Perbaikan oleh Admin Utama tidak dihitung.';
   var BATAS_TUNGGU_MS = 40000;
   var st = { preset: 'bulan', dari: '', sampai: '', tim: '', data: null, status: 'idle', pesan: '', idPermintaan: 0, pembuka: null, unduh: false, fokus: '' };
 
@@ -193,8 +193,8 @@
   function kartu(d) {
     var k = ringkasTiga(d);
     return '<div class="agr-kartu-baris">' +
-      '<div class="agr-kartu"><div class="agr-lbl">Verifikasi pertama</div><div class="agr-angka">' + fmt(k.pertama.total) + '</div><div class="agr-ket">' + barisJam(k.pertama) + '</div></div>' +
-      '<div class="agr-kartu ulang"><div class="agr-lbl">Pemeriksaan ulang</div><div class="agr-angka">' + fmt(k.ulang.total) + '</div><div class="agr-ket">' + barisJam(k.ulang) + '</div></div>' +
+      '<div class="agr-kartu"><div class="agr-lbl">Verifikasi Awal</div><div class="agr-angka">' + fmt(k.pertama.total) + '</div><div class="agr-ket">' + barisJam(k.pertama) + '</div></div>' +
+      '<div class="agr-kartu ulang"><div class="agr-lbl">Verifikasi Ulang</div><div class="agr-angka">' + fmt(k.ulang.total) + '</div><div class="agr-ket">' + barisJam(k.ulang) + '</div></div>' +
       '<div class="agr-kartu total"><div class="agr-lbl">Total pekerjaan</div><div class="agr-angka">' + fmt(k.total.total) + '</div><div class="agr-ket">' + barisJam(k.total, 'luar jam kerja (lembur)') + '</div></div></div>';
   }
   function pil(r, u) {
@@ -204,9 +204,9 @@
     var sekarang = '<div class="agr-pil-baris"><span class="agr-judul-pil">Status data sekarang</span>' +
       '<span class="agr-pil ms">Memenuhi Syarat <b>' + n(r.sekarangMemenuhiSyarat) + '</b></span><span class="agr-pil btl">Berkas Tidak Lengkap <b>' + n(r.sekarangBerkasTidakLengkap) + '</b></span><span class="agr-pil tms">Tidak Memenuhi Syarat <b>' + n(r.sekarangTidakMemenuhiSyarat) + '</b></span>' +
       (r.sekarangLainnya ? '<span class="agr-pil">Lainnya <b>' + n(r.sekarangLainnya) + '</b></span>' : '') +
-      '<span class="agr-pil koreksi" title="Berbeda dari hasil verifikator: diubah Admin Utama atau dikoreksi pemeriksa ulang">Dikoreksi <b>' + n(r.dikoreksi) + '</b></span></div>' +
-      '<div class="agr-catatan">Status sekarang berubah bila Admin atau pemeriksa ulang mengoreksi, dan hanya informasi. Jumlah data, jam kerja, dan lembur dihitung dari <b>hasil verifikator</b>, sehingga koreksi tidak mengubahnya.</div>';
-    var ulang = '<div class="agr-pil-baris"><span class="agr-judul-pil">Pemeriksaan ulang</span><span class="agr-pil ms">Sesuai <b>' + n(u && u.sesuai) + '</b></span><span class="agr-pil koreksi">Dikoreksi pemeriksa <b>' + n(u && u.dikoreksi) + '</b></span><span class="agr-pil">Sisa tugas <b>' + n(u && u.sisa) + '</b></span></div>';
+      '<span class="agr-pil koreksi" title="Berbeda dari hasil verifikator: diubah Admin Utama atau dikoreksi saat verifikasi ulang">Dikoreksi <b>' + n(r.dikoreksi) + '</b></span></div>' +
+      '<div class="agr-catatan">Status sekarang berubah bila Admin atau verifikasi ulang mengoreksi, dan hanya informasi. Jumlah data, jam kerja, dan lembur dihitung dari <b>hasil verifikator</b>, sehingga koreksi tidak mengubahnya.</div>';
+    var ulang = '<div class="agr-pil-baris"><span class="agr-judul-pil">Verifikasi ulang</span><span class="agr-pil ms">Sesuai <b>' + n(u && u.sesuai) + '</b></span><span class="agr-pil koreksi">Dikoreksi saat ulang <b>' + n(u && u.dikoreksi) + '</b></span><span class="agr-pil">Sisa tugas <b>' + n(u && u.sisa) + '</b></span></div>';
     return '<div class="agr-status-blok">' + hasil + ulang + sekarang + '</div>';
   }
   function bagan(perHari) {
@@ -233,10 +233,10 @@
       var awalTim = (sebelumnya !== null && String(o.tim || '-') !== sebelumnya);   // garis pemisah antar tim
       sebelumnya = String(o.tim || '-');
       return '<tr class="' + (ini ? 'agr-saya' : '') + (awalTim ? ' agr-awal-tim' : '') + '"><td>' + esc(o.namaLengkap || o.username) + '<span class="agr-tag">' + esc(o.username) + '</span>' + (o.koordinator ? '<span class="agr-tag">koordinator</span>' : '') + (ini ? '<span class="agr-tag">saya</span>' : '') + (o.aktif ? '' : '<span class="agr-tag">nonaktif</span>') +
-        '</td><td>' + (o.tim ? 'Tim ' + esc(o.tim) : '–') + '</td><td>' + fmt(o.total) + '</td><td>' + fmt(o.ulangTotal) + '</td><td><b>' + fmt(o.totalPekerjaan) + '</b></td><td>' + fmt(o.totalJamKerja) + '</td><td>' + fmt(o.totalLuarJamKerja) + '</td><td>' + fmt(o.memenuhiSyarat) + '</td><td>' + fmt(o.berkasTidakLengkap) + '</td><td>' + fmt(o.tidakMemenuhiSyarat) + '</td><td title="Sisa tugas pemeriksaan ulang yang belum dikerjakan">' + fmt(o.ulangSisa) + '</td><td>' + fmt(o.dikoreksi || 0) + '</td></tr>';
+        '</td><td>' + (o.tim ? 'Tim ' + esc(o.tim) : '–') + '</td><td>' + fmt(o.total) + '</td><td>' + fmt(o.ulangTotal) + '</td><td><b>' + fmt(o.totalPekerjaan) + '</b></td><td>' + fmt(o.totalJamKerja) + '</td><td>' + fmt(o.totalLuarJamKerja) + '</td><td>' + fmt(o.memenuhiSyarat) + '</td><td>' + fmt(o.berkasTidakLengkap) + '</td><td>' + fmt(o.tidakMemenuhiSyarat) + '</td><td title="Sisa tugas verifikasi ulang yang belum dikerjakan">' + fmt(o.ulangSisa) + '</td><td>' + fmt(o.dikoreksi || 0) + '</td></tr>';
     }).join('');
     if (luarTim) rows += '<tr class="agr-luartim"><td>Admin Utama (informasi, tidak dihitung ke tim)</td><td>–</td><td>' + fmt(luarTim.total) + '</td><td>–</td><td>–</td><td>' + fmt(luarTim.jamKerja) + '</td><td>' + fmt(luarTim.luarJamKerja) + '</td><td>–</td><td>–</td><td>–</td><td>–</td><td>–</td></tr>';
-    return '<div class="agr-gulir"><table><thead><tr><th>Verifikator</th><th>Tim</th><th title="Verifikasi pertama">Pertama</th><th title="Pemeriksaan ulang">Ulang</th><th title="Pertama + ulang">Total pekerjaan</th><th title="Jam kerja, pertama + ulang">Jam kerja</th><th title="Luar jam kerja (lembur), pertama + ulang">Luar jam kerja</th><th>MS</th><th>BTL</th><th>TMS</th><th title="Sisa tugas pemeriksaan ulang">Sisa ulang</th><th title="Data yang statusnya sekarang berbeda dari hasil verifikator (diubah Admin Utama atau dikoreksi pemeriksa ulang); hanya informasi">Dikoreksi</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    return '<div class="agr-gulir"><table><thead><tr><th>Verifikator</th><th>Tim</th><th title="Verifikasi Awal">Awal</th><th title="Verifikasi Ulang">Ulang</th><th title="Awal + Ulang">Total pekerjaan</th><th title="Jam kerja, awal + ulang">Jam kerja</th><th title="Luar jam kerja (lembur), awal + ulang">Luar jam kerja</th><th>MS</th><th>BTL</th><th>TMS</th><th title="Sisa tugas verifikasi ulang">Sisa ulang</th><th title="Data yang statusnya sekarang berbeda dari hasil verifikator (diubah Admin Utama atau dikoreksi saat verifikasi ulang); hanya informasi">Dikoreksi</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
   function kartuTim(perTim, timAktif) {
     var tombolSemua = (timAktif ? '<button type="button" class="agr-chip agr-semua" data-semua="1">\u2715 Tampilkan semua tim</button>' : '');

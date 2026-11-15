@@ -195,7 +195,7 @@
     var d = st.daftar, k = kemajuan(d ? d.sisa : 0, d ? d.selesai : 0);
     var paket = d && d.tugas && d.tugas[0] ? d.tugas[0].namaPaket : '';
     var batas = d && d.tugas && d.tugas[0] && d.tugas[0].batasSelesai ? String(d.tugas[0].batasSelesai).slice(0, 10) : '';
-    o.querySelector('#tul-sub').textContent = paket ? (paket + (batas ? ' · batas selesai ' + batas : '')) : 'Pemeriksaan ulang data yang sudah terverifikasi';
+    o.querySelector('#tul-sub').textContent = paket ? (paket + (batas ? ' · batas selesai ' + batas : '')) : 'Verifikasi ulang data yang sudah terverifikasi';
     o.querySelector('#tul-kemajuan').innerHTML = d
       ? '<div class="tul-baris" style="font-size:.8rem"><span>Selesai ' + fmt(d.selesai) + ' dari ' + fmt(k.total) + '</span><span style="color:#5a6879">' + fmt(d.dikoreksi) + ' dikoreksi</span></div><div class="tul-bar"><i style="width:' + k.persen + '%"></i></div>'
       : '';
@@ -243,7 +243,7 @@
     if (st.mode === 'koreksi' && !st.statusBaru) st.statusBaru = tujuan[0] || '';
     var h = '<div class="tul-baris"><div><h2 style="margin:0;font-size:1.05rem">' + esc(d.data.nama) + '</h2><div class="tul-data">' + esc(d.data.layanan) + ' · ' + esc(d.data.kelurahan) + ', ' + esc(d.data.kecamatan) + '</div></div>' + pilStatus(d.status) + '</div>' +
       '<h3 style="margin-top:14px">Data input untuk dicocokkan</h3><div class="tul-cat">Bandingkan setiap isian dengan isi berkas yang dibuka. Isian yang kosong ditulis merah.</div>' + htmlBanding(d.data) +
-      '<div class="tul-cat" style="margin-top:6px">Diverifikasi pertama oleh ' + esc(d.diverifikasiOleh || '-') + (d.keteranganVerifikasi ? ' · keterangan: ' + esc(d.keteranganVerifikasi) : '') + '. Status hanya bisa diubah lewat tugas ini.</div>' +
+      '<div class="tul-cat" style="margin-top:6px">Verifikasi awal oleh ' + esc(d.diverifikasiOleh || '-') + (d.keteranganVerifikasi ? ' · keterangan: ' + esc(d.keteranganVerifikasi) : '') + '. Status hanya bisa diubah lewat tugas ini.</div>' +
       '<h3 style="margin-top:16px">Berkas yang diunggah (' + fmt(d.berkas.length) + ')</h3><div class="tul-cat">Klik "Buka berkas" lebih dulu. Kotak centang baru aktif setelah berkasnya dibuka.</div>';
     h += d.berkas.length ? '<ul class="tul-berkas">' + d.berkas.map(function (b) {
       return '<li class="' + (b.dibuka ? '' : 'belum') + '"><input type="checkbox" data-aksi="centang" data-kunci="' + esc(b.kunci) + '"' + (b.dibuka ? '' : ' disabled') + (st.centang[b.kunci] === true ? ' checked' : '') + ' aria-label="Sudah diperiksa: ' + esc(b.label) + '">' +

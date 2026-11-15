@@ -1,7 +1,7 @@
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
 import { TAHUN_AKTIF } from "../_shared/config.ts";
-import { muatExcelJS, terapkanBorderData, terapkanGayaBarisTotal, terapkanGayaHeaderKolom } from "../_shared/excelGaya.ts";
+import { muatExcelJS, terapkanBorderData, terapkanGayaBarisTotal, terapkanGayaHeaderKolom, terapkanMergeLabel } from "../_shared/excelGaya.ts";
 import {
   type AkunVerif,
   bangunKonfig,
@@ -19,7 +19,7 @@ import {
 //
 // Yang dihitung: pemberian hasil verifikasi PERTAMA oleh akun ber-role VERIFIKATOR (riwayat_verifikasi.sumber = 'SATU' dan status
 // sebelumnya "Proses Verifikasi"/kosong), satu per data per verifikator (D2). Perbaikan, pemeriksaan ulang, verifikasi massal, dan
-// penurunan otomatis tidak dihitung. PEMERIKSAAN ULANG (verifikasi ulang, T6) dihitung TERPISAH dari tabel tugas_verifikasi_ulang (1 kali per data per
+// penurunan otomatis tidak dihitung. VERIFIKASI ULANG (T6) dihitung TERPISAH dari tabel tugas_verifikasi_ulang (1 kali per data per
 // pemeriksa) dengan aturan jam kerja yang sama, lalu dijumlahkan menjadi TOTAL PEKERJAAN. Cakupan (sendiri / tim / semua) ditentukan SERVER dari peran sesi dan tabel tim_verifikator.
 
 /** Awal pencatatan riwayat (tabel riwayat_verifikasi diterapkan 2026-11-12); ditampilkan di layar sebagai catatan. */
@@ -36,10 +36,10 @@ interface HasilHitung {
   timFokus: string | null;
   rentang: { dari: string; sampai: string; jumlahHari: number };
   hasil: ReturnType<typeof susunAgregat>;
-  /** Pemeriksaan ulang (terpisah) dan Total pekerjaan = verifikasi pertama + pemeriksaan ulang. */
+  /** Verifikasi Ulang (terpisah) dan Total pekerjaan = Verifikasi Awal + Verifikasi Ulang. */
   ulang: ReturnType<typeof susunUlang>;
   gabungan: ReturnType<typeof gabungkan>;
-  /** false bila tabel verifikasi ulang belum ada (migrasi belum diterapkan): angka pemeriksaan ulang 0 dan agregat lama tetap jalan. */
+  /** false bila tabel verifikasi ulang belum ada (migrasi belum diterapkan): angka verifikasi ulang 0 dan agregat lama tetap jalan. */
   ulangTersedia: boolean;
   saya: string;
 }
@@ -112,8 +112,8 @@ async function hitung(token: string, dari: unknown, sampai: unknown, timDiminta:
     luarTim = rowsAdm.map((x: Record<string, unknown>) => ({ waktu: new Date(x.waktu as string) }));
   }
 
-  // Pemeriksaan ulang: satu kejadian per (data, pemeriksa) dari tugas yang SELESAI; sisa tugas aktif per orang (angka saja, tanpa data pribadi).
-  // Tahan terhadap migrasi yang belum diterapkan: gagal -> angka 0, agregat verifikasi pertama tetap tampil.
+  // Verifikasi Ulang: satu kejadian per (data, pemeriksa) dari tugas yang SELESAI; sisa tugas aktif per orang (angka saja, tanpa data pribadi).
+  // Tahan terhadap migrasi yang belum diterapkan: gagal -> angka 0, agregat Verifikasi Awal tetap tampil.
   let kejadianUlang: KejadianUlang[] = [];
   const sisaUlang: Record<string, number> = {};
   let ulangTersedia = true;
@@ -140,7 +140,7 @@ async function hitung(token: string, dari: unknown, sampai: unknown, timDiminta:
       for (const x of rowsSisa as Record<string, unknown>[]) sisaUlang[String(x.oleh)] = Number(x.sisa) || 0;
     } catch (e) {
       ulangTersedia = false; kejadianUlang = [];
-      console.error("agregat: data pemeriksaan ulang tidak tersedia (migrasi belum diterapkan?):", e instanceof Error ? e.message : e);
+      console.error("agregat: data verifikasi ulang tidak tersedia (migrasi belum diterapkan?):", e instanceof Error ? e.message : e);
     }
   }
 
@@ -171,7 +171,7 @@ export async function getAgregatVerifikasi(token: string, dari?: string, sampai?
       perTim: h.hasil.perTim,
       perHari: h.hasil.perHari,
       luarTim: h.hasil.luarTim,
-      // pemeriksaan ulang (terpisah) dan total pekerjaan; kunci di atas tidak berubah (verifikasi pertama)
+      // verifikasi ulang (terpisah) dan total pekerjaan; kunci di atas tidak berubah (verifikasi awal)
       ulangTersedia: h.ulangTersedia,
       ulang: { ringkasan: h.ulang.ringkasan, perOrang: h.ulang.perOrang, perTim: h.ulang.perTim, perHari: h.ulang.perHari },
       gabungan: { ringkasan: h.gabungan.ringkasan, perOrang: h.gabungan.perOrang, perTim: h.gabungan.perTim, perHari: h.gabungan.perHari },
@@ -186,7 +186,7 @@ export async function getAgregatVerifikasi(token: string, dari?: string, sampai?
 // ------------------------------------------------------------------ Unduh Excel
 
 const TEKS_ATURAN = "Jam kerja (WIB): Senin-Kamis 08.00-16.30, Jumat 08.00-17.00. Sabtu, Minggu, dan tanggal merah dihitung luar jam kerja. "
-  + "Total pekerjaan = verifikasi pertama (pemberian hasil pertama oleh verifikator, 1 kali per data) + pemeriksaan ulang (1 kali per data per pemeriksa, waktu server saat hasil disimpan). Perbaikan oleh Admin Utama tidak dihitung.";
+  + "Total pekerjaan = Verifikasi Awal (pemberian hasil pertama oleh verifikator, 1 kali per data) + Verifikasi Ulang (1 kali per data per petugas, waktu server saat hasil disimpan). Perbaikan oleh Admin Utama tidak dihitung.";
 
 const URUTAN_TIM = ["I", "II", "III", "IV"];
 function peringkatTim(tim: string | null): number { const k = URUTAN_TIM.indexOf(String(tim || "")); return k < 0 ? 99 : k; }
@@ -228,12 +228,15 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   ws.addRow([`Periode: ${rentangTeks} (WIB)`]);
   ws.addRow([TEKS_ATURAN]);
   ws.addRow([]);
-  const barisHeader = 5;
+  // Dua baris judul: baris 5 = kelompok (sel digabung), baris 6 = nama kolom.
+  const barisKelompok = 5;
+  const barisHeader = 6;
+  ws.addRow(["", "", "", "", "", "VERIFIKASI AWAL", "", "", "VERIFIKASI ULANG", "", "", "", "", "TOTAL PEKERJAAN (AWAL + ULANG)", "", "", "HASIL VERIFIKASI AWAL", "", "", "INFORMASI"]);
   ws.addRow(["No", "Tim", "Username", "Nama Lengkap", "Peran",
-    "Pertama: Jam Kerja", "Pertama: Luar Jam Kerja", "Pertama: Total",
-    "Ulang: Jam Kerja", "Ulang: Luar Jam Kerja", "Ulang: Total", "Ulang: Sesuai", "Ulang: Dikoreksi",
-    "TOTAL PEKERJAAN: Jam Kerja", "TOTAL PEKERJAAN: Luar Jam Kerja (Lembur)", "TOTAL PEKERJAAN: Total",
-    "Memenuhi Syarat (hasil pertama)", "Berkas Tidak Lengkap (hasil pertama)", "Tidak Memenuhi Syarat (hasil pertama)", "Dikoreksi (informasi, per tanggal unduh)"]);
+    "Jam Kerja", "Luar Jam Kerja", "Total",
+    "Jam Kerja", "Luar Jam Kerja", "Total", "Sesuai", "Dikoreksi",
+    "Jam Kerja", "Luar Jam Kerja (Lembur)", "Total",
+    "Memenuhi Syarat", "Berkas Tidak Lengkap", "Tidak Memenuhi Syarat", "Dikoreksi (per tanggal unduh)"]);
   let baris = barisHeader;
   let no = 0;
   const barisSubtotal: number[] = [];
@@ -262,6 +265,8 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
     ws.addRow([`Informasi (tidak masuk total di atas): pekerjaan Admin Utama pada periode ini = ${a.total} (jam kerja ${a.jamKerja}, luar jam kerja ${a.luarJamKerja}).`]);
   }
   ws.getRow(1).font = { bold: true, size: 13 };
+  terapkanGayaHeaderKolom(ws, barisKelompok, kolom);
+  for (const [a, b] of [[6, 8], [9, 13], [14, 16], [17, 19]]) terapkanMergeLabel(ws, barisKelompok, a, b);
   terapkanGayaHeaderKolom(ws, barisHeader, kolom);
   terapkanBorderData(ws, barisHeader + 1, barisTotal, kolom);
   for (const b of barisSubtotal) ws.getRow(b).font = { bold: true };
@@ -269,12 +274,12 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   [6, 12, 28, 30, 13, 12, 14, 12, 12, 14, 12, 12, 14, 14, 20, 14, 16, 18, 20, 22].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   ws.views = [{ state: "frozen", ySplit: barisHeader }];
 
-  // Sheet 2: per orang per hari (dasar lembur), diurutkan per tim -> orang -> tanggal. Verifikasi pertama dan pemeriksaan ulang dirinci terpisah.
+  // Sheet 2: per orang per hari (dasar lembur), diurutkan per tim -> orang -> tanggal. Verifikasi Awal dan Verifikasi Ulang dirinci terpisah.
   const wh = wb.addWorksheet("Per Hari");
   wh.addRow([`Rincian per hari - ${judulCakupan}`]);
   wh.addRow([`Periode: ${rentangTeks} (WIB)`]);
   wh.addRow([]);
-  wh.addRow(["Tim", "Username", "Nama Lengkap", "Tanggal", "Hari", "Keterangan", "Pertama: Jam Kerja", "Pertama: Luar Jam Kerja", "Ulang: Jam Kerja", "Ulang: Luar Jam Kerja", "TOTAL: Jam Kerja", "TOTAL: Luar Jam Kerja (Lembur)", "TOTAL: Data"]);
+  wh.addRow(["Tim", "Username", "Nama Lengkap", "Tanggal", "Hari", "Keterangan", "Awal: Jam Kerja", "Awal: Luar Jam Kerja", "Ulang: Jam Kerja", "Ulang: Luar Jam Kerja", "TOTAL: Jam Kerja", "TOTAL: Luar Jam Kerja (Lembur)", "TOTAL: Data"]);
   const info = new Map(h.hasil.perHari.map((x) => [x.tanggal, x]));
   const orang = new Map(h.hasil.perOrang.map((o) => [o.username.toUpperCase(), o]));
   const tanpaData = { tim: null as string | null, koordinator: false };
@@ -303,7 +308,7 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   wa.addRow(["Aturan perhitungan"]);
   wa.getRow(1).font = { bold: true };
   [TEKS_ATURAN, `Dihitung sejak ${MULAI_DIHITUNG} (awal pencatatan riwayat). Dibuat oleh ${namaPembuat}.`, "Urutan: per tim (I, II, III, IV, tanpa tim), koordinator lebih dulu, lalu menurut username.",
-    "Verifikasi pertama dihitung dari HASIL VERIFIKATOR saat diberikan; pemeriksaan ulang dari waktu server saat hasil pemeriksaan disimpan (1 kali per data per pemeriksa). TOTAL PEKERJAAN = pertama + ulang, jam kerja dan luar jam kerja dijumlahkan terpisah (dasar lembur).", "Kolom \"Dikoreksi\" hanya informasi: jumlah data yang statusnya SEKARANG berbeda dari hasil verifikator (diubah Admin Utama, dikoreksi pemeriksa ulang, atau dihapus), dihitung per tanggal unduh, dan tidak memengaruhi angka lembur."].forEach((x) => wa.addRow([x]));
+    "Verifikasi Awal dihitung dari HASIL VERIFIKATOR saat diberikan; Verifikasi Ulang dari waktu server saat hasilnya disimpan (1 kali per data per petugas). TOTAL PEKERJAAN = Awal + Ulang, jam kerja dan luar jam kerja dijumlahkan terpisah (dasar lembur).", "Kolom \"Dikoreksi\" hanya informasi: jumlah data yang statusnya SEKARANG berbeda dari hasil verifikator (diubah Admin Utama, dikoreksi saat verifikasi ulang, atau dihapus), dihitung per tanggal unduh, dan tidak memengaruhi angka lembur."].forEach((x) => wa.addRow([x]));
   wa.getColumn(1).width = 120;
   return wb;
 }

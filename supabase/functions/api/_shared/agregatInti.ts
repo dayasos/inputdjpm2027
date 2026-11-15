@@ -259,10 +259,10 @@ export function susunAgregat(p: {
   };
 }
 
-// ------------------------------------------------------------------ pemeriksaan ulang (plans/plan-verifikasi-ulang.md, T6)
+// ------------------------------------------------------------------ Verifikasi Ulang (plans/plan-verifikasi-ulang.md, T6)
 //
-// Pemeriksaan ulang dihitung TERPISAH dari verifikasi pertama (susunAgregat tidak diubah), dengan aturan jam kerja yang SAMA, lalu
-// dijumlahkan oleh gabungkan(): Total pekerjaan = verifikasi pertama + pemeriksaan ulang (keputusan user: ikut lembur, 1 data = 1 hitungan).
+// Verifikasi Ulang dihitung TERPISAH dari Verifikasi Awal (susunAgregat tidak diubah), dengan aturan jam kerja yang SAMA, lalu
+// dijumlahkan oleh gabungkan(): Total pekerjaan = Verifikasi Awal + Verifikasi Ulang (keputusan user: ikut lembur, 1 data = 1 hitungan).
 // Satu data dihitung satu kali per pemeriksa: pemanggil (kueri) hanya mengirim satu kejadian per (data, pemeriksa).
 
 export interface KejadianUlang { oleh: string; waktu: Date; hasil: string }   // hasil: SESUAI | DIKOREKSI
@@ -333,7 +333,7 @@ export function susunUlang(p: {
   };
 }
 
-/** Total pekerjaan = verifikasi pertama + pemeriksaan ulang (jam kerja dan luar jam kerja dijumlahkan terpisah). Tidak ada angka lain yang ikut. */
+/** Total pekerjaan = Verifikasi Awal + Verifikasi Ulang (jam kerja dan luar jam kerja dijumlahkan terpisah). Tidak ada angka lain yang ikut. */
 export function gabungkan(pertama: ReturnType<typeof susunAgregat>, ulang: ReturnType<typeof susunUlang>) {
   const u = new Map(ulang.perOrang.map((o) => [rapi(o.username), o]));
   const jumlah = (a: { jamKerja: number; luarJamKerja: number }, b?: { jamKerja: number; luarJamKerja: number }) =>
