@@ -27,7 +27,8 @@ function reset() {
   berkas = { 101: ["ktp", "buku_rekening", "surat"], 102: ["ktp", "buku_rekening"], 103: ["ktp"], 104: [] };
   for (const k of Object.keys(berkas)) berkas[k] = berkas[k].map((x) => ({ kunci: "link_" + x, label: { ktp: "KTP", buku_rekening: "Buku Rekening", surat: "Surat Permohonan" }[x], url: "https://berkas.example/" + k + "/" + x, dibuka: false }));
   paket = [{ id: 7, nama: "Tahap percobaan 1", dibuatOleh: "ADMIN", dibuatPada: "2026-11-14T03:00:00Z", benih: "b1", status: "AKTIF", batasSelesai: "2026-11-20", jumlahTugas: 40, akunKhusus: "verif_uga_deba", selesai: 11, sesuai: 9, dikoreksi: 2, ditarik: 1, sisa: 28, perAkun: [{ username: "verif_helda_melani", tugas: 20, selesai: 6, ditarik: 0 }, { username: "verif_raja_rizki", tugas: 20, selesai: 5, ditarik: 1 }] }];
-  koreksi = [{ tugasId: 9, batchId: 7, penerimaId: 1, nama: "Siti Aminah", layanan: "IMAM MASJID", kecamatan: "X", kelurahan: "SEI SIKAMBING B", pemeriksa: "verif_raja_rizki", selesaiPada: "2026-11-14T03:30:00Z", statusBaru: "", statusSebelum: MS, statusSesudah: "Berkas Tidak Lengkap", alasan: "Buku rekening tidak terbaca", dibatalkan: false, statusSekarang: "Berkas Tidak Lengkap" }];
+  koreksi = [{ tugasId: 10, batchId: 7, penerimaId: 2, nama: "Hasan Basri", layanan: "PENDETA", kecamatan: "X", kelurahan: "KOTA MATSUM I", pemeriksa: "verif_liana_rizky", selesaiPada: "2026-11-14T03:40:00Z", statusSebelum: MS, statusSesudah: "Tidak Memenuhi Syarat", alasan: "Alamat bukan wilayah Medan", dibatalkan: false, statusSekarang: MS },
+    { tugasId: 9, batchId: 7, penerimaId: 1, nama: "Siti Aminah", layanan: "IMAM MASJID", kecamatan: "X", kelurahan: "SEI SIKAMBING B", pemeriksa: "verif_raja_rizki", selesaiPada: "2026-11-14T03:30:00Z", statusBaru: "", statusSebelum: MS, statusSesudah: "Berkas Tidak Lengkap", alasan: "Buku rekening tidak terbaca", dibatalkan: false, statusSekarang: "Berkas Tidak Lengkap" }];
 }
 reset();
 const sisaTugas = () => tugas.filter((t) => !t.selesaiDi);
@@ -64,7 +65,7 @@ function jawab(aksi, args) {
   if (aksi === "cekPembagianBatchUlang") return { sukses: true, sama: true, selisih: 0, jumlahTugas: 40 };
   if (aksi === "batalkanBatchUlang") { paket[0].status = "DIBATALKAN"; return { sukses: true, tugasDihapus: 29, pesan: "Paket dibatalkan. Tugas yang sudah selesai tetap tersimpan." }; }
   if (aksi === "getDaftarKoreksiUlang") return { sukses: true, halaman: 1, adaBerikutnya: false, koreksi: koreksi.map((k) => ({ ...k })) };
-  if (aksi === "batalkanKoreksiUlang") { koreksi[0].dibatalkan = true; return { sukses: true, pesan: "Koreksi dibatalkan; status dikembalikan ke \"Memenuhi Syarat\"." }; }
+  if (aksi === "batalkanKoreksiUlang") { koreksi.find((k) => k.tugasId === a1).dibatalkan = true; return { sukses: true, pesan: "Koreksi dibatalkan; status dikembalikan ke \"Memenuhi Syarat\"." }; }
   return { sukses: true };
 }
 async function dialihkan(p) {
@@ -275,6 +276,7 @@ try {
   await klik('[data-tab="koreksi"]');
   await tungguSampai("/Siti Aminah/.test(document.getElementById('vua-isi').textContent)", "daftar koreksi");
   cek("ADMIN: daftar koreksi menampilkan pemeriksa, perubahan status, dan alasan", /verif_raja_rizki/.test(await teks("#vua-isi")) && /Buku rekening tidak terbaca/.test(await teks("#vua-isi")) && /MS/.test(await teks("#vua-isi")));
+  cek("ADMIN: koreksi yang statusnya sudah diubah lagi oleh Admin TIDAK menawarkan 'Batalkan' (hanya yang masih sama dengan hasil koreksi)", (await js("document.querySelectorAll('#djpm-vua-overlay [data-aksi=\"batal-koreksi\"]').length")) === 1 && /status sudah diubah lagi oleh Admin/.test(await teks("#vua-isi")), await teks("#vua-isi"));
   await klik('[data-aksi="batal-koreksi"]');
   await klik('[data-aksi="batal-koreksi-ya"]');
   cek("ADMIN: batalkan koreksi tanpa alasan ditolak di layar dan tidak memanggil server", hitung("batalkanKoreksiUlang") === 0 && /Alasan pembatalan wajib/.test(await teks("#vua-isi")));

@@ -74,7 +74,7 @@ export type HasilCek =
   | { ok: true; hasil: "SESUAI" | "DIKOREKSI"; statusSesudah: string; alasan: string; daftarPeriksa: Record<string, boolean> }
   | { ok: false; pesan: string };
 
-/** Validasi menyimpan hasil pemeriksaan ulang (V3, V8). Server memakai fungsi ini apa adanya. */
+/** Validasi menyimpan hasil verifikasi ulang (V3, V8). Server memakai fungsi ini apa adanya. */
 export function cekSimpanHasil(m: MasukanSimpanHasil): HasilCek {
   const hasil = String(m.hasil || "").toUpperCase();
   if (hasil !== "SESUAI" && hasil !== "DIKOREKSI") return { ok: false, pesan: "Hasil harus Sesuai atau Dikoreksi." };

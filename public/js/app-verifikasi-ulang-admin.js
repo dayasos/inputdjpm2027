@@ -234,7 +234,7 @@
       h += '<tr><td><b>' + esc(k.nama) + '</b><br><span class="vua-cat">' + esc(k.layanan) + ' · ' + esc(k.kelurahan) + '</span></td><td>' + esc(k.pemeriksa) + '</td>' +
         '<td><span class="vua-pil ' + kelasStatus(k.statusSebelum) + '">' + esc(singkatStatus(k.statusSebelum)) + '</span> → <span class="vua-pil ' + kelasStatus(k.statusSesudah) + '">' + esc(singkatStatus(k.statusSesudah)) + '</span>' +
         (k.statusSekarang && k.statusSekarang !== k.statusSesudah && !k.dibatalkan ? '<br><span class="vua-cat">sekarang: ' + esc(singkatStatus(k.statusSekarang)) + '</span>' : '') + '</td><td>' + esc(k.alasan) + '</td><td>' + esc(tanggalPendek(k.selesaiPada)) + '</td><td>' +
-        (k.dibatalkan ? '<span class="vua-cat">dibatalkan</span>' :
+        (k.dibatalkan ? '<span class="vua-cat">dibatalkan</span>' : (k.statusSekarang && k.statusSekarang !== k.statusSesudah) ? '<span class="vua-cat" title="Pembatalan hanya bisa bila status masih sama dengan hasil koreksi">status sudah diubah lagi oleh Admin</span>' :
           (st.bukaBatalKoreksi === k.tugasId ? '<textarea id="vua-alasan-batal" placeholder="Alasan pembatalan (wajib)" style="min-height:60px">' + esc(st.alasanBatal) + '</textarea><div class="vua-baris" style="margin-top:6px"><button type="button" class="vua-btn kecil bahaya" data-aksi="batal-koreksi-ya" data-id="' + k.tugasId + '">Batalkan koreksi</button><button type="button" class="vua-btn kecil" data-aksi="batal-koreksi-tidak">Tutup</button></div>' :
             '<button type="button" class="vua-btn kecil bahaya" data-aksi="batal-koreksi" data-id="' + k.tugasId + '">Batalkan</button>')) + '</td></tr>';
     });

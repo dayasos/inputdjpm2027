@@ -325,7 +325,7 @@ export async function cekPembagianBatchUlang(token: string, batchId: number) {
   }
 }
 
-/** Admin Utama: daftar koreksi hasil pemeriksaan ulang (dapat dibatalkan; tidak wajib diperiksa satu per satu). */
+/** Admin Utama: daftar koreksi hasil verifikasi ulang (dapat dibatalkan; tidak wajib diperiksa satu per satu). */
 export async function getDaftarKoreksiUlang(token: string, halaman?: number) {
   try {
     await sesiUtama(token);
@@ -386,7 +386,7 @@ export async function batalkanKoreksiUlang(token: string, tugasId: number, alasa
       await trx`insert into pembatalan_koreksi_ulang (tugas_id, dibatalkan_oleh, alasan) values (${id}, ${oleh}, ${sebabBersih})`;
       await catatRiwayatVerifikasiWajib(trx, {
         penerimaId: Number(x.penerima_id), tahun: Number(x.tahun), statusLama: huruf(x.status_sesudah), statusBaru: kembali,
-        keterangan: "Koreksi pemeriksaan ulang dibatalkan: " + sebabBersih, oleh, sumber: "BATAL_ULANG",
+        keterangan: "Koreksi verifikasi ulang dibatalkan: " + sebabBersih, oleh, sumber: "BATAL_ULANG",
       });
       return { penerimaId: Number(x.penerima_id), dari: huruf(x.status_sesudah), ke: kembali };
     });
@@ -527,7 +527,7 @@ export interface HasilUlangMasuk {
   centang?: unknown;
 }
 
-/** Menyimpan hasil pemeriksaan ulang (satu transaksi: tugas + status data + riwayat). */
+/** Menyimpan hasil verifikasi ulang (satu transaksi: tugas + status data + riwayat). */
 export async function simpanHasilUlang(token: string, tugasId: number, masuk: HasilUlangMasuk) {
   try {
     const sesi = await sesiVerifikator(token);
