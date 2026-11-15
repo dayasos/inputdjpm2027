@@ -20,6 +20,7 @@ import {
 } from "../_shared/verifikasiUlangInti.ts";
 import { arsipkanDataDetail, pastikanDataDetailTersinkron } from "./dataDetail.ts";
 import { daftarDariPg, literalArrayTeks } from "./templatAlasan.ts";
+import { keObjek } from "../_shared/jsonDb.ts";
 
 type Baris = Record<string, unknown>;
 const MAKS_TUGAS_PER_PAKET = 5000;
@@ -30,12 +31,6 @@ const besar = (v: unknown) => huruf(v).toUpperCase();
 const literalAngka = (a: number[]) => "{" + a.join(",") + "}";
 
 class KonflikUlang extends Error {}
-// jsonb yang terlanjur tersimpan sebagai teks JSON (terenkode ganda; paket pertama, 2026-11-14) dibaca apa adanya sebagai objek/larik.
-function keObjek(v: unknown): unknown {
-  let x = v;
-  for (let i = 0; i < 3 && typeof x === "string"; i++) { try { x = JSON.parse(x); } catch (_e) { break; } }
-  return x;
-}
 // Kolom jsonb berisi larik teks: postgres.js mengembalikannya sebagai array JS; cadangan: urai teks.
 const keDaftar = (v: unknown): string[] => (Array.isArray(v) ? (v as unknown[]).map(String) : daftarDariPg(v));
 

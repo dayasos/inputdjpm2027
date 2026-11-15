@@ -9,6 +9,7 @@ const PGlite = await muatPglite();
 const lewati = PGlite ? false : "PGlite tidak tersedia (npm install --no-save @electric-sql/pglite@0.3.14, atau set PGLITE_DIR)";
 if (!PGlite) console.log("DILEWATI: " + lewati);
 const UL = PGlite ? await muatServerPg("supabase/functions/api/domains/verifikasiUlang.ts", { stub: ["dataDetail.ts"] }) : null;
+const PE = PGlite ? await muatServerPg("supabase/functions/api/domains/pembagianUlangExcel.ts") : null;
 const opsi = { skip: lewati };
 const baca = (p) => fs.readFileSync(new URL("../../" + p, import.meta.url), "utf8");
 
@@ -378,6 +379,45 @@ test("JSON di Postgres: data tak terbagi pada paket terenkode ganda tetap ikut h
   await db.query("update batch_verifikasi_ulang set kriteria = to_jsonb(kriteria::text), pemeriksa = to_jsonb(pemeriksa::text), pengecualian = to_jsonb(pengecualian::text)");
   const cek = await UL.cekPembagianBatchUlang(TOKEN.admin, h.batchId);
   assert.equal(cek.sama, true, JSON.stringify(cek));
+});
+
+test("EXCEL PEMBAGIAN di Postgres: data nyata (SQL asli) -> jumlah per petugas dan per data cocok dengan tabel; jsonb terenkode ganda terbaca; NIK utuh; peran lain ditolak", opsi, async () => {
+  const db = await siap({ ms: 60, btl: 4 });
+  await db.exec(baca("supabase/migrations/20261112150000_agregat_verifikasi.sql"));   // tabel tim (dibaca untuk nama tim petugas)
+  const h = await buat();
+  const p2 = (await db.query("select id, penerima_id from tugas_verifikasi_ulang where akun_id = $1 order by id", [ID.verif_p2])).rows;
+  for (const [i, tg] of p2.slice(0, 2).entries()) {   // dua tugas selesai: satu Sesuai, satu Dikoreksi
+    await UL.bukaTugasUlang(TOKEN.verif_p2, tg.id);
+    await UL.catatBerkasDibuka(TOKEN.verif_p2, tg.id, "link_ktp"); await UL.catatBerkasDibuka(TOKEN.verif_p2, tg.id, "link_buku_rekening");
+    const r = await UL.simpanHasilUlang(TOKEN.verif_p2, tg.id, i === 0 ? { hasil: "SESUAI", centang: { link_ktp: true, link_buku_rekening: true } } : { hasil: "DIKOREKSI", statusSesudah: "Berkas Tidak Lengkap", alasan: "uji" });
+    assert.equal(r.sukses, true, JSON.stringify(r));
+  }
+  const tarik = p2[2];
+  await db.query("update penerima set status_verifikasi = 'Tidak Memenuhi Syarat' where id = $1", [tarik.penerima_id]);
+  assert.equal((await UL.getTugasUlangSaya(TOKEN.verif_p2)).ditarikBaruSaja, 1);
+  await db.query("update batch_verifikasi_ulang set kriteria = to_jsonb(kriteria::text), pemeriksa = to_jsonb(pemeriksa::text), pengecualian = to_jsonb(pengecualian::text)");
+
+  // paket LAIN dengan tugas sendiri: tidak boleh ikut dalam unduhan paket ini
+  const b2 = (await db.query("insert into batch_verifikasi_ulang (nama, dibuat_oleh, benih, kriteria, pemeriksa) values ('lain','ADMIN','y','{}','[]') returning id")).rows[0].id;
+  await db.query("insert into tugas_verifikasi_ulang (batch_id, penerima_id, tahun, akun_id) select $1, id, tahun, $2 from penerima where tahun = 2027 limit 5", [b2, ID.verif_p3]);
+  const d = await PE.ambilDataPembagian(h.batchId);
+  assert.equal(d.tugas.length, 64, "hanya tugas milik paket ini (paket lain berisi 5 tugas tambahan)");
+  assert.equal(d.tugas.length + 5, (await db.query("select count(*)::int n from tugas_verifikasi_ulang")).rows[0].n); assert.equal(d.paket.jumlahTugas, 64); assert.equal(d.paket.akunKhusus, "verif_uga_deba");
+  assert.ok(d.paket.jumlahPemeriksa >= 6 && d.paket.pengecualian.includes("verif_ronald_fredy"), "pemeriksa dan pengecualian terbaca dari jsonb teks");
+  const r = PE.ringkasPerPetugas(d);
+  const x2 = r.find((o) => o.username === "verif_p2");
+  assert.deepEqual([x2.selesai, x2.sesuai, x2.dikoreksi, x2.ditarik], [2, 1, 1, 1]);
+  assert.equal(x2.ditugaskan, x2.selesai + x2.ditarik + x2.sisa);
+  assert.equal(r.reduce((s, o) => s + o.ditugaskan, 0), 64);
+  assert.equal(r.find((o) => o.username === "verif_uga_deba").ditugaskan, 4);
+  const dasar = (await db.query("select count(*)::int n, count(*) filter (where selesai_pada is not null)::int s, count(*) filter (where ditarik_pada is not null)::int t from tugas_verifikasi_ulang")).rows[0];
+  assert.deepEqual([d.tugas.filter((x) => x.statusTugas === "SELESAI").length, d.tugas.filter((x) => x.statusTugas === "DITARIK").length], [dasar.s, dasar.t]);
+  for (const x of d.tugas) { assert.match(x.nik, /^12\d{14}$/, "NIK utuh 16 digit: " + x.nik); assert.ok(x.namaPenerima); }
+  const tr = d.tugas.find((x) => x.tugasId === Number(tarik.id));
+  assert.deepEqual([tr.statusDibagi, tr.statusSekarang, tr.statusTugas], ["Memenuhi Syarat", "Tidak Memenuhi Syarat", "DITARIK"]);
+
+  for (const p of ["verif_p2", "verif_p3"]) { const ditolak = await PE.unduhRekapPembagianUlang(TOKEN[p], h.batchId); assert.equal(ditolak.sukses, false); assert.match(ditolak.pesan, /khusus Admin Utama/); }
+  assert.equal((await PE.ambilDataPembagian(999999)), null);
 });
 
 test("DAFTAR PAKET: kemajuan benar (selesai/sesuai/dikoreksi/ditarik/sisa) dan per akun", opsi, async () => {

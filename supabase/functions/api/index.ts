@@ -72,6 +72,7 @@ import {
   pratinjauBatchUlang,
   simpanHasilUlang,
 } from "./domains/verifikasiUlang.ts";
+import { unduhRekapPembagianUlang } from "./domains/pembagianUlangExcel.ts";
 import { getCapaianInput, getProgresKuota, getSemuaKuota, simpanKuota } from "./domains/kuota.ts";
 import {
   getTemplatAlasan,
@@ -193,6 +194,7 @@ const ALLOWED: Record<string, Handler> = {
   pratinjauBatchUlang,
   buatBatchUlang,
   daftarBatchUlang,
+  unduhRekapPembagianUlang,   // Excel pembagian (memuat NIK utuh): khusus Admin Utama, dicek di domains/pembagianUlangExcel.ts
   batalkanBatchUlang,
   cekPembagianBatchUlang,
   getDaftarKoreksiUlang,

@@ -69,7 +69,7 @@
     tab: 'buat', pembuka: null,
     form: { nama: '', status: STATUS_SEMUA.slice(), layanan: [], jumlah: 600, batasSelesai: '', sertakan: false, benih: '' },
     daftarLayanan: null, pratinjau: null, sidikPratinjau: '', status: 'idle', pesan: '', bagi: false,
-    paket: null, paketStatus: 'idle', paketPesan: '', info: {}, konfirmasiBatal: 0,
+    paket: null, paketStatus: 'idle', paketPesan: '', info: {}, konfirmasiBatal: 0, unduh: {},
     koreksi: null, koreksiStatus: 'idle', koreksiPesan: '', halaman: 1, bukaBatalKoreksi: 0, alasanBatal: '', pesanKoreksi: ''
   };
 
@@ -213,6 +213,7 @@
       h += '<tr><td><b>' + esc(b.nama) + '</b><br><span class="vua-cat">' + esc(b.dibuatOleh) + ' · ' + esc(tanggalPendek(b.dibuatPada)) + '</span>' +
         '<details><summary class="vua-cat" style="cursor:pointer">per petugas (' + fmt((b.perAkun || []).length) + ')</summary><div class="vua-cat">' + (b.perAkun || []).map(function (a) { return esc(a.username) + ': ' + fmt(a.selesai) + '/' + fmt(a.tugas) + (a.ditarik ? ' (ditarik ' + fmt(a.ditarik) + ')' : ''); }).join('<br>') + '</div></details></td>' +
         '<td>' + esc(b.status) + '</td><td class="n">' + fmt(b.jumlahTugas) + '</td><td class="n">' + fmt(b.selesai) + ' <span class="vua-cat">(' + persen(b.selesai, b.jumlahTugas) + '%)</span></td><td class="n">' + fmt(b.sesuai) + '</td><td class="n">' + fmt(b.dikoreksi) + '</td><td class="n">' + fmt(b.ditarik) + '</td><td class="n">' + fmt(b.sisa) + '</td><td>' + esc(tanggalPendek(b.batasSelesai) || '–') + '</td><td>' +
+        '<button type="button" class="vua-btn kecil" data-aksi="unduh-excel" data-id="' + b.id + '"' + (st.unduh[b.id] ? ' disabled' : '') + ' title="Berisi NIK dan nama penerima: hanya untuk Admin Utama">' + (st.unduh[b.id] ? 'Membuat file…' : 'Unduh Excel pembagian') + '</button> ' +
         (b.status !== 'DIBATALKAN' ? '<button type="button" class="vua-btn kecil" data-aksi="cek" data-id="' + b.id + '">Cek pembagian</button> ' : '') +
         (aktif ? (st.konfirmasiBatal === b.id ? '<div class="vua-pesan peringatan">Batalkan paket? ' + fmt(b.sisa + b.ditarik) + ' tugas yang belum dikerjakan dihapus; ' + fmt(b.selesai) + ' tugas selesai tetap tersimpan.<br><button type="button" class="vua-btn kecil bahaya" data-aksi="batal-ya" data-id="' + b.id + '">Ya, batalkan paket</button> <button type="button" class="vua-btn kecil" data-aksi="batal-tidak">Tidak</button></div>' : '<button type="button" class="vua-btn kecil bahaya" data-aksi="batal" data-id="' + b.id + '">Batalkan sisa</button>') : '') +
         (info ? '<div class="vua-pesan ' + (info.jenis || 'info') + '" role="status">' + esc(info.teks) + '</div>' : '') + '</td></tr>';
@@ -308,6 +309,25 @@
         : { teks: (r && r.pesan) || 'Gagal memeriksa.', jenis: 'gagal' };
     }).catch(function (e) { st.info[id] = { teks: e.message, jenis: 'gagal' }; }).then(gambar);
   }
+  function unduhBerkas(base64, namaFile) {
+    if (typeof unduhFileBase64 === 'function') { unduhFileBase64(base64, namaFile); return; }
+    var bin = atob(base64), u8 = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    var url = akar.URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    var a = dok.createElement('a'); a.href = url; a.download = namaFile; dok.body.appendChild(a); a.click(); dok.body.removeChild(a);
+    setTimeout(function () { akar.URL.revokeObjectURL(url); }, 4000);
+  }
+  function unduhExcel(id) {
+    if (st.unduh[id]) return;
+    st.unduh[id] = true; delete st.info[id]; gambar();
+    rpc('unduhRekapPembagianUlang', [id]).then(function (r) {
+      st.unduh[id] = false;
+      if (!r || r.sukses !== true) { st.info[id] = { teks: (r && r.pesan) || 'Gagal membuat file.', jenis: 'gagal' }; gambar(); return; }
+      unduhBerkas(r.base64, r.namaFile);
+      st.info[id] = { teks: 'File diunduh: ' + r.namaFile + ' (' + fmt(r.jumlahTugas) + ' tugas). Berisi NIK dan nama penerima, jangan disebarkan.', jenis: 'ok' };
+      gambar();
+    }).catch(function (e) { st.unduh[id] = false; st.info[id] = { teks: e.message, jenis: 'gagal' }; gambar(); });
+  }
   function batalPaket(id) {
     rpc('batalkanBatchUlang', [id]).then(function (r) {
       st.konfirmasiBatal = 0;
@@ -351,6 +371,7 @@
       else if (a === 'bagikan') bagikan();
       else if (a === 'acak') { ambilForm(); st.form.benih = ''; gambar(); }
       else if (a === 'cek') cek(id);
+      else if (a === 'unduh-excel') unduhExcel(id);
       else if (a === 'batal') { st.konfirmasiBatal = id; gambar(); }
       else if (a === 'batal-tidak') { st.konfirmasiBatal = 0; gambar(); }
       else if (a === 'batal-ya') batalPaket(id);

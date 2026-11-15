@@ -18,6 +18,7 @@ const CORS = [{ name: "Access-Control-Allow-Origin", value: "*" }, { name: "Acce
 
 let peran = "VERIFIKATOR";
 const MS = "Memenuhi Syarat";
+let unduhGagal = false;
 let tugas, berkas, selesai, dikoreksi, simpanGagal, paket, koreksi, pratinjauJumlah, benihKe = 0, namaJahat = false;
 function reset() {
   selesai = 0; dikoreksi = 0; simpanGagal = ""; benihKe = 0; pratinjauJumlah = 600;
@@ -59,6 +60,7 @@ function jawab(aksi, args) {
   }
   if (aksi === "buatBatchUlang") return { sukses: true, batchId: 8, jumlahTugas: pratinjauJumlah + 124, benih: a1.benih, pesan: "Paket tugas dibuat: " + (pratinjauJumlah + 124) + " data." };
   if (aksi === "daftarBatchUlang") return { sukses: true, batch: paket.map((p) => ({ ...p })) };
+  if (aksi === "unduhRekapPembagianUlang") return unduhGagal ? { sukses: false, pesan: "Fitur ini khusus Admin Utama." } : { sukses: true, base64: "UEsDBA==", namaFile: "Pembagian Verifikasi Ulang Tahap percobaan 1 (paket 7).xlsx", jumlahTugas: 40 };
   if (aksi === "cekPembagianBatchUlang") return { sukses: true, sama: true, selisih: 0, jumlahTugas: 40 };
   if (aksi === "batalkanBatchUlang") { paket[0].status = "DIBATALKAN"; return { sukses: true, tugasDihapus: 29, pesan: "Paket dibatalkan. Tugas yang sudah selesai tetap tersimpan." }; }
   if (aksi === "getDaftarKoreksiUlang") return { sukses: true, halaman: 1, adaBerikutnya: false, koreksi: koreksi.map((k) => ({ ...k })) };
@@ -249,6 +251,16 @@ try {
   const buat = terakhir("buatBatchUlang").args[1];
   cek("ADMIN: 'Bagikan' mengirim benih yang SAMA dengan pratinjau + nama paket; lalu pindah ke 'Paket berjalan'", buat.benih === "benih-1" && buat.nama === "Tahap 1" && buat.jumlah === 600, JSON.stringify(buat));
   cek("ADMIN: paket tampil dengan kemajuan (11 dari 40 selesai, 2 dikoreksi, 1 ditarik, 28 sisa)", /Tahap percobaan 1/.test(await teks("#vua-isi")) && /11 \(28%\)/.test(await teks("#vua-isi")), await teks("#vua-isi"));
+  cek("ADMIN: tombol 'Unduh Excel pembagian' ada di tiap paket dengan peringatan data pribadi", (await js("(() => { const b = document.querySelector('#djpm-vua-overlay [data-aksi=\"unduh-excel\"]'); return !!b && /Unduh Excel pembagian/.test(b.textContent) && /NIK/.test(b.title); })()")) === true);
+  unduhGagal = true;
+  await klik('[data-aksi="unduh-excel"]');
+  await tungguSampai("/khusus Admin Utama/.test(document.getElementById('vua-isi').textContent)", "pesan gagal unduh");
+  cek("ADMIN: unduhan yang ditolak server menampilkan pesannya di baris paket dan tombol aktif lagi", hitung("unduhRekapPembagianUlang") === 1 && (await nonaktif('[data-aksi="unduh-excel"]')) === false);
+  unduhGagal = false;
+  await klik('[data-aksi="unduh-excel"]');
+  await tungguSampai("/File diunduh/.test(document.getElementById('vua-isi').textContent)", "unduhan berhasil");
+  const unduh = terakhir("unduhRekapPembagianUlang").args;
+  cek("ADMIN: 'Unduh Excel pembagian' mengirim token dan nomor paket; pesan sukses menyebut nama file, 40 tugas, dan peringatan data pribadi", unduh[0] === "TOKEN-UJI" && unduh[1] === 7 && /Pembagian Verifikasi Ulang Tahap percobaan 1 \(paket 7\)\.xlsx/.test(await teks("#vua-isi")) && /40 tugas/.test(await teks("#vua-isi")) && /jangan disebarkan/.test(await teks("#vua-isi")), JSON.stringify(unduh));
   await klik('[data-aksi="cek"]');
   await tungguSampai("/sama persis/.test(document.getElementById('vua-isi').textContent)", "hasil cek pembagian");
   cek("ADMIN: 'Cek pembagian' memanggil server dan menampilkan hasil", hitung("cekPembagianBatchUlang") === 1);
