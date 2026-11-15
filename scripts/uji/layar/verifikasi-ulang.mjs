@@ -230,13 +230,15 @@ try {
   cek("ADMIN: tombol 'Verifikasi Ulang' ada di toolbar", true);
   await klik("#btn-verifikasi-ulang");
   await tungguSampai("!!document.querySelector('#djpm-vua-overlay [data-aksi=\"pratinjau\"]')", "panel terbuka");
+  cek("ADMIN: kotak 'Sertakan data yang pernah diverifikasi ulang' DIHAPUS; aturan 1 data = 1 hitungan dijelaskan di formulir", !(await ada("#vua-sertakan")) && !/Sertakan data yang pernah/.test(await teks("#djpm-vua-overlay")) && /sudah pernah diverifikasi ulang tidak ikut lagi \(1 data = 1 hitungan\)/.test(await teks("#djpm-vua-overlay")), await teks("#djpm-vua-overlay"));
   cek("ADMIN: 'Bagikan' nonaktif sebelum pratinjau", (await nonaktif('[data-aksi="bagikan"]')) === true);
+  await tungguSampai("document.querySelectorAll('#djpm-vua-overlay input[data-layanan]').length === 3", "daftar layanan termuat", 40).catch(() => {});   // dimuat asinkron
   cek("ADMIN: daftar layanan dimuat dari server (3 pilihan)", (await js("document.querySelectorAll('#djpm-vua-overlay input[data-layanan]').length")) === 3);
   await js("document.getElementById('vua-nama').value = 'Tahap 1'; document.getElementById('vua-nama').dispatchEvent(new Event('input', {bubbles:true})); true");
   await klik('[data-aksi="pratinjau"]');
   await tungguSampai("document.querySelectorAll('#djpm-vua-overlay .vua-dist > div').length === 4", "pratinjau tampil");
   const pj = terakhir("pratinjauBatchUlang").args[1];
-  cek("ADMIN: pratinjau mengirim kriteria yang benar (3 status, jumlah 600, benih kosong -> dibuat server)", pj.status.length === 3 && pj.jumlah === 600 && pj.benih === "" && pj.sertakanSudahDiperiksa === false, JSON.stringify(pj));
+  cek("ADMIN: pratinjau mengirim kriteria yang benar (3 status, jumlah 600, benih kosong -> dibuat server)", pj.status.length === 3 && pj.jumlah === 600 && pj.benih === "" && !("sertakanSudahDiperiksa" in pj), JSON.stringify(pj));
   cek("ADMIN: benih dari server terisi di formulir; total tugas, pemeriksa khusus, dan aturan pimpinan tampil", (await js("document.getElementById('vua-benih').value")) === "benih-1" && /724/.test(await teks("#vua-hasil")) && /verif_uga_deba/.test(await teks("#vua-hasil")) && /Akun pimpinan tidak menerima tugas/.test(await teks("#vua-hasil")), await teks("#vua-hasil"));
   cek("ADMIN: setelah pratinjau 'Bagikan' AKTIF", (await nonaktif('[data-aksi="bagikan"]')) === false);
   await js("(() => { const j = document.getElementById('vua-jumlah'); j.value = '300'; j.dispatchEvent(new Event('input', {bubbles:true})); return true; })()");

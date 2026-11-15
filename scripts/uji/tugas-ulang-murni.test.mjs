@@ -105,11 +105,12 @@ test("ESC: nama berbahaya tidak lolos sebagai HTML", () => {
 });
 
 test("ADMIN: kriteria dinormalkan, status asing dibuang, jumlah dan tanggal dicek", () => {
-  const k = A.susunKriteria({ nama: "  Paket 1 ", status: [MS, "Proses Verifikasi", BTL], layanan: [" IMAM MASJID ", ""], jumlah: "600", batasSelesai: "2026-11-20", sertakan: true, benih: " b " });
-  assert.deepEqual(k, { nama: "Paket 1", status: [MS, BTL], layanan: ["IMAM MASJID"], jumlah: 600, batasSelesai: "2026-11-20", sertakanSudahDiperiksa: true, benih: "b" });
+  const k = A.susunKriteria({ nama: "  Paket 1 ", status: [MS, "Proses Verifikasi", BTL], layanan: [" IMAM MASJID ", ""], jumlah: "600", batasSelesai: "2026-11-20", sertakan: true, benih: " b " });   // "sertakan" dari tab lama tidak boleh lolos
+  assert.deepEqual(k, { nama: "Paket 1", status: [MS, BTL], layanan: ["IMAM MASJID"], jumlah: 600, batasSelesai: "2026-11-20", benih: "b" });
+  assert.ok(!("sertakanSudahDiperiksa" in k), "layar tidak pernah mengirim opsi menyertakan data yang sudah diverifikasi ulang");
   assert.equal(A.susunKriteria({}).jumlah, 0);
   assert.equal(A.susunKriteria({ jumlah: -5 }).jumlah, 0);
-  assert.equal(A.susunKriteria({ sertakan: "ya" }).sertakanSudahDiperiksa, false, "hanya boolean true");
+  for (const nilai of [true, "ya", 1]) assert.ok(!("sertakanSudahDiperiksa" in A.susunKriteria({ sertakan: nilai })) && !("sertakan" in A.susunKriteria({ sertakan: nilai })), "opsi sertakan tidak diteruskan: " + nilai);
   const sah = A.susunKriteria({ nama: "x", status: [MS], jumlah: 10, benih: "b" });
   assert.equal(A.validasiKriteria(sah, true), "");
   assert.match(A.validasiKriteria({ ...sah, status: [] }, false), /status/);
@@ -124,7 +125,7 @@ test("ADMIN: sidik jari berubah bila SATU isian berubah (Bagikan hanya untuk pra
   const dasar = A.susunKriteria({ nama: "x", status: [MS, BTL], layanan: ["A", "B"], jumlah: 10, batasSelesai: "2026-11-20", benih: "b" });
   const s = A.sidik(dasar);
   assert.equal(A.sidik({ ...dasar, status: [BTL, MS], layanan: ["B", "A"] }), s, "urutan pilihan tidak mengubah sidik");
-  for (const ubah of [{ status: [MS] }, { layanan: ["A"] }, { jumlah: 11 }, { batasSelesai: "2026-11-21" }, { sertakanSudahDiperiksa: true }, { benih: "c" }]) {
+  for (const ubah of [{ status: [MS] }, { layanan: ["A"] }, { jumlah: 11 }, { batasSelesai: "2026-11-21" }, { benih: "c" }]) {
     assert.notEqual(A.sidik({ ...dasar, ...ubah }), s, JSON.stringify(ubah));
   }
   assert.equal(A.sidik({ ...dasar, nama: "lain" }), s, "nama tidak memengaruhi pembagian");

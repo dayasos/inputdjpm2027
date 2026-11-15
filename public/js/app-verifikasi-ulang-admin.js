@@ -28,7 +28,7 @@
     return m ? m[3] + '-' + m[2] + '-' + m[1] : '';
   }
 
-  /** Isian formulir -> kriteria untuk server. form: { nama, status:[], layanan:[], jumlah, batasSelesai, sertakan, benih } */
+  /** Isian formulir -> kriteria untuk server. form: { nama, status:[], layanan:[], jumlah, batasSelesai, benih } */
   function susunKriteria(form) {
     var f = form || {};
     var jumlah = Math.floor(Number(f.jumlah) || 0);
@@ -38,7 +38,6 @@
       layanan: (f.layanan || []).map(function (x) { return String(x).trim(); }).filter(Boolean),
       jumlah: jumlah > 0 ? jumlah : 0,
       batasSelesai: String(f.batasSelesai || '').trim(),
-      sertakanSudahDiperiksa: f.sertakan === true,
       benih: String(f.benih || '').trim()
     };
   }
@@ -56,7 +55,7 @@
   }
 
   /** Sidik jari isian: "Bagikan" hanya sah bila sama dengan isian saat pratinjau. */
-  function sidik(k) { return JSON.stringify([k.status.slice().sort(), k.layanan.slice().sort(), k.jumlah, k.batasSelesai, k.sertakanSudahDiperiksa, k.benih]); }
+  function sidik(k) { return JSON.stringify([k.status.slice().sort(), k.layanan.slice().sort(), k.jumlah, k.batasSelesai, k.benih]); }
 
   var api = { susunKriteria: susunKriteria, validasiKriteria: validasiKriteria, sidik: sidik, persen: persen, tanggalPendek: tanggalPendek, singkatStatus: singkatStatus, esc: esc, fmt: fmt, buka: function () { /* diganti di browser */ } };
   if (!akar || !akar.document) return api;   // lingkungan uji Node: hanya bagian murni
@@ -67,7 +66,7 @@
   var BATAS_TUNGGU_MS = 60000;
   var st = {
     tab: 'buat', pembuka: null,
-    form: { nama: '', status: STATUS_SEMUA.slice(), layanan: [], jumlah: 600, batasSelesai: '', sertakan: false, benih: '' },
+    form: { nama: '', status: STATUS_SEMUA.slice(), layanan: [], jumlah: 600, batasSelesai: '', benih: '' },
     daftarLayanan: null, pratinjau: null, sidikPratinjau: '', status: 'idle', pesan: '', bagi: false,
     paket: null, paketStatus: 'idle', paketPesan: '', info: {}, konfirmasiBatal: 0, unduh: {},
     koreksi: null, koreksiStatus: 'idle', koreksiPesan: '', halaman: 1, bukaBatalKoreksi: 0, alasanBatal: '', pesanKoreksi: ''
@@ -162,7 +161,6 @@
     if (v('vua-jumlah') !== null) f.jumlah = v('vua-jumlah');
     if (v('vua-batas') !== null) f.batasSelesai = v('vua-batas');
     if (v('vua-benih') !== null) f.benih = v('vua-benih');
-    var sk = o.querySelector('#vua-sertakan'); if (sk) f.sertakan = sk.checked;
     var stt = o.querySelectorAll('input[data-status]'); if (stt.length) f.status = Array.prototype.filter.call(stt, function (e) { return e.checked; }).map(function (e) { return e.getAttribute('data-status'); });
     var ly = o.querySelectorAll('input[data-layanan]'); if (ly.length) f.layanan = Array.prototype.filter.call(ly, function (e) { return e.checked; }).map(function (e) { return e.getAttribute('data-layanan'); });
     return f;
@@ -177,9 +175,8 @@
       '<label>Nama paket<input type="text" id="vua-nama" value="' + esc(f.nama) + '" maxlength="80" placeholder="mis. Tahap 1"></label>' +
       '<div><div class="vua-cat" style="font-weight:600">Status yang diverifikasi ulang</div>' + STATUS_SEMUA.map(function (s) { return '<label class="vua-cek"><input type="checkbox" data-status="' + esc(s) + '"' + (f.status.indexOf(s) !== -1 ? ' checked' : '') + '> ' + esc(s) + '</label>'; }).join('') + '</div>' +
       '<details class="vua-lay"' + (f.layanan.length ? ' open' : '') + '><summary>Layanan: ' + (f.layanan.length ? fmt(f.layanan.length) + ' dipilih' : 'semua') + '</summary><div class="vua-lay-isi">' + (lay || '<span class="vua-cat">Daftar layanan belum termuat (semua layanan dipakai).</span>') + '</div></details>' +
-      '<label>Jumlah data Memenuhi Syarat dalam paket<input type="number" id="vua-jumlah" min="0" max="' + MAKS_JUMLAH + '" value="' + esc(f.jumlah) + '"><span class="vua-cat" style="font-weight:400">0 = semua. Data BTL/TMS selalu ikut seluruhnya.</span></label>' +
+      '<label>Jumlah data Memenuhi Syarat dalam paket<input type="number" id="vua-jumlah" min="0" max="' + MAKS_JUMLAH + '" value="' + esc(f.jumlah) + '"><span class="vua-cat" style="font-weight:400">0 = semua. Data BTL/TMS selalu ikut seluruhnya. Data yang sudah pernah diverifikasi ulang tidak ikut lagi (1 data = 1 hitungan).</span></label>' +
       '<label>Batas selesai (opsional)<input type="date" id="vua-batas" value="' + esc(f.batasSelesai) + '"></label>' +
-      '<label class="vua-cek"><input type="checkbox" id="vua-sertakan"' + (f.sertakan ? ' checked' : '') + '> Sertakan data yang pernah diverifikasi ulang</label>' +
       '<label>Benih pengacakan<span class="vua-baris" style="flex-wrap:nowrap"><input type="text" id="vua-benih" value="' + esc(f.benih) + '" placeholder="kosong = dibuat otomatis"><button type="button" class="vua-btn kecil" data-aksi="acak">Acak baru</button></span></label>' +
       '</div><div class="vua-baris" style="margin-top:12px"><button type="button" class="vua-btn utama" data-aksi="pratinjau"' + (st.status === 'muat' ? ' disabled' : '') + '>' + (st.status === 'muat' ? 'Menghitung…' : 'Pratinjau pembagian') + '</button>' +
       '<button type="button" class="vua-btn" data-aksi="bagikan"' + (pratinjauSah && !salah && !st.bagi && st.pratinjau.jumlahTugas > 0 ? '' : ' disabled') + '>' + (st.bagi ? 'Membagikan…' : 'Bagikan') + '</button></div>' +
