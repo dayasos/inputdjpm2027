@@ -16,7 +16,7 @@ import { catatRiwayatVerifikasiWajib } from "../_shared/riwayatVerifikasi.ts";
 import { nilaiStatusVerifikasi } from "../_shared/statusVerifikasi.ts";
 import { ambilSampel, bagiTugasUlang, layakMasukKolam, samaDenganTersimpan, type ButirKolam } from "../_shared/pembagianUlang.ts";
 import {
-  AKUN_KHUSUS_ULANG, PENGECUALIAN_ULANG, STATUS_FINAL, STATUS_MS, berkasDibukaSah, cekSimpanHasil, daftarBerkasDariBaris,
+  AKUN_KHUSUS_ULANG, PENGECUALIAN_ULANG, STATUS_FINAL, STATUS_MS, adalahAkunVerifikator, berkasDibukaSah, cekSimpanHasil, daftarBerkasDariBaris,
 } from "../_shared/verifikasiUlangInti.ts";
 import { arsipkanDataDetail, pastikanDataDetailTersinkron } from "./dataDetail.ts";
 import { daftarDariPg, literalArrayTeks } from "./templatAlasan.ts";
@@ -53,6 +53,8 @@ export interface KriteriaUlang {
   status?: unknown;
   layanan?: unknown;
   sertakanSudahDiperiksa?: unknown;
+  /** Hanya untuk uji dan keperluan khusus Admin: menyertakan data hasil verifikasi petugas verifikator. Layar tidak pernah mengirimnya; bawaan = dikecualikan (V12). */
+  sertakanHasilVerifikator?: unknown;
   jumlah?: unknown;
   benih?: unknown;
   pemeriksa?: unknown;
@@ -65,6 +67,7 @@ interface Rencana {
   status: string[];
   layanan: string[];
   sertakanSudahDiperiksa: boolean;
+  sertakanHasilVerifikator: boolean;
   jumlah: number;
   batasSelesai: string | null;
   pemeriksa: string[];          // username (huruf asli akun) pemeriksa data MS
@@ -73,6 +76,7 @@ interface Rencana {
   dikeluarkanBayar: number;
   dikeluarkanSudahDiperiksa: number;
   dikeluarkanSedangDitugaskan: number;
+  dikeluarkanHasilVerifikator: number;
   terpilih: ButirKolam[];
   hasil: ReturnType<typeof bagiTugasUlang>;
 }
@@ -87,6 +91,7 @@ async function susunRencana(k: KriteriaUlang, benihBaru: () => string): Promise<
   if (batas && !/^\d{4}-\d{2}-\d{2}$/.test(batas)) throw new Error("Batas selesai harus berformat tahun-bulan-tanggal.");
   const benih = huruf(k.benih) || benihBaru();
   const sertakan = k.sertakanSudahDiperiksa === true;
+  const sertakanHasilVerif = k.sertakanHasilVerifikator === true;
 
   // Akun pemeriksa: verifikator AKTIF; pengecualian (V11) dan akun khusus (V10/K16) ditegakkan di sini, bukan dari layar.
   const akun = await sql`select id, username from akun where role = 'VERIFIKATOR' and aktif is not false order by username`;
@@ -118,6 +123,10 @@ async function susunRencana(k: KriteriaUlang, benihBaru: () => string): Promise<
     select t.penerima_id, array_agg(distinct upper(a.username)) as oleh
     from tugas_verifikasi_ulang t join akun a on a.id = t.akun_id join batch_verifikasi_ulang b on b.id = t.batch_id
     where t.tahun = ${TAHUN_AKTIF} and (b.status <> 'DIBATALKAN' or t.selesai_pada is not null) group by t.penerima_id`;
+  // V12: data yang pernah diberi hasil oleh akun verifikator (hasil pertama, sumber SATU) -- selain yang pemverifikasi terakhirnya verifikator (kolom diverifikasi_oleh)
+  const hasilVerifRows = await sql`
+    select distinct penerima_id from riwayat_verifikasi where tahun = ${TAHUN_AKTIF} and sumber = 'SATU' and starts_with(upper(oleh), 'VERIF_')`;
+  const adaHasilVerifikator = new Set<number>((hasilVerifRows as Baris[]).map((x) => Number(x.penerima_id)));
   const pernah = new Map<number, Set<string>>();
   const tambah = (peta: Baris[]) => {
     for (const r of peta) {
@@ -129,10 +138,11 @@ async function susunRencana(k: KriteriaUlang, benihBaru: () => string): Promise<
   tambah(pernahRiwayat as Baris[]);
   tambah(pernahTugas as Baris[]);
 
-  let dikeluarkanBayar = 0, dikeluarkanSudah = 0, dikeluarkanSedang = 0;
+  let dikeluarkanBayar = 0, dikeluarkanSudah = 0, dikeluarkanSedang = 0, dikeluarkanHasilVerif = 0;
   const kolam: ButirKolam[] = [];
   for (const r of rows as Baris[]) {
     if (huruf(r.nik) && dibayar.has(huruf(r.nik))) { dikeluarkanBayar++; continue; }
+    if (!sertakanHasilVerif && (adalahAkunVerifikator(r.diverifikasi_oleh) || adaHasilVerifikator.has(Number(r.id)))) { dikeluarkanHasilVerif++; continue; }
     const layak = layakMasukKolam(
       { status: huruf(r.status), sudahDiperiksaUlang: r.sudah_diperiksa === true, sedangDitugaskan: r.sedang === true },
       { sertakanSudahDiperiksa: sertakan, statusDiizinkan: statusPakai },
@@ -148,9 +158,9 @@ async function susunRencana(k: KriteriaUlang, benihBaru: () => string): Promise<
   const terpilih = ambilSampel(kolam, jumlahMasuk, benih);
   const hasil = bagiTugasUlang({ benih, kolam: terpilih, pemeriksa, pengecualian: PENGECUALIAN_ULANG.slice(), akunKhusus });
   return {
-    benih, status: statusPakai, layanan, sertakanSudahDiperiksa: sertakan, jumlah: jumlahMasuk, batasSelesai: batas || null,
+    benih, status: statusPakai, layanan, sertakanSudahDiperiksa: sertakan, sertakanHasilVerifikator: sertakanHasilVerif, jumlah: jumlahMasuk, batasSelesai: batas || null,
     pemeriksa, akunKhusus, kolamCocok: kolam.length, dikeluarkanBayar, dikeluarkanSudahDiperiksa: dikeluarkanSudah,
-    dikeluarkanSedangDitugaskan: dikeluarkanSedang, terpilih, hasil,
+    dikeluarkanSedangDitugaskan: dikeluarkanSedang, dikeluarkanHasilVerifikator: dikeluarkanHasilVerif, terpilih, hasil,
   };
 }
 
@@ -165,7 +175,7 @@ function ringkasRencana(r: Rencana) {
     kriteria: { status: r.status, layanan: r.layanan, sertakanSudahDiperiksa: r.sertakanSudahDiperiksa, jumlah: r.jumlah },
     batasSelesai: r.batasSelesai,
     kolamCocok: r.kolamCocok,
-    dikeluarkan: { sudahDibayar: r.dikeluarkanBayar, sudahDiperiksaUlang: r.dikeluarkanSudahDiperiksa, sedangDitugaskan: r.dikeluarkanSedangDitugaskan },
+    dikeluarkan: { sudahDibayar: r.dikeluarkanBayar, sudahDiperiksaUlang: r.dikeluarkanSudahDiperiksa, sedangDitugaskan: r.dikeluarkanSedangDitugaskan, hasilVerifikator: r.dikeluarkanHasilVerifikator },
     jumlahTugas: r.hasil.tugas.length,
     jumlahPemeriksa: r.pemeriksa.length,
     akunKhusus: r.akunKhusus,
@@ -174,6 +184,49 @@ function ringkasRencana(r: Rencana) {
     perLayanan: Object.entries(perLayanan).map(([layanan, jumlah]) => ({ layanan, jumlah })).sort((a, b) => a.layanan.localeCompare(b.layanan)),
     tidakTerbagi: { jumlah: r.hasil.tidakTerbagi.length, contoh: r.hasil.tidakTerbagi.slice(0, 10).map((x) => ({ id: x.id, alasan: x.alasan })) },
   };
+}
+
+/**
+ * Admin Utama: ringkasan SASARAN verifikasi ulang (badge di panel). Aturan sama dengan kolam paket (susunRencana), dihitung dengan SATU kueri hitung:
+ *   sasaran = data berstatus final yang BUKAN hasil verifikasi petugas verifikator (V12) dan BELUM masuk batch pembayaran;
+ *   sudahDiperiksa = sasaran yang sudah punya tugas SELESAI; sedangDitugaskan = sasaran yang kini jadi tugas aktif di paket AKTIF;
+ *   sisa = sasaran yang belum diperiksa dan belum ditugaskan (kolam untuk paket berikutnya).
+ */
+export async function getRingkasanSasaranUlang(token: string) {
+  try {
+    await sesiUtama(token);
+    // CTE MATERIALIZED: tanpa itu planner mengulang subkueri tiap kolom agregat (1.092 ms pada data nyata; dengan ini 40 ms).
+    const rows = await sql`
+      with d as materialized (
+        select
+          (starts_with(upper(coalesce(p.diverifikasi_oleh, '')), 'VERIF_')
+            or exists (select 1 from riwayat_verifikasi r where r.penerima_id = p.id and r.tahun = p.tahun and r.sumber = 'SATU' and starts_with(upper(r.oleh), 'VERIF_'))) as hv,
+          (coalesce(p.nik, '') <> '' and exists (select 1 from pembayaran_baris pb where pb.tahun = p.tahun and pb.nik = p.nik)) as dibayar,
+          exists (select 1 from tugas_verifikasi_ulang t where t.penerima_id = p.id and t.tahun = p.tahun and t.selesai_pada is not null) as selesai,
+          exists (select 1 from tugas_verifikasi_ulang t join batch_verifikasi_ulang b on b.id = t.batch_id
+                  where t.penerima_id = p.id and t.tahun = p.tahun and t.selesai_pada is null and t.ditarik_pada is null and b.status = 'AKTIF') as aktif
+        from penerima p
+        where p.tahun = ${TAHUN_AKTIF} and p.status_verifikasi = any(${literalArrayTeks(STATUS_FINAL)}::text[]))
+      select count(*)::int as final_total,
+        count(*) filter (where hv)::int as hasil_verifikator,
+        count(*) filter (where dibayar and not hv)::int as sudah_dibayar,
+        count(*) filter (where not hv and not dibayar)::int as sasaran,
+        count(*) filter (where not hv and not dibayar and selesai)::int as sudah_diperiksa,
+        count(*) filter (where not hv and not dibayar and not selesai and aktif)::int as sedang_ditugaskan
+      from d`;
+    const r = (rows[0] || {}) as Baris;
+    const sasaran = Number(r.sasaran) || 0, sudah = Number(r.sudah_diperiksa) || 0, sedang = Number(r.sedang_ditugaskan) || 0;
+    return {
+      sukses: true,
+      finalTotal: Number(r.final_total) || 0,
+      hasilVerifikator: Number(r.hasil_verifikator) || 0,
+      sudahDibayar: Number(r.sudah_dibayar) || 0,
+      sasaran, sudahDiperiksa: sudah, sedangDitugaskan: sedang,
+      sisa: Math.max(0, sasaran - sudah - sedang),
+    };
+  } catch (e) {
+    return galat(e);
+  }
 }
 
 /** Admin Utama: hitung pembagian TANPA menulis apa pun. Benih yang sama -> hasil sama dengan pembuatan paket. */
@@ -209,7 +262,7 @@ export async function buatBatchUlang(token: string, kriteria: KriteriaUlang) {
       const b = await trx`
         insert into batch_verifikasi_ulang (nama, dibuat_oleh, benih, kriteria, pemeriksa, pengecualian, akun_khusus, jumlah_tugas, batas_selesai)
         values (${nama}, ${oleh}, ${r.benih},
-                ${trx.json({ status: r.status, layanan: r.layanan, sertakanSudahDiperiksa: r.sertakanSudahDiperiksa, jumlah: r.jumlah, tidakTerbagi: r.hasil.tidakTerbagi.length, tidakTerbagiButir: r.hasil.tidakTerbagi.map((x) => ({ id: x.id, tahun: x.tahun, layanan: x.layanan, status: x.status, pernahMemverifikasi: terpilihPeta.get(x.tahun + ":" + x.id)?.pernahMemverifikasi || [] })) })},
+                ${trx.json({ status: r.status, layanan: r.layanan, sertakanSudahDiperiksa: r.sertakanSudahDiperiksa, sertakanHasilVerifikator: r.sertakanHasilVerifikator, jumlah: r.jumlah, tidakTerbagi: r.hasil.tidakTerbagi.length, tidakTerbagiButir: r.hasil.tidakTerbagi.map((x) => ({ id: x.id, tahun: x.tahun, layanan: x.layanan, status: x.status, pernahMemverifikasi: terpilihPeta.get(x.tahun + ":" + x.id)?.pernahMemverifikasi || [] })) })},
                 ${trx.json([...r.pemeriksa])}, ${trx.json([...PENGECUALIAN_ULANG])}, ${r.akunKhusus},
                 ${t.length}, ${r.batasSelesai})
         returning id`;

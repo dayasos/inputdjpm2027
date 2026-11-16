@@ -68,6 +68,7 @@ import {
   cekPembagianBatchUlang,
   daftarBatchUlang,
   getDaftarKoreksiUlang,
+  getRingkasanSasaranUlang,
   getTugasUlangSaya,
   pratinjauBatchUlang,
   simpanHasilUlang,
@@ -195,6 +196,7 @@ const ALLOWED: Record<string, Handler> = {
   pratinjauBatchUlang,
   buatBatchUlang,
   daftarBatchUlang,
+  getRingkasanSasaranUlang,       // badge sasaran verifikasi ulang: khusus Admin Utama (sesiUtama di domains/verifikasiUlang.ts)
   unduhRekapPembagianUlang,   // Excel pembagian (memuat NIK utuh): khusus Admin Utama, dicek di domains/pembagianUlangExcel.ts
   batalkanBatchUlang,
   cekPembagianBatchUlang,

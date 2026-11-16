@@ -19,6 +19,8 @@ const CORS = [{ name: "Access-Control-Allow-Origin", value: "*" }, { name: "Acce
 let peran = "VERIFIKATOR";
 const MS = "Memenuhi Syarat";
 let unduhGagal = false;
+let sasaran = { sukses: true, finalTotal: 9214, hasilVerifikator: 1798, sudahDibayar: 0, sasaran: 7416, sudahDiperiksa: 9, sedangDitugaskan: 0, sisa: 7407 };
+let sasaranGagal = false;
 let tugas, berkas, selesai, dikoreksi, simpanGagal, paket, koreksi, pratinjauJumlah, benihKe = 0, namaJahat = false;
 function reset() {
   selesai = 0; dikoreksi = 0; simpanGagal = ""; benihKe = 0; pratinjauJumlah = 600;
@@ -59,6 +61,8 @@ function jawab(aksi, args) {
     const per = ["verif_a", "verif_b", "verif_c"].map((u, i) => ({ username: u.toUpperCase(), jumlah: 200 - i }));
     return { sukses: true, benih, kriteria: a1, batasSelesai: a1.batasSelesai || null, kolamCocok: 7788, dikeluarkan: { sudahDibayar: 5, sudahDiperiksaUlang: 0, sedangDitugaskan: 0 }, jumlahTugas: pratinjauJumlah + 124, jumlahPemeriksa: 28, akunKhusus: "verif_uga_deba", selisihMS: 1, perAkun: per.concat([{ username: "VERIF_UGA_DEBA", jumlah: 124 }]), perLayanan: [], tidakTerbagi: { jumlah: 0, contoh: [] } };
   }
+  if (aksi === "getRingkasanSasaranUlang") return sasaranGagal ? { sukses: false, pesan: "galat uji" } : { ...sasaran };
+  if (aksi === "buatBatchUlang") { sasaran = { ...sasaran, sedangDitugaskan: 724, sisa: 6683 }; }
   if (aksi === "buatBatchUlang") return { sukses: true, batchId: 8, jumlahTugas: pratinjauJumlah + 124, benih: a1.benih, pesan: "Paket tugas dibuat: " + (pratinjauJumlah + 124) + " data." };
   if (aksi === "daftarBatchUlang") return { sukses: true, batch: paket.map((p) => ({ ...p })) };
   if (aksi === "unduhRekapPembagianUlang") return unduhGagal ? { sukses: false, pesan: "Fitur ini khusus Admin Utama." } : { sukses: true, base64: "UEsDBA==", namaFile: "Pembagian Verifikasi Ulang Tahap percobaan 1 (paket 7).xlsx", jumlahTugas: 40 };
@@ -230,6 +234,9 @@ try {
   cek("ADMIN: tombol 'Verifikasi Ulang' ada di toolbar", true);
   await klik("#btn-verifikasi-ulang");
   await tungguSampai("!!document.querySelector('#djpm-vua-overlay [data-aksi=\"pratinjau\"]')", "panel terbuka");
+  await tungguSampai("document.querySelectorAll('#vua-badge .vua-bk').length === 4", "badge sasaran termuat");
+  { const b = await teks("#vua-badge"); cek("ADMIN: badge sasaran: Data yang akan diverifikasi ulang 7.416, Sedang ditugaskan 0, Sudah diperiksa ulang 9, Sisa belum ditugaskan 7.407", /Data yang akan diverifikasi ulang\s*7\.416/.test(b) && /Sedang ditugaskan\s*0/.test(b) && /Sudah diperiksa ulang\s*9/.test(b) && /Sisa belum ditugaskan\s*7\.407/.test(b), b);
+    cek("ADMIN: catatan badge menyebut data hasil verifikator yang tidak ikut (1.798) dan yang sudah dibayar (0)", /1\.798 data hasil verifikasi petugas verifikator dan 0 data yang sudah masuk batch pembayaran/.test(await teks("#vua-badge-cat")), await teks("#vua-badge-cat")); }
   cek("ADMIN: kotak 'Sertakan data yang pernah diverifikasi ulang' DIHAPUS; aturan 1 data = 1 hitungan dijelaskan di formulir", !(await ada("#vua-sertakan")) && !/Sertakan data yang pernah/.test(await teks("#djpm-vua-overlay")) && /sudah pernah diverifikasi ulang tidak ikut lagi \(1 data = 1 hitungan\)/.test(await teks("#djpm-vua-overlay")), await teks("#djpm-vua-overlay"));
   cek("ADMIN: 'Bagikan' nonaktif sebelum pratinjau", (await nonaktif('[data-aksi="bagikan"]')) === true);
   await tungguSampai("document.querySelectorAll('#djpm-vua-overlay input[data-layanan]').length === 3", "daftar layanan termuat", 40).catch(() => {});   // dimuat asinkron
@@ -251,6 +258,8 @@ try {
   cek("ADMIN: mengembalikan pilihan status mengaktifkan 'Bagikan' lagi", (await nonaktif('[data-aksi="bagikan"]')) === false);
   await klik('[data-aksi="bagikan"]');
   await tungguSampai("document.querySelector('#djpm-vua-overlay .vua-tab [data-tab=\"paket\"][aria-selected=\"true\"]') && document.querySelectorAll('#djpm-vua-overlay table tbody tr').length >= 1", "pindah ke tab Paket berjalan");
+  await tungguSampai("/Sedang ditugaskan\\s*724/.test(document.getElementById('vua-badge').textContent)", "badge disegarkan sesudah paket dibuat").catch(() => {});
+  cek("ADMIN: sesudah paket dibuat badge disegarkan dari server (Sedang ditugaskan 724, Sisa 6.683)", /Sedang ditugaskan\s*724/.test(await teks("#vua-badge")) && /Sisa belum ditugaskan\s*6\.683/.test(await teks("#vua-badge")), await teks("#vua-badge"));
   const buat = terakhir("buatBatchUlang").args[1];
   cek("ADMIN: 'Bagikan' mengirim benih yang SAMA dengan pratinjau + nama paket; lalu pindah ke 'Paket berjalan'", buat.benih === "benih-1" && buat.nama === "Tahap 1" && buat.jumlah === 600, JSON.stringify(buat));
   cek("ADMIN: paket tampil dengan kemajuan (11 dari 40 selesai, 2 dikoreksi, 1 ditarik, 28 sisa)", /Tahap percobaan 1/.test(await teks("#vua-isi")) && /11 \(28%\)/.test(await teks("#vua-isi")), await teks("#vua-isi"));
@@ -271,8 +280,12 @@ try {
   cek("ADMIN: 'Batalkan sisa' meminta konfirmasi di halaman dan BELUM memanggil server", (await ada('[data-aksi="batal-ya"]')) && hitung("batalkanBatchUlang") === 0 && /tetap tersimpan/.test(await teks("#vua-isi")));
   await klik('[data-aksi="batal-tidak"]');
   cek("ADMIN: memilih 'Tidak' menutup konfirmasi tanpa memanggil server", !(await ada('[data-aksi="batal-ya"]')) && hitung("batalkanBatchUlang") === 0);
+  sasaranGagal = true;   // penyegaran badge sesudah pembatalan gagal: angka lama tetap tampil dengan tanda, tidak diam-diam basi
   await klik('[data-aksi="batal"]'); await klik('[data-aksi="batal-ya"]');
   await tungguSampai("/DIBATALKAN/.test(document.getElementById('vua-isi').textContent)", "paket dibatalkan");
+  await tungguSampai("/Gagal memperbarui/.test(document.getElementById('vua-badge-cat').textContent)", "tanda gagal memperbarui").catch(() => {});
+  cek("ADMIN: penyegaran badge gagal -> angka terakhir tetap tampil dan catatan 'Gagal memperbarui ... mungkin belum terbaru' muncul", /Gagal memperbarui \(galat uji\)/.test(await teks("#vua-badge-cat")) && /Sedang ditugaskan\s*724/.test(await teks("#vua-badge")), await teks("#vua-badge-cat"));
+  sasaranGagal = false;
   cek("ADMIN: konfirmasi 'Ya' membatalkan paket dan status berubah", hitung("batalkanBatchUlang") === 1);
 
   await klik('[data-tab="koreksi"]');

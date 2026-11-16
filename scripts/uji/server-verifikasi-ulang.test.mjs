@@ -327,10 +327,10 @@ test("ADMIN: pratinjau tidak menulis apa pun; pembuatan paket = satu transaksi d
     if (q.includes("insert into tugas_verifikasi_ulang")) return [{ id: 1 }, { id: 2 }, { id: 3 }];
     return [];
   };
-  const p = await ulang.pratinjauBatchUlang(tok(), { benih: "B1" });
+  const p = await ulang.pratinjauBatchUlang(tok(), { benih: "B1", sertakanHasilVerifikator: true });   // V12 dimatikan di uji ini; diuji terpisah di server-verifikasi-ulang-pg
   assert.equal(p.sukses, true, JSON.stringify(p));
   assert.equal(p.benih, "B1");
-  assert.deepEqual(p.dikeluarkan, { sudahDibayar: 1, sudahDiperiksaUlang: 1, sedangDitugaskan: 1 });
+  assert.deepEqual(p.dikeluarkan, { sudahDibayar: 1, sudahDiperiksaUlang: 1, sedangDitugaskan: 1, hasilVerifikator: 0 });
   assert.ok(!db().panggilan.some((x) => x.teks.includes("exists (select 1 from pembayaran_baris")), "pembayaran dicek lewat SATU kueri himpunan NIK, bukan subkueri per baris");
   assert.equal(p.jumlahTugas, 3, "id 1, 2 (MS) dan 4 (BTL)");
   assert.equal(p.akunKhusus, "verif_uga_deba");
@@ -342,10 +342,10 @@ test("ADMIN: pratinjau tidak menulis apa pun; pembuatan paket = satu transaksi d
   assert.equal(db().panggilan.filter((x) => /^(insert|update|delete)/i.test(x.teks.trim())).length, 0, "pratinjau tidak menulis");
 
   // V1 pada data 2: diverifikasi VERIF_P01 -> tidak jatuh ke P01
-  const p2 = await ulang.pratinjauBatchUlang(tok(), { benih: "B1" });
+  const p2 = await ulang.pratinjauBatchUlang(tok(), { benih: "B1", sertakanHasilVerifikator: true });
   assert.deepEqual(p2.perAkun, p.perAkun, "benih sama -> hasil sama");
 
-  const b = await ulang.buatBatchUlang(tok(), { benih: "B1", nama: "Uji" });
+  const b = await ulang.buatBatchUlang(tok(), { benih: "B1", nama: "Uji", sertakanHasilVerifikator: true });
   assert.equal(b.sukses, true, JSON.stringify(b));
   assert.equal(b.batchId, 77);
   const urut = db().panggilan.map((x) => x.teks);

@@ -57,7 +57,27 @@
   /** Sidik jari isian: "Bagikan" hanya sah bila sama dengan isian saat pratinjau. */
   function sidik(k) { return JSON.stringify([k.status.slice().sort(), k.layanan.slice().sort(), k.jumlah, k.batasSelesai, k.benih]); }
 
-  var api = { susunKriteria: susunKriteria, validasiKriteria: validasiKriteria, sidik: sidik, persen: persen, tanggalPendek: tanggalPendek, singkatStatus: singkatStatus, esc: esc, fmt: fmt, buka: function () { /* diganti di browser */ } };
+  /**
+   * Badge sasaran verifikasi ulang (jawaban getRingkasanSasaranUlang) -> daftar kartu {kunci, label, nilai, catatan}. Sasaran = data hasil Admin (bukan hasil verifikator)
+   * yang belum dibayar. "Sisa" = belum diperiksa dan belum ditugaskan (kolam paket berikutnya).
+   */
+  function kartuSasaran(r) {
+    if (!r || r.sukses !== true) return [];
+    var n = function (v) { return Math.max(0, Number(v) || 0); };
+    return [
+      { kunci: 'sasaran', label: 'Data yang akan diverifikasi ulang', nilai: n(r.sasaran), catatan: 'hasil Admin' },
+      { kunci: 'ditugaskan', label: 'Sedang ditugaskan', nilai: n(r.sedangDitugaskan), catatan: 'paket aktif' },
+      { kunci: 'selesai', label: 'Sudah diperiksa ulang', nilai: n(r.sudahDiperiksa), catatan: '' },
+      { kunci: 'sisa', label: 'Sisa belum ditugaskan', nilai: n(r.sisa), catatan: 'untuk paket berikutnya' },
+    ];
+  }
+  /** Catatan di bawah kartu: data yang sengaja tidak ikut. */
+  function catatanSasaran(r) {
+    if (!r || r.sukses !== true) return '';
+    return 'Tidak ikut: ' + fmt(r.hasilVerifikator) + ' data hasil verifikasi petugas verifikator dan ' + fmt(r.sudahDibayar) + ' data yang sudah masuk batch pembayaran.';
+  }
+
+  var api = { kartuSasaran: kartuSasaran, catatanSasaran: catatanSasaran, susunKriteria: susunKriteria, validasiKriteria: validasiKriteria, sidik: sidik, persen: persen, tanggalPendek: tanggalPendek, singkatStatus: singkatStatus, esc: esc, fmt: fmt, buka: function () { /* diganti di browser */ } };
   if (!akar || !akar.document) return api;   // lingkungan uji Node: hanya bagian murni
 
   // ------------------------------------------------------------------ tampilan
@@ -103,6 +123,11 @@
       '#' + ID + ' .vua-kepala h2{margin:0;font-size:1.15rem;font-weight:700}',
       '#' + ID + ' .vua-sub{font-size:.78rem;color:#5a6879;margin-top:2px}',
       '#' + ID + ' .vua-tutup{border:1px solid #cbd5e1;background:#fff;border-radius:8px;min-height:40px;min-width:40px;cursor:pointer;font-size:1.1rem}',
+      '#' + ID + ' .vua-badge{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;padding:12px 18px 0}',
+      '#' + ID + ' .vua-badge .vua-bk{border:1px solid #dbe1ea;border-radius:10px;padding:8px 12px;background:#f8fafc;min-width:0}',
+      '#' + ID + ' .vua-badge .vua-bk b{display:block;font-size:1.25rem;line-height:1.2;font-variant-numeric:tabular-nums}',
+      '#' + ID + ' .vua-badge .vua-bk.utama{background:#eef3fb;border-color:#9fb7dc}',
+      '#' + ID + ' .vua-badge-cat{padding:6px 18px 10px;font-size:.78rem;color:#5a6879}',
       '#' + ID + ' .vua-tab{display:flex;gap:4px;flex-wrap:wrap;padding:0 14px;border-bottom:1px solid #dbe1ea}',
       '#' + ID + ' .vua-tab button{border:0;background:none;padding:12px 14px;font:inherit;font-weight:600;color:#5a6879;border-bottom:3px solid transparent;cursor:pointer;min-height:44px}',
       '#' + ID + ' .vua-tab button[aria-selected="true"]{color:#17365d;border-color:#17365d}',
@@ -192,7 +217,7 @@
     return '<div class="vua-kartu3"><div class="vua-kartu"><div class="vua-cat">Total tugas</div><b>' + fmt(p.jumlahTugas) + '</b></div>' +
       '<div class="vua-kartu"><div class="vua-cat">Petugas data MS</div><b>' + fmt(p.jumlahPemeriksa) + '</b><div class="vua-cat">selisih maksimal ' + fmt(p.selisihMS) + '</div></div>' +
       '<div class="vua-kartu"><div class="vua-cat">Pemeriksa khusus BTL/TMS</div><b style="font-size:1rem;overflow-wrap:anywhere">' + esc(p.akunKhusus || 'tidak ada') + '</b></div></div>' +
-      '<div class="vua-pesan info">Akun pimpinan tidak menerima tugas. Kolam sesuai kriteria: ' + fmt(p.kolamCocok) + ' data. Tidak ikut: sudah masuk batch pembayaran ' + fmt(dk.sudahDibayar) + ', sedang di paket lain ' + fmt(dk.sedangDitugaskan) + ', sudah pernah diverifikasi ulang ' + fmt(dk.sudahDiperiksaUlang) + '.</div>' +
+      '<div class="vua-pesan info">Akun pimpinan tidak menerima tugas. Kolam sesuai kriteria: ' + fmt(p.kolamCocok) + ' data. Tidak ikut: sudah masuk batch pembayaran ' + fmt(dk.sudahDibayar) + ', sedang di paket lain ' + fmt(dk.sedangDitugaskan) + ', sudah pernah diverifikasi ulang ' + fmt(dk.sudahDiperiksaUlang) + ', hasil verifikasi petugas verifikator ' + fmt(dk.hasilVerifikator) + ' (verifikasi ulang hanya untuk data hasil Admin).</div>' +
       (tt.jumlah ? '<div class="vua-pesan peringatan">' + fmt(tt.jumlah) + ' data tidak dapat dibagikan: ' + esc((tt.contoh || []).slice(0, 3).map(function (c) { return c.alasan; }).filter(function (x, i, a) { return a.indexOf(x) === i; }).join('; ')) + '</div>' : '') +
       '<div class="vua-dist" role="list">' + (p.perAkun || []).map(function (a) { return '<div role="listitem"><span title="' + esc(a.username) + '">' + esc(a.username) + '</span><div class="vua-bar"><i style="width:' + persen(a.jumlah, maks) + '%"></i></div><b style="text-align:right">' + fmt(a.jumlah) + '</b></div>'; }).join('') + '</div>' +
       '<div class="vua-cat" style="margin-top:8px">Benih ' + esc(p.benih) + '</div>';
@@ -239,11 +264,36 @@
     return h;
   }
 
+  function gambarBadge(o) {
+    var el = o.querySelector('#vua-badge'), cat = o.querySelector('#vua-badge-cat'); if (!el || !cat) return;
+    var s = st.sasaran, html = '', teks = '';
+    if (!s) { teks = st.sasaranStatus === 'gagal' ? 'Ringkasan sasaran gagal dimuat: ' + (st.sasaranPesan || '') : 'Memuat ringkasan sasaran…'; }
+    else {
+      html = kartuSasaran(s).map(function (k) {
+        return '<div class="vua-bk' + (k.kunci === 'sasaran' ? ' utama' : '') + '"><div class="vua-cat">' + esc(k.label) + '</div><b>' + fmt(k.nilai) + '</b>' + (k.catatan ? '<div class="vua-cat">' + esc(k.catatan) + '</div>' : '') + '</div>';
+      }).join('');
+      teks = catatanSasaran(s) + (st.sasaranStatus === 'gagal' ? ' Gagal memperbarui (' + (st.sasaranPesan || 'galat') + '): angka di atas mungkin belum terbaru.' : '');
+    }
+    // hanya tulis ulang bila berubah (wilayah aria-live tidak diumumkan ulang tiap gambar())
+    if (el.__isi !== html) { el.innerHTML = html; el.__isi = html; }
+    if (cat.textContent !== teks) cat.textContent = teks;
+  }
+  function muatSasaran() {
+    // Nomor urut: jawaban yang lebih lama (tiba terlambat) tidak boleh menimpa yang lebih baru.
+    var urut = st.sasaranUrut = (st.sasaranUrut || 0) + 1;
+    return rpc('getRingkasanSasaranUlang', []).then(function (r) {
+      if (urut !== st.sasaranUrut) return;
+      if (!r || r.sukses !== true) throw new Error((r && r.pesan) || 'Gagal memuat ringkasan sasaran.');
+      st.sasaran = r; st.sasaranStatus = 'ok';
+    }).catch(function (e) { if (urut !== st.sasaranUrut) return; st.sasaranStatus = 'gagal'; st.sasaranPesan = e.message; }).then(function () { var o = dok.getElementById(ID); if (o) gambarBadge(o); });
+  }
+
   function gambar() {
     var o = dok.getElementById(ID); if (!o) return;
     var aktifEl = dok.activeElement, idFokus = aktifEl && o.contains(aktifEl) ? aktifEl.id : '';
     var pos = aktifEl && aktifEl.selectionStart != null ? aktifEl.selectionStart : null;
     var tab = [['buat', 'Buat paket'], ['paket', 'Paket berjalan'], ['koreksi', 'Daftar koreksi']];
+    gambarBadge(o);
     o.querySelector('#vua-tab').innerHTML = tab.map(function (t) { return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' + (st.tab === t[0]) + '">' + t[1] + '</button>'; }).join('');
     o.querySelector('#vua-isi').innerHTML = st.tab === 'buat' ? htmlBuat() : (st.tab === 'paket' ? htmlPaket() : htmlKoreksi());
     if (idFokus) { var e = o.querySelector('#' + idFokus); if (e && e.focus) { try { e.focus(); if (pos != null && e.setSelectionRange) e.setSelectionRange(pos, pos); } catch (_e) { /* abaikan */ } } }
@@ -295,6 +345,7 @@
       if (!r || r.sukses !== true) throw new Error((r && r.pesan) || 'Gagal membuat paket.');
       toast(r.pesan || 'Paket tugas dibuat.', 'sukses');
       st.pratinjau = null; st.sidikPratinjau = ''; st.form.nama = ''; st.form.benih = ''; st.bagi = false;
+      muatSasaran();
       pindahTab('paket');
     }).catch(function (e) { st.bagi = false; st.status = 'gagal'; st.pesan = e.message; gambar(); });
   }
@@ -329,7 +380,7 @@
     rpc('batalkanBatchUlang', [id]).then(function (r) {
       st.konfirmasiBatal = 0;
       if (!r || r.sukses !== true) { st.info[id] = { teks: (r && r.pesan) || 'Gagal membatalkan.', jenis: 'gagal' }; gambar(); return; }
-      toast(r.pesan || 'Paket dibatalkan.', 'sukses'); return muatPaket();
+      toast(r.pesan || 'Paket dibatalkan.', 'sukses'); muatSasaran(); return muatPaket();
     }).catch(function (e) { st.konfirmasiBatal = 0; st.info[id] = { teks: e.message, jenis: 'gagal' }; gambar(); });
   }
   function batalKoreksi(id) {
@@ -356,7 +407,7 @@
     if (dok.getElementById(ID)) return;
     st.pembuka = pembuka || dok.activeElement; st.tab = 'buat'; st.pratinjau = null; st.sidikPratinjau = ''; st.status = 'idle'; st.pesan = ''; st.paket = null; st.koreksi = null; st.info = {}; st.konfirmasiBatal = 0; st.bukaBatalKoreksi = 0; st.pesanKoreksi = '';
     var o = dok.createElement('div'); o.id = ID; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-labelledby', 'vua-judul');
-    o.innerHTML = '<div class="vua-kotak"><div class="vua-kepala"><div><h2 id="vua-judul">Verifikasi Ulang</h2><div class="vua-sub">Paket tugas verifikasi ulang data yang sudah terverifikasi</div></div><button type="button" class="vua-tutup" id="vua-tutup" aria-label="Tutup">✕</button></div><div class="vua-tab" id="vua-tab" role="tablist"></div><div class="vua-isi" id="vua-isi"></div></div>';
+    o.innerHTML = '<div class="vua-kotak"><div class="vua-kepala"><div><h2 id="vua-judul">Verifikasi Ulang</h2><div class="vua-sub">Paket tugas verifikasi ulang data yang sudah terverifikasi</div></div><button type="button" class="vua-tutup" id="vua-tutup" aria-label="Tutup">✕</button></div><div class="vua-badge" id="vua-badge" role="status" aria-live="polite"></div><div class="vua-badge-cat" id="vua-badge-cat"></div><div class="vua-tab" id="vua-tab" role="tablist"></div><div class="vua-isi" id="vua-isi"></div></div>';
     dok.body.appendChild(o);
     o.addEventListener('mousedown', function (e) { if (e.target === o) tutup(); });
     o.addEventListener('click', function (e) {
@@ -386,7 +437,8 @@
     });
     o.addEventListener('change', function (e) { if (st.tab === 'buat' && e.target && e.target.type === 'checkbox') { ambilForm(); gambar(); } });
     dok.addEventListener('keydown', saatTombol, true);
-    gambar(); muatLayanan();
+    st.sasaran = null; st.sasaranStatus = 'muat';
+    gambar(); muatLayanan(); muatSasaran();
     var b = dok.getElementById('vua-tutup'); if (b) b.focus();
   }
   api.buka = bukaPanel;

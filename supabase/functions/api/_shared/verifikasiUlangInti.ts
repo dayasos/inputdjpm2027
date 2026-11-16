@@ -123,6 +123,14 @@ export function cekSimpanHasil(m: MasukanSimpanHasil): HasilCek {
   return { ok: true, hasil: "DIKOREKSI", statusSesudah, alasan, daftarPeriksa: daftar };
 }
 
+/**
+ * V12 (2026-11-16): sasaran verifikasi ulang adalah data yang BUKAN hasil verifikasi petugas verifikator (yaitu hasil verifikasi Admin, termasuk verifikasi massal
+ * sebelum tim verifikator ada). Data yang pernah diberi hasil oleh akun verifikator (hasil pertama atau terakhir) tidak masuk kolam. Akun verifikator = username berawalan "VERIF_".
+ */
+export function adalahAkunVerifikator(username: unknown): boolean {
+  return String(username == null ? "" : username).trim().toUpperCase().startsWith("VERIF_");
+}
+
 /** V11: akun pimpinan yang TIDAK pernah menerima tugas verifikasi ulang. Ditegakkan server; tidak dapat ditimpa dari layar. */
 export const PENGECUALIAN_ULANG: ReadonlyArray<string> = [
   "verif_ronald_fredy", "verif_fery_suhery", "verif_khoiruddin", "verif_amy_pratiwi", "verif_netty_abdiati",

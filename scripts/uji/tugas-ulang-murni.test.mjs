@@ -154,3 +154,22 @@ test("KABEL: modul terdaftar per peran yang tepat (Admin hanya UTAMA, petugas ha
     assert.doesNotMatch(src, /\bconfirm\(|\balert\(|\bprompt\(/, f + ": tanpa dialog bawaan browser");
   }
 });
+
+test("BADGE SASARAN (Admin): empat kartu dari jawaban server; nilai negatif/teks dinormalkan; jawaban gagal -> tanpa kartu; catatan menyebut yang tidak ikut", () => {
+  const r = { sukses: true, sasaran: 7416, sedangDitugaskan: 5, sudahDiperiksa: 9, sisa: 7402, hasilVerifikator: 1798, sudahDibayar: 3 };
+  const k = A.kartuSasaran(r);
+  assert.deepEqual(k.map((x) => x.kunci), ["sasaran", "ditugaskan", "selesai", "sisa"]);
+  assert.deepEqual(k.map((x) => x.nilai), [7416, 5, 9, 7402]);
+  assert.deepEqual(A.kartuSasaran({ sukses: true, sasaran: "x", sedangDitugaskan: -4, sudahDiperiksa: null, sisa: undefined }).map((x) => x.nilai), [0, 0, 0, 0]);
+  assert.deepEqual(A.kartuSasaran({ sukses: false }), []);
+  assert.deepEqual(A.kartuSasaran(null), []);
+  assert.match(A.catatanSasaran(r), /1\.798 data hasil verifikasi petugas verifikator dan 3 data yang sudah masuk batch pembayaran/);
+  assert.equal(A.catatanSasaran({ sukses: false }), "");
+});
+
+test("BADGE SASARAN: jawaban lama yang tiba terlambat tidak menimpa yang baru (nomor urut) dan hanya menulis ulang bila berubah", () => {
+  const src = fs.readFileSync(new URL("../../public/js/app-verifikasi-ulang-admin.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+  assert.match(src, /var urut = st\.sasaranUrut = \(st\.sasaranUrut \|\| 0\) \+ 1;/);
+  assert.equal((src.match(/if \(urut !== st\.sasaranUrut\) return;/g) || []).length, 2, "dicek pada jawaban sukses dan pada galat");
+  assert.match(src, /el\.__isi !== html/);
+});

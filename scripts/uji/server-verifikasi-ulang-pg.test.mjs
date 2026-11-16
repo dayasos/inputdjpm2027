@@ -55,7 +55,8 @@ async function siap({ ms = 60, btl = 4, proses = 5, verifOleh = {} } = {}) {
   globalThis.__ujiSesi = Object.fromEntries(NAMA.map((n) => [TOKEN[n], { akunId: ID[n], username: n, role: n === "admin" ? "UTAMA" : n === "kec_x" ? "KECAMATAN" : "VERIFIKATOR", kecamatan: "", userId: "" }]));
   return db;
 }
-const buat = async (kriteria = {}) => UL.buatBatchUlang(TOKEN.admin, { benih: "BENIH-1", nama: "Paket uji", ...kriteria });
+const buat = async (kriteria = {}) => UL.buatBatchUlang(TOKEN.admin, { sertakanHasilVerifikator: true, benih: "BENIH-1", nama: "Paket uji", ...kriteria });
+const buatBawaan = async () => UL.buatBatchUlang(TOKEN.admin, { benih: "BAWAAN", nama: "Paket bawaan" });   // kriteria bawaan: aturan V12 berlaku
 
 test("MIGRASI ASLI: tabel ada, hak anon dicabut, idempoten; pemicu menolak ubah/hapus tugas SELESAI tetapi mengizinkan tugas belum selesai", opsi, async () => {
   const db = await siap();
@@ -79,7 +80,7 @@ test("PRATINJAU di Postgres: tidak menulis; V10/V11; data sudah dibayar dikeluar
   const db = await siap({ ms: 60, btl: 4, verifOleh: { VERIF_P1: 12 } });
   await db.query("insert into pembayaran_baris (tahun, nik) select 2027, nik from penerima where id = 1");
   const sebelum = (await db.query("select count(*)::int n from tugas_verifikasi_ulang")).rows[0].n;
-  const p = await UL.pratinjauBatchUlang(TOKEN.admin, { benih: "B1" });
+  const p = await UL.pratinjauBatchUlang(TOKEN.admin, { sertakanHasilVerifikator: true, benih: "B1" });
   assert.equal(p.sukses, true, JSON.stringify(p));
   assert.equal(p.dikeluarkan.sudahDibayar, 1);
   assert.equal(p.jumlahTugas, 59 + 4, "59 MS (1 dibayar dikeluarkan) + 4 BTL");
@@ -91,9 +92,9 @@ test("PRATINJAU di Postgres: tidak menulis; V10/V11; data sudah dibayar dikeluar
   assert.ok(Math.max(...msAkun) - Math.min(...msAkun) <= 1, "±1: " + msAkun);
   assert.equal((await db.query("select count(*)::int n from tugas_verifikasi_ulang")).rows[0].n, sebelum, "pratinjau tidak menulis");
   assert.equal((await db.query("select count(*)::int n from batch_verifikasi_ulang")).rows[0].n, 0);
-  const p2 = await UL.pratinjauBatchUlang(TOKEN.admin, { benih: "B1" });
+  const p2 = await UL.pratinjauBatchUlang(TOKEN.admin, { sertakanHasilVerifikator: true, benih: "B1" });
   assert.deepEqual(p2.perAkun, p.perAkun);
-  const p3 = await UL.pratinjauBatchUlang(TOKEN.admin, { benih: "B1", status: ["Berkas Tidak Lengkap"], layanan: ["imam masjid"] });
+  const p3 = await UL.pratinjauBatchUlang(TOKEN.admin, { sertakanHasilVerifikator: true, benih: "B1", status: ["Berkas Tidak Lengkap"], layanan: ["imam masjid"] });
   assert.equal(p3.jumlahTugas, 2, "saringan status + layanan (huruf kecil dinormalkan): BTL layanan IMAM MASJID");
 });
 
@@ -311,7 +312,7 @@ test("BATAL PAKET di Postgres: tugas belum selesai dihapus, yang SUDAH selesai t
 
 test("CEK PEMBAGIAN tetap benar bila ada data yang TIDAK TERBAGI (pengacakan memakai seluruh kolam, jadi data itu disimpan)", opsi, async () => {
   const db = await siap({ ms: 40, btl: 0, verifOleh: { VERIF_P1: 25 } });
-  const h = await UL.buatBatchUlang(TOKEN.admin, { benih: "TT", nama: "Hanya P1", pemeriksa: ["verif_p1"] });   // P1 satu-satunya pemeriksa: 25 data buatannya sendiri tidak bisa dibagikan (V1)
+  const h = await UL.buatBatchUlang(TOKEN.admin, { sertakanHasilVerifikator: true, benih: "TT", nama: "Hanya P1", pemeriksa: ["verif_p1"] });   // P1 satu-satunya pemeriksa: 25 data buatannya sendiri tidak bisa dibagikan (V1)
   assert.equal(h.sukses, true, JSON.stringify(h));
   assert.equal(h.jumlahTugas, 15);
   assert.equal(h.tidakTerbagi, 25); assert.match(h.pesan, /25 data tidak dapat dibagikan/);
@@ -320,7 +321,7 @@ test("CEK PEMBAGIAN tetap benar bila ada data yang TIDAK TERBAGI (pengacakan mem
   assert.equal(cek.sama, true, "hitung ulang harus sama walau ada data tidak terbagi");
   const k = (await db.query("select kriteria from batch_verifikasi_ulang")).rows[0].kriteria;
   assert.equal(k.tidakTerbagiButir.length, 25);
-  const tanpa = await UL.pratinjauBatchUlang(TOKEN.admin, { benih: "TT", pemeriksa: ["verif_p1"] });
+  const tanpa = await UL.pratinjauBatchUlang(TOKEN.admin, { sertakanHasilVerifikator: true, benih: "TT", pemeriksa: ["verif_p1"] });
   assert.equal(tanpa.tidakTerbagi.jumlah, 25);
 });
 
@@ -329,7 +330,7 @@ test("CEK PEMBAGIAN dengan DUA pemeriksa dan data yang tak terbagi di tengah kol
   // 12 data lagi juga pernah diverifikasi VERIF_P2 -> pemeriksa [P1, P2] tidak ada yang boleh memeriksanya (tak terbagi)
   const ids = (await db.query("select id from penerima where diverifikasi_oleh = 'VERIF_P1' order by id limit 12")).rows.map((r) => r.id);
   for (const i of ids) await db.query("insert into riwayat_verifikasi (penerima_id, tahun, status_lama, status_baru, oleh, sumber) values ($1, 2027, 'Proses Verifikasi', 'Memenuhi Syarat', 'VERIF_P2', 'SATU')", [i]);
-  const h = await UL.buatBatchUlang(TOKEN.admin, { benih: "DUA-P", nama: "Dua pemeriksa", pemeriksa: ["verif_p1", "verif_p2"] });
+  const h = await UL.buatBatchUlang(TOKEN.admin, { sertakanHasilVerifikator: true, benih: "DUA-P", nama: "Dua pemeriksa", pemeriksa: ["verif_p1", "verif_p2"] });
   assert.equal(h.sukses, true, JSON.stringify(h));
   assert.equal(h.tidakTerbagi, 12);
   assert.equal(h.jumlahTugas, 48);
@@ -375,7 +376,7 @@ test("JSON di Postgres: data tak terbagi pada paket terenkode ganda tetap ikut h
   const db = await siap({ ms: 60, btl: 0, verifOleh: { VERIF_P1: 30 } });
   const ids = (await db.query("select id from penerima where diverifikasi_oleh = 'VERIF_P1' order by id limit 12")).rows.map((r) => r.id);
   for (const i of ids) await db.query("insert into riwayat_verifikasi (penerima_id, tahun, status_lama, status_baru, oleh, sumber) values ($1, 2027, 'Proses Verifikasi', 'Memenuhi Syarat', 'VERIF_P2', 'SATU')", [i]);
-  const h = await UL.buatBatchUlang(TOKEN.admin, { benih: "ENKODE", nama: "Dua", pemeriksa: ["verif_p1", "verif_p2"] });
+  const h = await UL.buatBatchUlang(TOKEN.admin, { sertakanHasilVerifikator: true, benih: "ENKODE", nama: "Dua", pemeriksa: ["verif_p1", "verif_p2"] });
   assert.equal(h.tidakTerbagi, 12);
   await db.query("update batch_verifikasi_ulang set kriteria = to_jsonb(kriteria::text), pemeriksa = to_jsonb(pemeriksa::text), pengecualian = to_jsonb(pengecualian::text)");
   const cek = await UL.cekPembagianBatchUlang(TOKEN.admin, h.batchId);
@@ -575,4 +576,88 @@ test("LENCANA (getRingkasanVerifikasiSaya): hasil VERIFIKASI ULANG ikut dihitung
   assert.equal(lain.ulang.total, 0, "hasil orang lain tidak ikut");
   // sama dengan angka yang dipakai agregat (sumber tugas selesai, 1 kali per data)
   assert.equal((await db.query("select count(distinct penerima_id)::int n from tugas_verifikasi_ulang where akun_id = $1 and selesai_pada is not null", [ID.verif_p2])).rows[0].n, bd.ulang.total);
+});
+
+test("V12: data hasil verifikasi petugas VERIFIKATOR (pemverifikasi terakhir ATAU hasil pertama oleh verifikator) TIDAK pernah masuk paket; data hasil Admin tetap masuk; layar tidak punya cara menyertakannya", opsi, async () => {
+  const db = await siap({ ms: 60, btl: 4, verifOleh: { VERIF_P1: 20 } });   // 20 MS diverifikasi VERIF_P1 (kolom pemverifikasi + riwayat)
+  // 5 data MS hasil Admin yang PERNAH diberi hasil pertama oleh verifikator lalu diubah Admin (kolom pemverifikasi = ADMIN, riwayat SATU = verifikator)
+  const adminIds = (await db.query("select id from penerima where status_verifikasi = 'Memenuhi Syarat' and diverifikasi_oleh = 'ADMIN' order by id limit 5")).rows.map((r) => Number(r.id));
+  for (const id of adminIds) await db.query("insert into riwayat_verifikasi (penerima_id, tahun, status_lama, status_baru, oleh, sumber) values ($1, 2027, 'Proses Verifikasi', 'Berkas Tidak Lengkap', 'VERIF_P2', 'SATU')", [id]);
+  // 1 data BTL hasil verifikator
+  const btlId = Number((await db.query("select id from penerima where status_verifikasi = 'Berkas Tidak Lengkap' order by id limit 1")).rows[0].id);
+  await db.query("update penerima set diverifikasi_oleh = 'VERIF_P3' where id = $1", [btlId]);
+  const dikecualikan = new Set([...(await db.query("select id from penerima where diverifikasi_oleh = 'VERIF_P1'")).rows.map((r) => Number(r.id)), ...adminIds, btlId]);
+  assert.equal(dikecualikan.size, 26);
+
+  const p = await UL.pratinjauBatchUlang(TOKEN.admin, { benih: "V12" });   // kriteria bawaan: tanpa opsi apa pun
+  assert.equal(p.sukses, true, JSON.stringify(p));
+  assert.equal(p.dikeluarkan.hasilVerifikator, 26, JSON.stringify(p.dikeluarkan));
+  assert.equal(p.jumlahTugas, 64 - 26, "60 MS + 4 BTL dikurangi 26 data hasil verifikator");
+
+  const h = await UL.buatBatchUlang(TOKEN.admin, { benih: "V12", nama: "Hanya hasil Admin" });
+  assert.equal(h.sukses, true, JSON.stringify(h));
+  const masuk = (await db.query("select penerima_id from tugas_verifikasi_ulang")).rows.map((r) => Number(r.penerima_id));
+  assert.equal(masuk.length, 64 - 26);
+  assert.ok(masuk.every((id) => !dikecualikan.has(id)), "tidak ada data hasil verifikator di dalam tugas");
+  assert.ok((await db.query("select penerima_id from tugas_verifikasi_ulang t join penerima p on p.id = t.penerima_id where upper(p.diverifikasi_oleh) like 'VERIF\_%'")).rows.length === 0);
+  const kr = (await db.query("select kriteria from batch_verifikasi_ulang order by id desc limit 1")).rows[0].kriteria;
+  assert.equal(kr.sertakanHasilVerifikator, false, "tercatat di paket");
+
+  // kontrol: opsi sengaja (hanya lewat panggilan langsung/uji, tidak dikirim layar) menyertakannya
+  const db2 = await siap({ ms: 60, btl: 4, verifOleh: { VERIF_P1: 20 } });
+  const k = await UL.pratinjauBatchUlang(TOKEN.admin, { benih: "V12", sertakanHasilVerifikator: true });
+  assert.equal(k.jumlahTugas, 64); assert.equal(k.dikeluarkan.hasilVerifikator, 0);
+  void db2;
+});
+
+test("BADGE SASARAN (getRingkasanSasaranUlang): sasaran = final BUKAN hasil verifikator dan belum dibayar; sedang ditugaskan/selesai/sisa konsisten sebelum dan sesudah paket, selesai, dan pembatalan; hanya Admin Utama", opsi, async () => {
+  const db = await siap({ ms: 60, btl: 4, verifOleh: { VERIF_P1: 20 } });   // 64 final; 20 hasil verifikator
+  const bayarId = Number((await db.query("select id from penerima where diverifikasi_oleh = 'ADMIN' and status_verifikasi = 'Memenuhi Syarat' order by id limit 1")).rows[0].id);
+  await db.query("insert into pembayaran_baris (tahun, nik) select 2027, nik from penerima where id = $1", [bayarId]);
+  const a = await UL.getRingkasanSasaranUlang(TOKEN.admin);
+  assert.equal(a.sukses, true, JSON.stringify(a));
+  assert.deepEqual([a.finalTotal, a.hasilVerifikator, a.sudahDibayar, a.sasaran, a.sudahDiperiksa, a.sedangDitugaskan, a.sisa], [64, 20, 1, 43, 0, 0, 43]);
+  // "Sisa" di badge HARUS sama dengan kolam yang dipakai pratinjau/pembuatan paket (dua jalur hitung berbeda, satu aturan)
+  const pr = await UL.pratinjauBatchUlang(TOKEN.admin, { benih: "SAMA" });
+  assert.equal(pr.kolamCocok, a.sisa, "badge.sisa = pratinjau.kolamCocok (sebelum paket)");
+  // paket (bawaan: hanya hasil Admin yang belum dibayar) -> semua sasaran jadi tugas aktif
+  const h = await buatBawaan();
+  assert.equal(h.sukses, true, JSON.stringify(h));
+  const b = await UL.getRingkasanSasaranUlang(TOKEN.admin);
+  assert.deepEqual([b.sasaran, b.sedangDitugaskan, b.sudahDiperiksa, b.sisa], [43, 43, 0, 0], "angka badge = isi paket (pratinjau/paket memakai aturan yang sama)");
+  assert.equal(h.jumlahTugas, b.sedangDitugaskan);
+  // tugas yang paketnya TIDAK aktif (mis. paket sudah SELESAI/DIBATALKAN tetapi tugas belum ditarik) bukan "sedang ditugaskan": data itu kembali jadi sisa
+  await db.query("update batch_verifikasi_ulang set status = 'SELESAI' where id = (select max(id) from batch_verifikasi_ulang)");
+  const nonaktif = await UL.getRingkasanSasaranUlang(TOKEN.admin);
+  assert.deepEqual([nonaktif.sedangDitugaskan, nonaktif.sisa], [0, 43], "paket tidak aktif tidak dihitung sebagai ditugaskan");
+  await db.query("update batch_verifikasi_ulang set status = 'AKTIF' where id = (select max(id) from batch_verifikasi_ulang)");
+  // satu tugas selesai
+  const tg = (await UL.getTugasUlangSaya(TOKEN.verif_p2)).tugas[0] || (await UL.getTugasUlangSaya(TOKEN.verif_p3)).tugas[0];
+  const pemilik = (await db.query("select a.username from tugas_verifikasi_ulang t join akun a on a.id = t.akun_id where t.id = $1", [tg.tugasId])).rows[0].username;
+  const tokenPemilik = TOKEN[pemilik];
+  await UL.bukaTugasUlang(tokenPemilik, tg.tugasId);
+  for (const k of ["link_ktp", "link_buku_rekening"]) await UL.catatBerkasDibuka(tokenPemilik, tg.tugasId, k);
+  const s = await UL.simpanHasilUlang(tokenPemilik, tg.tugasId, { hasil: "SESUAI", centang: { link_ktp: true, link_buku_rekening: true } });
+  assert.equal(s.sukses, true, JSON.stringify(s));
+  const c = await UL.getRingkasanSasaranUlang(TOKEN.admin);
+  assert.deepEqual([c.sasaran, c.sedangDitugaskan, c.sudahDiperiksa, c.sisa], [43, 42, 1, 0]);
+  // paket dibatalkan: yang belum selesai kembali jadi sisa; yang sudah selesai tetap diperiksa
+  const idPaket = Number((await db.query("select id from batch_verifikasi_ulang order by id desc limit 1")).rows[0].id);
+  assert.equal((await UL.batalkanBatchUlang(TOKEN.admin, idPaket)).sukses, true);
+  const d = await UL.getRingkasanSasaranUlang(TOKEN.admin);
+  assert.deepEqual([d.sasaran, d.sedangDitugaskan, d.sudahDiperiksa, d.sisa], [43, 0, 1, 42]);
+  assert.equal((await UL.pratinjauBatchUlang(TOKEN.admin, { benih: "SAMA2" })).kolamCocok, d.sisa, "badge.sisa = pratinjau.kolamCocok (sesudah paket dibatalkan dan 1 selesai)");
+  // peran lain ditolak
+  for (const t of [TOKEN.verif_p2, TOKEN.kec_x]) {
+    const x = await UL.getRingkasanSasaranUlang(t);
+    assert.equal(x.sukses, false); assert.match(x.pesan, /khusus Admin Utama/);
+  }
+});
+
+test("V12 di kode: layar Admin tidak mengirim 'sertakanHasilVerifikator' dan bawaan server = dikecualikan", () => {
+  const layar = baca("public/js/app-verifikasi-ulang-admin.js");
+  assert.doesNotMatch(layar, /sertakanHasilVerifikator/, "layar tidak punya jalan untuk menyertakan data hasil verifikator");
+  const server = baca("supabase/functions/api/domains/verifikasiUlang.ts");
+  assert.match(server, /const sertakanHasilVerif = k\.sertakanHasilVerifikator === true;/, "hanya true persis yang menyertakan");
+  assert.match(server, /starts_with\(upper\(oleh\), 'VERIF_'\)/);
 });
