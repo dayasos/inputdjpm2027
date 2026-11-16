@@ -43,6 +43,8 @@ export const AKSI_VERIFIKATOR: ReadonlySet<string> = new Set([
   "simpanHasilUlang",
   // Verifikasi Awal bagi rata (plans/plan-verifikasi-awal-bagi-rata.md): hanya tugas MILIK akun sendiri; pemilik diperiksa di domains/verifikasiAwal.ts
   "getTugasAwalSaya",
+  // Penanda koordinat Guru Maghrib Mengaji (hanya membaca; domains/cekKoordinat.ts memeriksa role sendiri)
+  "getPenandaKoordinat",
 ]);
 
 export const PESAN_VERIFIKATOR_DITOLAK =
