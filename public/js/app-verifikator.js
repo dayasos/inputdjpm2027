@@ -128,17 +128,21 @@
     }
     var nama = String(pengguna.username || '').toUpperCase();
     if (!ringkasan) {
-      var pesan = gagalMuat ? 'Verifikasi saya: gagal dimuat · ketuk untuk ulang' : 'Verifikasi saya: memuat…';
+      var pesan = gagalMuat ? 'Verifikasi: gagal dimuat · ketuk untuk ulang' : 'Verifikasi: memuat…';
       if (el.__isi !== '#' + pesan) { el.textContent = pesan; el.__isi = '#' + pesan; }
       return;
     }
-    var kepala = '<div>✔ Verifikasi saya: <b>' + angka(ringkasan.total) + '</b> · Hari ini: <b>' + angka(ringkasan.hariIni) + '</b></div>' +
+    // Verifikasi Awal dan Verifikasi Ulang dihitung terpisah; baris Ulang hanya tampil bila sudah ada yang diselesaikan (akun yang hanya memeriksa ulang tidak punya Verifikasi Awal)
+    var ul = ringkasan.ulang || null, adaUlang = !!(ul && Number(ul.total) > 0);
+    var kepala = '<div>✔ Verifikasi Awal: <b>' + angka(ringkasan.total) + '</b> · Hari ini: <b>' + angka(ringkasan.hariIni) + '</b></div>' +
+      (adaUlang ? '<div>🔁 Verifikasi Ulang: <b>' + angka(ul.total) + '</b> · Hari ini: <b>' + angka(ul.hariIni) + '</b></div>' : '') +
       '<div style="margin-top:2px;font-weight:500"><a href="#" data-agr="1" style="color:#8fd3ff;text-decoration:underline">Lihat hasil kerja \u2192</a></div>';
     var rinci = terbuka
       ? '<div style="margin-top:6px;font-weight:500;color:#cbd5e1">' +
         '<div>Memenuhi Syarat: ' + angka(ringkasan.memenuhiSyarat) + '</div>' +
         '<div>Berkas Tidak Lengkap: ' + angka(ringkasan.berkasTidakLengkap) + '</div>' +
         '<div>Tidak Memenuhi Syarat: ' + angka(ringkasan.tidakMemenuhiSyarat) + '</div>' +
+        (adaUlang ? '<div style="margin-top:4px">Hasil verifikasi ulang: Sesuai ' + angka(ul.sesuai) + ' · Dikoreksi ' + angka(ul.dikoreksi) + '</div>' : '') +
         '<div style="margin-top:4px;font-size:11px;color:#94a3b8">Akun: ' + nama.replace(/[<>&"']/g, '') + ' · ketuk untuk menutup</div></div>'
       : '';
     var isi = kepala + rinci;

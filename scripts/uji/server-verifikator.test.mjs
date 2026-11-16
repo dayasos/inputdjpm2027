@@ -384,7 +384,7 @@ test("BADGE: ringkasan verifikasi saya hanya milik akun yang login, hanya UTAMA/
     return dasar(q, v);
   };
   const h = await verifikasi.getRingkasanVerifikasiSaya(token());
-  assert.deepEqual(h, { sukses: true, total: 7, hariIni: 2, memenuhiSyarat: 4, berkasTidakLengkap: 2, tidakMemenuhiSyarat: 1 });
+  assert.deepEqual(h, { sukses: true, total: 7, hariIni: 2, memenuhiSyarat: 4, berkasTidakLengkap: 2, tidakMemenuhiSyarat: 1, ulang: { total: 0, hariIni: 0, sesuai: 0, dikoreksi: 0 } });
   assert.ok(kueri.v.includes("VERIF_ANDI"), "disaring menurut username akun yang login (huruf besar)");
   assert.ok(kueri.v.includes(2027), "tahun aktif");
   assert.ok(kueri.q.includes("oleh = ") && kueri.q.includes("sumber = 'SATU'"), "disaring menurut pemverifikator dan hanya pemberian hasil (SATU)");

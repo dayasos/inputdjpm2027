@@ -42,6 +42,26 @@ export async function getRingkasanVerifikasiSaya(token: string) {
         order by penerima_id, waktu
       ) x`;
     const r = rows[0] || {};
+    // Verifikasi ULANG (tugas yang selesai oleh akun ini): sumber dan aturan hitung SAMA dengan agregat (1 kali per data per pemeriksa). Akun yang hanya mengerjakan
+    // verifikasi ulang (mis. pemeriksa khusus BTL/TMS) tidak punya Verifikasi Awal, jadi tanpa ini lencananya selalu 0. Gagal/tidak ada tabel -> 0, lencana tetap tampil.
+    const ulang = { total: 0, hariIni: 0, sesuai: 0, dikoreksi: 0 };
+    try {
+      if (sesi.akunId) {
+        const u = await sql`
+          select count(*)::int as total,
+            count(*) filter (where (waktu at time zone 'Asia/Jakarta')::date = (now() at time zone 'Asia/Jakarta')::date)::int as hari_ini,
+            count(*) filter (where hasil = 'SESUAI')::int as sesuai,
+            count(*) filter (where hasil = 'DIKOREKSI')::int as dikoreksi
+          from (
+            select distinct on (t.penerima_id) t.selesai_pada as waktu, t.hasil
+            from tugas_verifikasi_ulang t
+            where t.akun_id = ${String(sesi.akunId)}::uuid and t.tahun = ${TAHUN_AKTIF} and t.selesai_pada is not null and t.hasil is not null
+            order by t.penerima_id, t.selesai_pada
+          ) x`;
+        const x = (u[0] || {}) as Record<string, unknown>;
+        ulang.total = Number(x.total) || 0; ulang.hariIni = Number(x.hari_ini) || 0; ulang.sesuai = Number(x.sesuai) || 0; ulang.dikoreksi = Number(x.dikoreksi) || 0;
+      }
+    } catch (_e) { /* abaikan: angka verifikasi ulang 0 */ }
     return {
       sukses: true,
       total: Number(r.total) || 0,
@@ -49,6 +69,7 @@ export async function getRingkasanVerifikasiSaya(token: string) {
       memenuhiSyarat: Number(r.ms) || 0,
       berkasTidakLengkap: Number(r.btl) || 0,
       tidakMemenuhiSyarat: Number(r.tms) || 0,
+      ulang,
     };
   } catch (error) {
     return { sukses: false, pesan: error instanceof Error ? error.message : String(error) };

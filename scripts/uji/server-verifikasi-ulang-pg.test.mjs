@@ -10,6 +10,7 @@ const lewati = PGlite ? false : "PGlite tidak tersedia (npm install --no-save @e
 if (!PGlite) console.log("DILEWATI: " + lewati);
 const UL = PGlite ? await muatServerPg("supabase/functions/api/domains/verifikasiUlang.ts", { stub: ["dataDetail.ts"] }) : null;
 const PE = PGlite ? await muatServerPg("supabase/functions/api/domains/pembagianUlangExcel.ts") : null;
+const VF = PGlite ? await muatServerPg("supabase/functions/api/domains/verifikasi.ts", { stub: ["dataDetail.ts"] }) : null;
 const opsi = { skip: lewati };
 const baca = (p) => fs.readFileSync(new URL("../../" + p, import.meta.url), "utf8");
 
@@ -546,4 +547,32 @@ test("DAFTAR TUGAS: 'semua' memuat SEMUA tugas aktif milik sendiri (lebih dari 5
   assert.equal(buka.penerimaId, luar.penerimaId);
   const orang = await UL.getTugasUlangSaya(TOKEN.verif_p3);
   assert.ok(!orang.semua.some((x) => punyaP2.has(x.tugasId)), "tugas orang lain tidak bocor");
+});
+
+test("LENCANA (getRingkasanVerifikasiSaya): hasil VERIFIKASI ULANG ikut dihitung terpisah dari Verifikasi Awal; akun tanpa Verifikasi Awal tidak lagi selalu 0; 1 data = 1 hitungan; milik orang lain tidak ikut", opsi, async () => {
+  const db = await siap({ ms: 60, btl: 0 });
+  await buat();
+  const kosong = await VF.getRingkasanVerifikasiSaya(TOKEN.verif_p2);
+  assert.equal(kosong.sukses, true, JSON.stringify(kosong));
+  assert.deepEqual(kosong.ulang, { total: 0, hariIni: 0, sesuai: 0, dikoreksi: 0 }, "belum ada yang selesai");
+  const d = await UL.getTugasUlangSaya(TOKEN.verif_p2);
+  const selesaikan = async (tg, hasil) => {
+    await UL.bukaTugasUlang(TOKEN.verif_p2, tg.tugasId);
+    for (const k of ["link_ktp", "link_buku_rekening"]) await UL.catatBerkasDibuka(TOKEN.verif_p2, tg.tugasId, k);
+    const masuk = hasil === "SESUAI"
+      ? { hasil: "SESUAI", centang: { link_ktp: true, link_buku_rekening: true } }
+      : { hasil: "DIKOREKSI", statusSesudah: "Tidak Memenuhi Syarat", alasan: "berkas tidak sesuai", centang: { link_ktp: true, link_buku_rekening: true } };
+    const s = await UL.simpanHasilUlang(TOKEN.verif_p2, tg.tugasId, masuk);
+    assert.equal(s.sukses, true, JSON.stringify(s));
+  };
+  await selesaikan(d.tugas[0], "SESUAI");
+  await selesaikan(d.tugas[1], "SESUAI");
+  await selesaikan(d.tugas[2], "DIKOREKSI");
+  const bd = await VF.getRingkasanVerifikasiSaya(TOKEN.verif_p2);
+  assert.deepEqual(bd.ulang, { total: 3, hariIni: 3, sesuai: 2, dikoreksi: 1 });
+  assert.equal(bd.total, 0, "Verifikasi Awal tetap terpisah: akun ini belum punya");
+  const lain = await VF.getRingkasanVerifikasiSaya(TOKEN.verif_p3);
+  assert.equal(lain.ulang.total, 0, "hasil orang lain tidak ikut");
+  // sama dengan angka yang dipakai agregat (sumber tugas selesai, 1 kali per data)
+  assert.equal((await db.query("select count(distinct penerima_id)::int n from tugas_verifikasi_ulang where akun_id = $1 and selesai_pada is not null", [ID.verif_p2])).rows[0].n, bd.ulang.total);
 });

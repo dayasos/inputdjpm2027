@@ -166,7 +166,7 @@ try {
   cek("Sesudah profil: modul verifikator dimuat", skripDimuat.some((u) => /app-verifikator\.js/.test(u)), JSON.stringify(skripDimuat.map((u) => u.split("/").pop())));
   cek("Sesudah profil: tab Input tersembunyi dan Lihat Data tampil", (await tampil("tab-input")) === "tersembunyi" && (await tampil("panel-rekap")) === "tampil");
   const badge = await js("(document.getElementById('djpm-badge-verifikasi') || {}).textContent || ''");
-  cek("Sesudah profil: badge 'Verifikasi saya' tampil dengan angka dari server", /Verifikasi saya: 12/.test(badge), JSON.stringify(badge));
+  cek("Sesudah profil: badge 'Verifikasi Awal' tampil dengan angka dari server", /Verifikasi Awal: 12/.test(badge), JSON.stringify(badge));
   const luar = [...aksiDipanggil.keys()].filter((a) => !AKSI_VERIFIKATOR.has(a));
   cek("Seluruh aksi selama login pertama (login, profil, status input, dst.) ada di daftar-putih server", luar.length === 0, "di luar daftar: " + luar.join(", ") + " | dipanggil: " + [...aksiDipanggil.keys()].join(", "));
   cek("Tidak ada galat JavaScript selama login pertama", galatJs.length === 0, galatJs.slice(0, 3).join(" | "));

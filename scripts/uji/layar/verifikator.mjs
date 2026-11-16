@@ -23,6 +23,7 @@ let peran = "VERIFIKATOR";
 let detail = null;
 let tundaVerifikasiMs = 0;
 let ringkasanGagal = false, ringkasanTotal = 12, tundaRingkasanMs = 0;
+let ringkasanUlang = { total: 0, hariIni: 0, sesuai: 0, dikoreksi: 0 };
 let nomorBaris = 300;   // jawaban detail di-cache klien 2 menit per nomor baris
 const CORS = [{ name: "Access-Control-Allow-Origin", value: "*" }, { name: "Access-Control-Allow-Headers", value: "*" }, { name: "Access-Control-Allow-Methods", value: "*" }];
 
@@ -38,7 +39,7 @@ function jawab(aksi, args) {
   if (aksi === "getMasterLayanan") return { kecamatan: ["IMAM MASJID"], kemenag: ["GURU MAGHRIB MENGAJI"] };
   if (aksi === "ambilDetailPenerimaPerBaris") return { sukses: true, dataLengkap: detail };
   if (aksi === "ambilRiwayatEdit") return { sukses: true, riwayat: [] };
-  if (aksi === "getRingkasanVerifikasiSaya") return ringkasanGagal ? { sukses: false, pesan: "galat uji" } : { sukses: true, total: ringkasanTotal, hariIni: 3, memenuhiSyarat: 8, berkasTidakLengkap: 3, tidakMemenuhiSyarat: 1 };
+  if (aksi === "getRingkasanVerifikasiSaya") return ringkasanGagal ? { sukses: false, pesan: "galat uji" } : { sukses: true, total: ringkasanTotal, hariIni: 3, memenuhiSyarat: 8, berkasTidakLengkap: 3, tidakMemenuhiSyarat: 1, ulang: ringkasanUlang };
   if (aksi === "getTemplatAlasan") return { sukses: true, templat: [{ id: 1, status: "Berkas Tidak Lengkap", judul: "KTP buram", isi: "KTP BURAM", layanan: [], urutan: 1, aktif: true }], layananKecamatan: ["IMAM MASJID"], layananKemenag: ["GURU MAGHRIB MENGAJI"] };
   if (aksi === "verifikasiSatuData") { panggilan.push({ aksi, args }); return { sukses: true, pesan: "Status verifikasi berhasil disimpan.", status: args[2], keterangan: args[3], tanggal: "12-11-2026 10:00", verifikator: "VERIF_ANDI", namaLengkap: "Andi Saputra", batasWaktu: args[4] || "" }; }
   return { sukses: true };
@@ -174,7 +175,7 @@ try {
   // Badge melayang: agregat verifikasi akun yang login
   await tidur(1200);
   const badge = await js("(() => { const e = document.getElementById('djpm-badge-verifikasi'); if (!e) return null; const r = e.getBoundingClientRect(); return { teks: e.textContent.replace(/\\s+/g, ' ').trim(), tetap: getComputedStyle(e).position, terlihat: r.width > 0 && r.height > 0 }; })()");
-  cek("VERIFIKATOR: badge melayang tampil (posisi tetap) dengan total dan hari ini dari server", !!badge && badge.tetap === 'fixed' && badge.terlihat && /Verifikasi saya: 12/.test(badge.teks) && /Hari ini: 3/.test(badge.teks), JSON.stringify(badge));
+  cek("VERIFIKATOR: badge melayang tampil (posisi tetap) dengan total dan hari ini dari server", !!badge && badge.tetap === 'fixed' && badge.terlihat && /Verifikasi Awal: 12/.test(badge.teks) && /Hari ini: 3/.test(badge.teks), JSON.stringify(badge));
   await js("document.getElementById('djpm-badge-verifikasi').click(); true");
   const badge2 = await js("document.getElementById('djpm-badge-verifikasi').textContent.replace(/\\s+/g, ' ')");
   cek("VERIFIKATOR: ketuk badge membuka rincian per status", /Memenuhi Syarat: 8/.test(badge2) && /Berkas Tidak Lengkap: 3/.test(badge2) && /Tidak Memenuhi Syarat: 1/.test(badge2), JSON.stringify(badge2));
@@ -190,13 +191,23 @@ try {
   await js("(() => { const b = document.createElement('button'); b.id = 'btn-tandai-uji'; b.textContent = 'x'; b.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0'; document.body.appendChild(b); b.click(); return true; })()");
   await tidur(3500);
   const segar = await js("document.getElementById('djpm-badge-verifikasi').textContent.replace(/\\s+/g, ' ')");
-  cek("VERIFIKATOR: sesudah klik tombol verifikasi angka badge disegarkan dari server (13)", /Verifikasi saya: 13/.test(segar) && (aksiDipanggil.get('getRingkasanVerifikasiSaya') || 0) > sebelum, JSON.stringify(segar));
+  cek("VERIFIKATOR: sesudah klik tombol verifikasi angka badge disegarkan dari server (13)", /Verifikasi Awal: 13/.test(segar) && (aksiDipanggil.get('getRingkasanVerifikasiSaya') || 0) > sebelum, JSON.stringify(segar));
   ringkasanGagal = true;
   await js("document.getElementById('btn-tandai-uji').click(); true");
   await tidur(3500);
   const tahan = await js("document.getElementById('djpm-badge-verifikasi').textContent.replace(/\\s+/g, ' ')");
-  cek("VERIFIKATOR: server gagal -> badge tetap menampilkan angka terakhir yang benar (tidak kosong/rusak)", /Verifikasi saya: 13/.test(tahan), JSON.stringify(tahan));
+  cek("VERIFIKATOR: server gagal -> badge tetap menampilkan angka terakhir yang benar (tidak kosong/rusak)", /Verifikasi Awal: 13/.test(tahan), JSON.stringify(tahan));
   ringkasanGagal = false; ringkasanTotal = 12;
+  // Tanpa hasil verifikasi ulang: baris Verifikasi Ulang TIDAK tampil. Sesudah ada: tampil terpisah dari Verifikasi Awal, dengan rincian Sesuai/Dikoreksi.
+  cek("VERIFIKATOR: belum ada hasil verifikasi ulang -> tidak ada baris 'Verifikasi Ulang' di badge", !/Verifikasi Ulang/.test(await js("document.getElementById('djpm-badge-verifikasi').textContent")));
+  ringkasanUlang = { total: 6, hariIni: 2, sesuai: 5, dikoreksi: 1 };
+  await js("document.getElementById('btn-tandai-uji').click(); true");
+  await tidur(3500);
+  const adaUlang = await js("document.getElementById('djpm-badge-verifikasi').textContent.replace(/\\s+/g, ' ')");
+  cek("VERIFIKATOR: setelah ada hasil verifikasi ulang badge menampilkan baris terpisah 'Verifikasi Ulang: 6 · Hari ini: 2' di samping Verifikasi Awal", /Verifikasi Awal: 12/.test(adaUlang) && /Verifikasi Ulang: 6/.test(adaUlang) && /Hari ini: 2/.test(adaUlang), JSON.stringify(adaUlang));
+  const rinciUlang = await js("document.getElementById('djpm-badge-verifikasi').textContent.replace(/\\s+/g, ' ')");
+  cek("VERIFIKATOR: rincian memuat hasil verifikasi ulang (Sesuai 5 · Dikoreksi 1) bila badge dibuka", /Sesuai 5/.test(rinciUlang) || (await js("document.getElementById('djpm-badge-verifikasi').click(); true"), await tidur(300), /Sesuai 5 · Dikoreksi 1/.test(await js("document.getElementById('djpm-badge-verifikasi').textContent"))));
+  ringkasanUlang = { total: 0, hariIni: 0, sesuai: 0, dikoreksi: 0 };
   // Jawaban untuk sesi LAMA (akun berganti saat permintaan berjalan) harus dibuang
   tundaRingkasanMs = 2500; ringkasanTotal = 99;
   await js("document.getElementById('btn-tandai-uji').click(); true");
