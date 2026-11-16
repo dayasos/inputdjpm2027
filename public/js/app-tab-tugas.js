@@ -51,14 +51,24 @@
     return '';
   }
 
-  var api = { esc: esc, fmt: fmt, teksTabAwal: teksTabAwal, teksTabUlang: teksTabUlang, buatPenyaring: buatPenyaring, teksBanner: teksBanner };
+  /**
+   * Tampilan awal saat masuk: langsung ke tab Verifikasi Awal bila ada tugas yang tersisa. Hanya SEKALI per sesi, tidak bila verifikator sudah memilih tab
+   * sendiri (klik asli, bukan klik otomatis aplikasi), dan tidak bila sudah berada di salah satu tab tugas.
+   * k: { awal: {aktif, sisa, ditugaskan}|null, mode, sudahPilih, sudahBuka }
+   */
+  function perluBukaOtomatis(k) {
+    if (!k || k.mode || k.sudahPilih || k.sudahBuka) return false;
+    return teksTabAwal(k.awal) !== null && (Number(k.awal.sisa) || 0) > 0;
+  }
+
+  var api = { perluBukaOtomatis: perluBukaOtomatis, esc: esc, fmt: fmt, teksTabAwal: teksTabAwal, teksTabUlang: teksTabUlang, buatPenyaring: buatPenyaring, teksBanner: teksBanner };
   if (!akar || !akar.document) return api;
 
   // ------------------------------------------------------------------ tampilan
   var dok = akar.document;
   var ID_AWAL = 'tab-verif-awal', ID_ULANG = 'tab-verif-ulang', ID_BANNER = 'djpm-tab-tugas-banner', ID_STYLE = 'djpm-tab-tugas-style';
   var BATAS_TUNGGU_MS = 40000, SEGARKAN_MS = 15000, SEGARKAN_HITUNG_MS = 120000;
-  var st = { mode: '', ids: [], awal: null, ulang: null, waktu: 0, muat: false, tokenData: '', klikSendiri: false, overlayUlangTerbuka: false };
+  var st = { pilihToken: '', bukaToken: '', mode: '', ids: [], awal: null, ulang: null, waktu: 0, muat: false, tokenData: '', klikSendiri: false, overlayUlangTerbuka: false };
 
   function pengguna() { return (typeof dataPengguna !== 'undefined') ? dataPengguna : null; }
   function berhak() { var p = pengguna(); return !!(p && p.token && String(p.role || '').trim().toUpperCase() === 'VERIFIKATOR'); }
@@ -146,7 +156,15 @@
         akar.djpmLolosTugas = buatPenyaring(mode, st.ids);
         pasangBanner(); tampilUlang();
       }
-    }).catch(function () { /* diam: tampilan tetap seperti sebelumnya */ }).then(function () { st.muat = false; st.waktu = Date.now(); selarasTab(); });
+    }).catch(function () { /* diam: tampilan tetap seperti sebelumnya */ }).then(function () { st.muat = false; st.waktu = Date.now(); selarasTab(); bukaOtomatis(); });
+  }
+
+  /** Verifikator yang punya tugas Verifikasi Awal langsung dibawa ke tabnya saat masuk (sekali per sesi). */
+  function bukaOtomatis() {
+    var p = pengguna(); if (!berhak() || !p) return;
+    if (!perluBukaOtomatis({ awal: st.awal, mode: st.mode, sudahPilih: st.pilihToken === p.token, sudahBuka: st.bukaToken === p.token })) return;
+    st.bukaToken = p.token;
+    bukaMode('awal');
   }
 
   function bukaMode(mode) {
@@ -169,6 +187,8 @@
 
   // Klik tab lain (Input Data, Lihat Data, Tools, ...) keluar dari mode tugas.
   dok.addEventListener('click', function (e) {
+    // klik ASLI pengguna pada tab mana pun = pilihan sendiri; klik otomatis aplikasi (isTrusted false) tidak dihitung
+    if (e.isTrusted && e.target && e.target.closest && e.target.closest('button[id^="tab-"]')) st.pilihToken = (pengguna() || {}).token || '';
     if (!st.mode || st.klikSendiri) return;
     var t = e.target && e.target.closest ? e.target.closest('#nav, nav button, button[id^="tab-"]') : null;
     if (t && t.id && t.id !== ID_AWAL && t.id !== ID_ULANG && /^tab-/.test(t.id)) keluarMode();
@@ -212,11 +232,18 @@
   setInterval(function () {
     try {
       if (!berhak()) { ['tab-verif-awal', 'tab-verif-ulang', ID_BANNER].forEach(function (i) { var e = dok.getElementById(i); if (e && e.parentNode) e.parentNode.removeChild(e); }); if (st.mode) keluarMode(); st.awal = st.ulang = null; return; }
+      // Sesi baru (masuk lagi tanpa memuat ulang halaman): keadaan tab dibersihkan dan tugas dimuat segera, supaya tampilan awal otomatis berlaku lagi
+      muatSesiBaru();
       pasangPembungkus(); selarasTab(); segarkan();
     } catch (_e) { /* abaikan */ }
   }, 2000);
-  try {
-    if (berhak()) { muatIds('awal').then(function () { return muatIds('ulang'); }); }
-  } catch (_e) { /* abaikan */ }
+  function muatSesiBaru() {
+    var p = pengguna(); if (!berhak() || !p || st.tokenData === p.token) return;
+    st.tokenData = p.token; st.awal = null; st.ulang = null; st.waktu = 0;
+    muatIds('awal').then(function () { return muatIds('ulang'); });
+  }
+  try { muatSesiBaru(); } catch (_e) { /* abaikan */ }
+  // Pintu uji: memicu pemuatan ulang daftar tugas (aslinya tiap 15 detik/2 menit) tanpa menunggu.
+  api.muatUlangUntukUji = function (mode) { return muatIds(mode); };
   return api;
 });

@@ -24,6 +24,19 @@ test("TAB ULANG: tampil bila masih ada tugas atau sudah ada yang selesai", () =>
   assert.equal(T.teksTabUlang({ sisa: 0, selesai: 9 }), "Verifikasi Ulang ✓");
 });
 
+test("TAMPILAN AWAL: terbuka otomatis hanya bila ada tugas tersisa, sekali per sesi, dan tidak menimpa pilihan tab pengguna", () => {
+  const dasar = { awal: { aktif: true, sisa: 12, ditugaskan: 60 }, mode: "", sudahPilih: false, sudahBuka: false };
+  assert.equal(T.perluBukaOtomatis(dasar), true);
+  assert.equal(T.perluBukaOtomatis({ ...dasar, awal: { aktif: false, sisa: 12, ditugaskan: 60 } }), false, "saklar MATI");
+  assert.equal(T.perluBukaOtomatis({ ...dasar, awal: { aktif: true, sisa: 0, ditugaskan: 60 } }), false, "semua tugas selesai: tetap Lihat Data");
+  assert.equal(T.perluBukaOtomatis({ ...dasar, awal: { aktif: true, sisa: 0, ditugaskan: 0 } }), false, "belum pernah menerima (mis. pimpinan)");
+  assert.equal(T.perluBukaOtomatis({ ...dasar, awal: null }), false);
+  assert.equal(T.perluBukaOtomatis({ ...dasar, mode: "ulang" }), false, "sudah di tab tugas");
+  assert.equal(T.perluBukaOtomatis({ ...dasar, sudahPilih: true }), false, "pengguna sudah memilih tab sendiri");
+  assert.equal(T.perluBukaOtomatis({ ...dasar, sudahBuka: true }), false, "sekali per sesi");
+  assert.equal(T.perluBukaOtomatis(null), false);
+});
+
 test("PENYARING: hanya baris dengan id tugas yang lolos; mode kosong = tidak membatasi; id teks dinormalkan", () => {
   assert.equal(T.buatPenyaring("", [1, 2]), null);
   const f = T.buatPenyaring("awal", [701, "702"]);
@@ -94,6 +107,7 @@ test("KABEL: kait penyaring di Lihat Data ada; modul tab tidak memanggil aksi tu
   assert.doesNotMatch(t, /verifikasiSatuData|aturPembagianAwal|bagiSekarangAwal|simpanHasilUlang|bukaTugasUlang'/, "modul tab hanya membaca");
   assert.match(t, /rpc\(aksi, \[1\]\)/);
   assert.match(t, /bukaTugasUlangUntukPenerima/);
+  assert.match(t, /e\.isTrusted/, "klik otomatis aplikasi tidak dihitung sebagai pilihan pengguna");
   const ul = baca("public/js/app-tugas-ulang.js");
   assert.match(ul, /akar\.bukaTugasUlangUntukPenerima = function \(penerimaId, pembuka\)/);
   assert.doesNotMatch(ul, /pil\.addEventListener|dok\.createElement\('button'\); pil/, "tombol melayang Tugas Ulang tidak dibuat lagi");

@@ -119,6 +119,9 @@ try {
   cek("PETUGAS: tidak ada tombol melayang Tugas Awal maupun Tugas Ulang", !(await ada("#djpm-tau-pil")) && !(await ada("#djpm-tul-pil")));
   cek("PETUGAS: tab Lihat Data dan dua tab baru berdampingan di nav yang sama", (await js("document.getElementById('tab-verif-awal').parentNode === document.getElementById('tab-rekap').parentNode && document.getElementById('tab-verif-ulang').parentNode === document.getElementById('tab-rekap').parentNode")) === true);
 
+  // TAMPILAN AWAL: tanpa klik apa pun, verifikator yang punya tugas Verifikasi Awal langsung dibawa ke tabnya
+  await tungguSampai("document.querySelectorAll('#body-tabel-lihat tr').length === 3 && !!document.getElementById('djpm-tab-tugas-banner')", "tab Verifikasi Awal terbuka otomatis");
+  cek("PETUGAS: setelah masuk, tampilan awal LANGSUNG tab Verifikasi Awal (tanpa klik): 3 data tugas, tab tampak aktif, panel Lihat Data terlihat", (await js("document.getElementById('tab-verif-awal').classList.contains('tab-nav-aktif') && !document.getElementById('tab-rekap').classList.contains('tab-nav-aktif') && !document.getElementById('panel-rekap').classList.contains('hidden')")) === true && /3 data Verifikasi Awal/.test(await teks("#djpm-tab-tugas-banner")));
   await klik("#tab-verif-awal");
   await tungguSampai("document.querySelectorAll('#body-tabel-lihat tr').length === 3 && !!document.getElementById('djpm-tab-tugas-banner')", "tabel hanya tiga tugas");
   cek("PETUGAS (Awal): tabel Lihat Data yang sama, hanya memuat 3 data tugasnya (bukan 6)", (await js("document.querySelectorAll('#body-tabel-lihat tr').length")) === 3 && /Total Data: 3 Baris/.test(await teks("#info-total-penerima")), await teks("#info-total-penerima"));
@@ -148,6 +151,10 @@ try {
   await tungguSampai("document.querySelectorAll('#body-tabel-lihat tr').length === 6 && !document.getElementById('djpm-tab-tugas-banner')", "semua data tampil kembali");
   cek("PETUGAS: tab Lihat Data mengembalikan seluruh 6 data Lihat Data (hanya baca) dan menghapus banner", (await js("document.querySelectorAll('#body-tabel-lihat tr').length")) === 6 && (await js("document.getElementById('tab-rekap').classList.contains('tab-nav-aktif') && !document.getElementById('tab-verif-awal').classList.contains('tab-nav-aktif')")) === true);
 
+  // pemuatan ulang daftar tugas (seperti yang terjadi berkala) TIDAK boleh membawa verifikator kembali ke tab Verifikasi Awal setelah ia keluar
+  await js("window.djpmTabTugas.muatUlangUntukUji('awal').then(() => true)");
+  await tidur(1200);
+  cek("PETUGAS: setelah keluar dari tab tugas, pemuatan ulang berkala TIDAK membuka tab Verifikasi Awal lagi (sekali per sesi)", (await js("document.querySelectorAll('#body-tabel-lihat tr').length")) === 6 && !(await ada("#djpm-tab-tugas-banner")));
   await klik("#tab-verif-ulang");
   await tungguSampai("document.querySelectorAll('#body-tabel-lihat tr').length === 3 && /Periksa/.test(document.querySelector('#body-tabel-lihat button').textContent)", "tabel tiga tugas ulang berlabel Periksa");
   cek("PETUGAS (Ulang): tabel yang sama memuat SEMUA 3 data tugas ulang (termasuk data di luar 50 tugas pertama daftar) dan tombol berlabel 'Periksa'", /Total Data: 3 Baris/.test(await teks("#info-total-penerima")) && (await js("Array.from(document.querySelectorAll('#body-tabel-lihat button')).every((b) => /Periksa/.test(b.textContent))")) === true);
@@ -169,12 +176,21 @@ try {
   await tungguSampai("document.getElementById('djpm-tul-overlay') === null", "panel tertutup lagi");
   cek("PETUGAS: tidak memanggil aksi tulis apa pun dari tab", panggilan.every((x) => !/verifikasiSatuData|aturPembagianAwal|bagiSekarangAwal|simpanHasilUlang/.test(x.aksi)));
 
+  // masuk lagi tanpa memuat ulang halaman (token baru): tampilan awal otomatis berlaku lagi untuk sesi baru
+  await js("document.getElementById('tab-rekap').click(); true");
+  await tungguSampai("document.querySelectorAll('#body-tabel-lihat tr').length === 6 && !document.getElementById('djpm-tab-tugas-banner')", "kembali ke Lihat Data");
+  const awalSebelum = hitung("getTugasAwalSaya");
+  await js("dataPengguna.token = 'TOKEN-UJI-2'; true");
+  await tungguSampai("document.querySelectorAll('#body-tabel-lihat tr').length === 3 && !!document.getElementById('djpm-tab-tugas-banner')", "tab Verifikasi Awal terbuka lagi untuk sesi baru", 40);
+  cek("PETUGAS: sesi baru (token berganti tanpa muat ulang) memuat tugas segera dan membuka tab Verifikasi Awal otomatis lagi", hitung("getTugasAwalSaya") > awalSebelum && /3 data Verifikasi Awal/.test(await teks("#djpm-tab-tugas-banner")));
+
   // saklar MATI: tab Verifikasi Awal tidak ada; Verifikasi Ulang tetap
   reset(); aktif = false;
   await masuk("VERIFIKATOR");
   await tungguSampai("!!document.getElementById('tab-verif-ulang')", "tab Ulang tetap ada");
   await tidur(1500);
   cek("PETUGAS (saklar MATI): tab Verifikasi Awal tidak muncul; tab Verifikasi Ulang tetap ada", !(await ada("#tab-verif-awal")) && (await ada("#tab-verif-ulang")));
+  cek("PETUGAS (saklar MATI): tampilan awal tetap Lihat Data biasa (semua data, tanpa banner, tab Lihat Data aktif)", (await js("document.querySelectorAll('#body-tabel-lihat tr').length")) === 6 && !(await ada("#djpm-tab-tugas-banner")) && (await js("document.getElementById('tab-rekap').classList.contains('tab-nav-aktif')")) === true);
 
   // ============================ ADMIN UTAMA ============================
   reset(); aktif = false;
