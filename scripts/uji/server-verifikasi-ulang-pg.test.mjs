@@ -525,3 +525,25 @@ test("AGREGAT + ULANG: migrasi verifikasi ulang BELUM diterapkan -> agregat lama
   assert.equal(adm.ringkasan.total, 1, "verifikasi pertama tetap dihitung");
   assert.deepEqual([adm.ulang.ringkasan.total, adm.gabungan.ringkasan.total], [0, 1]);
 });
+
+test("DAFTAR TUGAS: 'semua' memuat SEMUA tugas aktif milik sendiri (lebih dari 50), daftar tetap 50 per halaman, dan tugas di luar 50 pertama tetap bisa dibuka; milik orang lain tidak bocor", opsi, async () => {
+  const db = await siap({ ms: 420, btl: 0 });
+  await buat();
+  const miliknya = (await db.query("select count(*)::int n from tugas_verifikasi_ulang where akun_id = $1", [ID.verif_p2])).rows[0].n;
+  assert.ok(miliknya > 50, "uji ini butuh lebih dari 50 tugas: " + miliknya);
+  const d = await UL.getTugasUlangSaya(TOKEN.verif_p2);
+  assert.equal(d.sukses, true, JSON.stringify(d));
+  assert.equal(d.tugas.length, 50, "daftar halaman tetap 50"); assert.equal(d.adaBerikutnya, true);
+  assert.equal(d.semua.length, miliknya, "semua tugas aktif tercantum");
+  assert.equal(d.sisa, miliknya);
+  const punyaP2 = new Set((await db.query("select id from tugas_verifikasi_ulang where akun_id = $1", [ID.verif_p2])).rows.map((r) => Number(r.id)));
+  assert.ok(d.semua.every((x) => punyaP2.has(x.tugasId) && x.penerimaId > 0), "hanya milik sendiri");
+  const di50 = new Set(d.tugas.map((x) => x.tugasId));
+  const luar = d.semua.find((x) => !di50.has(x.tugasId));
+  assert.ok(luar, "ada tugas di luar 50 pertama");
+  const buka = await UL.bukaTugasUlang(TOKEN.verif_p2, luar.tugasId);
+  assert.equal(buka.sukses, true, "tugas di luar 50 pertama bisa dibuka: " + JSON.stringify(buka).slice(0, 200));
+  assert.equal(buka.penerimaId, luar.penerimaId);
+  const orang = await UL.getTugasUlangSaya(TOKEN.verif_p3);
+  assert.ok(!orang.semua.some((x) => punyaP2.has(x.tugasId)), "tugas orang lain tidak bocor");
+});

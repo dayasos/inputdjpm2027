@@ -36,12 +36,11 @@ test("PENYARING: hanya baris dengan id tugas yang lolos; mode kosong = tidak mem
   assert.equal(kosong([1]), false, "tanpa id tiba, tabel kosong (tidak menampilkan data yang bukan tugasnya)");
 });
 
-test("BANNER: teks sesuai mode; catatan 50 tugas pertama hanya untuk Ulang", () => {
-  assert.match(T.teksBanner("awal", 61, false), /61 data Verifikasi Awal.*Detail/);
-  assert.match(T.teksBanner("ulang", 50, true), /50 data Verifikasi Ulang.*Periksa.*Hanya 50 tugas pertama/);
-  assert.doesNotMatch(T.teksBanner("ulang", 3, false), /Hanya 50/);
-  assert.doesNotMatch(T.teksBanner("awal", 61, true), /Hanya 50/);
-  assert.equal(T.teksBanner("", 5, false), "");
+test("BANNER: teks sesuai mode; tidak ada catatan batas 50 (seluruh tugas ditampilkan)", () => {
+  assert.match(T.teksBanner("awal", 61), /61 data Verifikasi Awal.*Detail/);
+  assert.match(T.teksBanner("ulang", 120), /120 data Verifikasi Ulang.*Periksa/);
+  assert.doesNotMatch(T.teksBanner("ulang", 120), /Hanya 50/);
+  assert.equal(T.teksBanner("", 5), "");
 });
 
 test("ESC: menetralkan HTML", () => {

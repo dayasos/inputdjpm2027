@@ -45,9 +45,9 @@
   }
 
   /** Teks banner di atas tabel. */
-  function teksBanner(mode, jumlah, adaBerikutnya) {
+  function teksBanner(mode, jumlah) {
     if (mode === 'awal') return 'Menampilkan ' + fmt(jumlah) + ' data Verifikasi Awal yang ditugaskan kepada Anda. Tekan Detail untuk memberi hasil verifikasi.';
-    if (mode === 'ulang') return 'Menampilkan ' + fmt(jumlah) + ' data Verifikasi Ulang yang ditugaskan kepada Anda. Tekan Periksa untuk memeriksa berkasnya.' + (adaBerikutnya ? ' Hanya 50 tugas pertama yang tampil; sisanya muncul setelah ini selesai.' : '');
+    if (mode === 'ulang') return 'Menampilkan ' + fmt(jumlah) + ' data Verifikasi Ulang yang ditugaskan kepada Anda. Tekan Periksa untuk memeriksa berkasnya.';
     return '';
   }
 
@@ -58,7 +58,7 @@
   var dok = akar.document;
   var ID_AWAL = 'tab-verif-awal', ID_ULANG = 'tab-verif-ulang', ID_BANNER = 'djpm-tab-tugas-banner', ID_STYLE = 'djpm-tab-tugas-style';
   var BATAS_TUNGGU_MS = 40000, SEGARKAN_MS = 15000, SEGARKAN_HITUNG_MS = 120000;
-  var st = { mode: '', ids: [], adaBerikutnya: false, awal: null, ulang: null, waktu: 0, muat: false, tokenData: '', klikSendiri: false, overlayUlangTerbuka: false };
+  var st = { mode: '', ids: [], awal: null, ulang: null, waktu: 0, muat: false, tokenData: '', klikSendiri: false, overlayUlangTerbuka: false };
 
   function pengguna() { return (typeof dataPengguna !== 'undefined') ? dataPengguna : null; }
   function berhak() { var p = pengguna(); return !!(p && p.token && String(p.role || '').trim().toUpperCase() === 'VERIFIKATOR'); }
@@ -82,8 +82,7 @@
   function suntikStyle() {
     if (dok.getElementById(ID_STYLE)) return;
     var s = dok.createElement('style'); s.id = ID_STYLE;
-    s.textContent = '#' + ID_BANNER + '{margin:0 0 12px;padding:10px 14px;border-radius:10px;background:#eef3fb;color:#17365d;border:1px solid #c9d7ee;font-size:.85rem;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between}' +
-      '#' + ID_BANNER + ' button{border:1px solid #17365d;background:#fff;color:#17365d;border-radius:8px;padding:4px 12px;font-weight:600;font-size:.8rem;cursor:pointer;min-height:32px}';
+    s.textContent = '#' + ID_BANNER + '{margin:0 0 12px;padding:10px 14px;border-radius:10px;background:#eef3fb;color:#17365d;border:1px solid #c9d7ee;font-size:.85rem;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between}';
     dok.head.appendChild(s);
   }
 
@@ -122,8 +121,8 @@
     suntikStyle();
     var b = dok.getElementById(ID_BANNER);
     if (!st.mode) { if (b && b.parentNode) b.parentNode.removeChild(b); return; }
-    if (!b) { b = dok.createElement('div'); b.id = ID_BANNER; b.setAttribute('role', 'status'); panel.insertBefore(b, panel.firstChild); b.addEventListener('click', function (e) { if (e.target && e.target.getAttribute && e.target.getAttribute('data-aksi') === 'semua') { var r = dok.getElementById('tab-rekap'); if (r) r.click(); } }); }
-    b.innerHTML = '<span>' + esc(teksBanner(st.mode, st.ids.length, st.adaBerikutnya)) + '</span><button type="button" data-aksi="semua">Tampilkan semua data</button>';
+    if (!b) { b = dok.createElement('div'); b.id = ID_BANNER; b.setAttribute('role', 'status'); panel.insertBefore(b, panel.firstChild); }
+    b.innerHTML = '<span>' + esc(teksBanner(st.mode, st.ids.length)) + '</span>';
   }
 
   function ubahLabelTombol() {
@@ -142,8 +141,8 @@
       if (mode === 'awal') { st.awal = { aktif: res.aktif, sisa: res.sisa, ditugaskan: res.ditugaskan }; }
       else { st.ulang = { sisa: res.sisa, selesai: res.selesai }; }
       if (st.mode === mode) {
-        st.ids = mode === 'awal' ? (res.ids || []) : (res.tugas || []).map(function (t) { return t.penerimaId; });
-        st.adaBerikutnya = mode === 'ulang' && res.adaBerikutnya === true;
+        // Ulang: SEMUA tugas aktif (res.semua), bukan hanya 50 pertama; cadangan ke daftar bila server lama belum mengirim `semua`
+        st.ids = mode === 'awal' ? (res.ids || []) : (Array.isArray(res.semua) ? res.semua : (res.tugas || [])).map(function (t) { return t.penerimaId; });
         akar.djpmLolosTugas = buatPenyaring(mode, st.ids);
         pasangBanner(); tampilUlang();
       }
@@ -152,7 +151,7 @@
 
   function bukaMode(mode) {
     if (!berhak()) return;
-    st.mode = mode; st.ids = []; st.adaBerikutnya = false;
+    st.mode = mode; st.ids = [];
     akar.djpmLolosTugas = buatPenyaring(mode, st.ids);   // sementara: tabel kosong sampai id tiba (tidak sempat menampilkan data yang bukan tugasnya)
     st.klikSendiri = true;
     var rekap = dok.getElementById('tab-rekap');

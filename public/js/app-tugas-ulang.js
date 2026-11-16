@@ -278,8 +278,18 @@
       st.aktif = 0; st.detail = null; st.detailStatus = 'idle';
       gambar();
       if (bukaPertama && res.tugas.length) {
-        // dibuka dari tabel tab Verifikasi Ulang: langsung ke tugas data yang diklik (bila ada di 50 tugas pertama)
+        // dibuka dari tabel tab Verifikasi Ulang: langsung ke tugas data yang diklik (tugas di luar 50 pertama disisipkan di urutan teratas)
         var idx = st.fokusPenerima ? res.tugas.findIndex(function (x) { return Number(x.penerimaId) === Number(st.fokusPenerima); }) : -1;
+        if (st.fokusPenerima && idx < 0 && Array.isArray(res.semua)) {
+          // tugas di luar 50 pertama: server memperbolehkan membuka tugas milik sendiri yang mana pun, jadi tampilkan di urutan teratas daftar
+          var lain = res.semua.filter(function (x) { return Number(x.penerimaId) === Number(st.fokusPenerima); })[0];
+          if (lain) {
+            var baris = null;
+            try { baris = (typeof masterDataLihat !== 'undefined' && Array.isArray(masterDataLihat)) ? masterDataLihat.filter(function (r) { return Number(r[0]) === Number(st.fokusPenerima); })[0] : null; } catch (_e) { baris = null; }
+            res.tugas.unshift({ tugasId: lain.tugasId, penerimaId: lain.penerimaId, nama: baris ? String(baris[1] || '') : 'Data #' + lain.penerimaId, layanan: baris ? String(baris[7] || '') : '', kecamatan: baris ? String(baris[10] || '') : '', kelurahan: baris ? String(baris[11] || '') : '', status: baris ? String(baris[18] || '') : '', dibuka: false, namaPaket: res.tugas[0] ? res.tugas[0].namaPaket : '', batasSelesai: res.tugas[0] ? res.tugas[0].batasSelesai : null });
+            idx = 0;
+          }
+        }
         st.fokusPenerima = 0;
         return pilih(idx >= 0 ? idx : 0);
       }

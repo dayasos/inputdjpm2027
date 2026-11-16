@@ -434,10 +434,18 @@ export async function getTugasUlangSaya(token: string, halaman?: number) {
       join penerima p on p.id = t.penerima_id and p.tahun = t.tahun
       where t.akun_id = ${String(sesi.akunId)}::uuid and t.selesai_pada is null and t.ditarik_pada is null
       order by t.id limit ${UKURAN_HALAMAN + 1} offset ${(h - 1) * UKURAN_HALAMAN}`;
+    // SEMUA tugas aktif (hanya dua id per tugas): dipakai tab Verifikasi Ulang untuk menampilkan seluruh data tugas di tabel; daftar "tugas" di bawah tetap 50 per halaman
+    // Tanpa join ke penerima: tugas yang datanya hilang/berubah sudah ditarik oleh tarikTugasBasi di awal panggilan ini (EXPLAIN data nyata: 66 ms dengan join, jauh lebih ringan tanpa).
+    const semua = await sql`
+      select t.id, t.penerima_id from tugas_verifikasi_ulang t
+      join batch_verifikasi_ulang b on b.id = t.batch_id and b.status = 'AKTIF'
+      where t.akun_id = ${String(sesi.akunId)}::uuid and t.selesai_pada is null and t.ditarik_pada is null
+      order by t.id`;
     const r = (ringkas[0] || {}) as Baris;
     return {
       sukses: true, sisa: Number(r.sisa) || 0, selesai: Number(r.selesai) || 0, dikoreksi: Number(r.dikoreksi) || 0, ditarikBaruSaja: ditarik,
       halaman: h, adaBerikutnya: rows.length > UKURAN_HALAMAN,
+      semua: (semua as Baris[]).map((x) => ({ tugasId: Number(x.id), penerimaId: Number(x.penerima_id) })),
       tugas: (rows as Baris[]).slice(0, UKURAN_HALAMAN).map((x) => ({
         tugasId: Number(x.id), penerimaId: Number(x.penerima_id), nama: huruf(x.nama), layanan: huruf(x.layanan), kecamatan: huruf(x.kecamatan), kelurahan: huruf(x.kelurahan),
         status: huruf(x.status_saat_dibagi), dibuka: x.dibuka_pada != null, namaPaket: huruf(x.nama_paket), batasSelesai: x.batas_selesai,

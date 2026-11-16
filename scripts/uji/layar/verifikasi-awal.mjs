@@ -31,7 +31,7 @@ function jawab(aksi, args) {
   if (aksi === "pulihkanSesi") return { sukses: true, token: "TOKEN-UJI", username: peran === "VERIFIKATOR" ? "verif_helda_melani" : "admin", role: peran, kecamatan: "", userId: "", profileBelumDiisi: false, profil: { namaLengkap: "UJI", nomorHp: "0800", jabatan: "Uji" } };
   if (aksi === "getMasterLayanan") return { kecamatan: ["IMAM MASJID", "PENDETA"], kemenag: ["GURU MAGHRIB MENGAJI"] };
   if (aksi === "getRingkasanVerifikasiSaya") return { sukses: true, total: 12, hariIni: 3, memenuhiSyarat: 8, berkasTidakLengkap: 3, tidakMemenuhiSyarat: 1 };
-  if (aksi === "getTugasUlangSaya") return { sukses: true, sisa: 2, selesai: 0, dikoreksi: 0, ditarikBaruSaja: 0, halaman: 1, adaBerikutnya: false, tugas: [{ tugasId: 204, penerimaId: 704, nama: "Rahmat Hidayat", layanan: "GURU SEKOLAH MINGGU", kecamatan: "MEDAN KOTA", kelurahan: "SEI SIKAMBING B", status: "Memenuhi Syarat", dibuka: false, namaPaket: "Tahap uji" }, { tugasId: 205, penerimaId: 705, nama: "Marlina Sitorus", layanan: "GURU SEKOLAH MINGGU", kecamatan: "MEDAN KOTA", kelurahan: "SEI SIKAMBING B", status: "Memenuhi Syarat", dibuka: false, namaPaket: "Tahap uji" }] };
+  if (aksi === "getTugasUlangSaya") return { sukses: true, sisa: 3, selesai: 0, dikoreksi: 0, ditarikBaruSaja: 0, halaman: 1, adaBerikutnya: true, semua: [{ tugasId: 204, penerimaId: 704 }, { tugasId: 205, penerimaId: 705 }, { tugasId: 206, penerimaId: 706 }], tugas: [{ tugasId: 204, penerimaId: 704, nama: "Rahmat Hidayat", layanan: "GURU SEKOLAH MINGGU", kecamatan: "MEDAN KOTA", kelurahan: "SEI SIKAMBING B", status: "Memenuhi Syarat", dibuka: false, namaPaket: "Tahap uji" }, { tugasId: 205, penerimaId: 705, nama: "Marlina Sitorus", layanan: "GURU SEKOLAH MINGGU", kecamatan: "MEDAN KOTA", kelurahan: "SEI SIKAMBING B", status: "Memenuhi Syarat", dibuka: false, namaPaket: "Tahap uji" }] };
   if (aksi === "ambilDataLihatDataHakAkses") return { sukses: true, rows: barisLihat() };
   if (aksi === "bukaTugasUlang") return { sukses: false, pesan: "Tiruan: tidak dibuka." };
   if (aksi === "getTugasAwalSaya") return aktif
@@ -115,7 +115,7 @@ try {
   cek("PETUGAS: modul tab dan panel pemeriksaan dimuat; modul Admin TIDAK dimuat", skripDimuat.some((u) => /app-tab-tugas\.js/.test(u)) && skripDimuat.some((u) => /app-tugas-ulang\.js/.test(u)) && !skripDimuat.some((u) => /app-pembagian-awal-admin\.js/.test(u)), JSON.stringify(skripDimuat.map((u) => u.split("/").pop())));
   cek("PETUGAS: tidak ada tombol 'Pembagian Awal' milik Admin", !(await ada("#btn-pembagian-awal")));
   await tungguSampai("!!document.getElementById('tab-verif-awal') && !!document.getElementById('tab-verif-ulang')", "dua tab muncul");
-  cek("PETUGAS: tab 'Verifikasi Awal · 3' dan 'Verifikasi Ulang · 2' muncul", /Verifikasi Awal · 3/.test(await teks("#tab-verif-awal")) && /Verifikasi Ulang · 2/.test(await teks("#tab-verif-ulang")), await teks("#tab-verif-awal") + " | " + await teks("#tab-verif-ulang"));
+  cek("PETUGAS: tab 'Verifikasi Awal · 3' dan 'Verifikasi Ulang · 3' muncul", /Verifikasi Awal · 3/.test(await teks("#tab-verif-awal")) && /Verifikasi Ulang · 3/.test(await teks("#tab-verif-ulang")), await teks("#tab-verif-awal") + " | " + await teks("#tab-verif-ulang"));
   cek("PETUGAS: tidak ada tombol melayang Tugas Awal maupun Tugas Ulang", !(await ada("#djpm-tau-pil")) && !(await ada("#djpm-tul-pil")));
   cek("PETUGAS: tab Lihat Data dan dua tab baru berdampingan di nav yang sama", (await js("document.getElementById('tab-verif-awal').parentNode === document.getElementById('tab-rekap').parentNode && document.getElementById('tab-verif-ulang').parentNode === document.getElementById('tab-rekap').parentNode")) === true);
 
@@ -143,14 +143,15 @@ try {
     await tidur(300);
   }
 
-  await klik('#djpm-tab-tugas-banner [data-aksi="semua"]');
+  cek("PETUGAS: banner tidak memiliki tombol 'Tampilkan semua data'", !(await ada("#djpm-tab-tugas-banner button")));
+  await klik("#tab-rekap");   // kembali ke semua data lewat tab Lihat Data
   await tungguSampai("document.querySelectorAll('#body-tabel-lihat tr').length === 6 && !document.getElementById('djpm-tab-tugas-banner')", "semua data tampil kembali");
-  cek("PETUGAS: 'Tampilkan semua data' mengembalikan seluruh 6 data Lihat Data (hanya baca) dan menghapus banner", (await js("document.querySelectorAll('#body-tabel-lihat tr').length")) === 6 && (await js("document.getElementById('tab-rekap').classList.contains('tab-nav-aktif') && !document.getElementById('tab-verif-awal').classList.contains('tab-nav-aktif')")) === true);
+  cek("PETUGAS: tab Lihat Data mengembalikan seluruh 6 data Lihat Data (hanya baca) dan menghapus banner", (await js("document.querySelectorAll('#body-tabel-lihat tr').length")) === 6 && (await js("document.getElementById('tab-rekap').classList.contains('tab-nav-aktif') && !document.getElementById('tab-verif-awal').classList.contains('tab-nav-aktif')")) === true);
 
   await klik("#tab-verif-ulang");
-  await tungguSampai("document.querySelectorAll('#body-tabel-lihat tr').length === 2 && /Periksa/.test(document.querySelector('#body-tabel-lihat button').textContent)", "tabel dua tugas ulang berlabel Periksa");
-  cek("PETUGAS (Ulang): tabel yang sama hanya memuat 2 data tugas ulang dan tombol berlabel 'Periksa'", /Total Data: 2 Baris/.test(await teks("#info-total-penerima")) && (await js("Array.from(document.querySelectorAll('#body-tabel-lihat button')).every((b) => /Periksa/.test(b.textContent))")) === true);
-  cek("PETUGAS (Ulang): banner menyebut Periksa dan data tugas ulang", /2 data Verifikasi Ulang.*Periksa/.test(await teks("#djpm-tab-tugas-banner")), await teks("#djpm-tab-tugas-banner"));
+  await tungguSampai("document.querySelectorAll('#body-tabel-lihat tr').length === 3 && /Periksa/.test(document.querySelector('#body-tabel-lihat button').textContent)", "tabel tiga tugas ulang berlabel Periksa");
+  cek("PETUGAS (Ulang): tabel yang sama memuat SEMUA 3 data tugas ulang (termasuk data di luar 50 tugas pertama daftar) dan tombol berlabel 'Periksa'", /Total Data: 3 Baris/.test(await teks("#info-total-penerima")) && (await js("Array.from(document.querySelectorAll('#body-tabel-lihat button')).every((b) => /Periksa/.test(b.textContent))")) === true);
+  cek("PETUGAS (Ulang): banner menyebut Periksa dan data tugas ulang", /3 data Verifikasi Ulang.*Periksa/.test(await teks("#djpm-tab-tugas-banner")) && !/Hanya 50/.test(await teks("#djpm-tab-tugas-banner")), await teks("#djpm-tab-tugas-banner"));
   const detailSebelum = panggilan.filter((x) => x.aksi === "ambilDetailPenerimaPerBaris").length;
   await klik('#body-tabel-lihat button[onclick*="705"]');
   await tungguSampai("!!document.getElementById('djpm-tul-overlay')", "panel pemeriksaan terbuka");
@@ -159,6 +160,13 @@ try {
     hitung("bukaTugasUlang") >= 1 && terakhir("bukaTugasUlang").args[1] === 205 && panggilan.filter((x) => x.aksi === "ambilDetailPenerimaPerBaris").length === detailSebelum, JSON.stringify(terakhir("bukaTugasUlang")));
   await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
   await tungguSampai("document.getElementById('djpm-tul-overlay') === null", "panel tertutup");
+  // data di luar 50 tugas pertama (706, tugas 206) tetap bisa diperiksa
+  await klik('#body-tabel-lihat button[onclick*="706"]');
+  await tungguSampai("!!document.getElementById('djpm-tul-overlay')", "panel untuk data di luar 50 tugas pertama");
+  for (let i = 0; i < 20 && !panggilan.some((x) => x.aksi === "bukaTugasUlang" && x.args[1] === 206); i++) await tidur(250);
+  cek("PETUGAS (Ulang): data di luar 50 tugas pertama (706) bisa diperiksa: bukaTugasUlang dipanggil untuk tugas 206 dan namanya tampil di daftar panel", panggilan.some((x) => x.aksi === "bukaTugasUlang" && x.args[1] === 206) && /Dewi Lestari/.test(await teks("#djpm-tul-overlay")), await teks("#djpm-tul-overlay"));
+  await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
+  await tungguSampai("document.getElementById('djpm-tul-overlay') === null", "panel tertutup lagi");
   cek("PETUGAS: tidak memanggil aksi tulis apa pun dari tab", panggilan.every((x) => !/verifikasiSatuData|aturPembagianAwal|bagiSekarangAwal|simpanHasilUlang/.test(x.aksi)));
 
   // saklar MATI: tab Verifikasi Awal tidak ada; Verifikasi Ulang tetap
