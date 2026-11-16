@@ -167,6 +167,17 @@ test("BADGE SASARAN (Admin): empat kartu dari jawaban server; nilai negatif/teks
   assert.equal(A.catatanSasaran({ sukses: false }), "");
 });
 
+test("DAFTAR PAKET: paket DIBATALKAN disembunyikan secara bawaan dan dapat ditampilkan; jumlahnya dihitung; masukan aneh aman", () => {
+  const p = [{ id: 1, status: "DIBATALKAN" }, { id: 2, status: "AKTIF" }, { id: 3, status: "DIBATALKAN" }, { id: 4, status: "SELESAI" }];
+  const s = A.susunDaftarPaket(p, false);
+  assert.deepEqual(s.tampil.map((b) => b.id), [2, 4]);
+  assert.equal(s.disembunyikan, 2); assert.equal(s.adaDibatalkan, true);
+  assert.deepEqual(A.susunDaftarPaket(p, true).tampil.map((b) => b.id), [1, 2, 3, 4], "ditampilkan semua bila diminta");
+  assert.deepEqual(A.susunDaftarPaket([{ id: 2, status: "AKTIF" }], false), { tampil: [{ id: 2, status: "AKTIF" }], disembunyikan: 0, adaDibatalkan: false });
+  for (const x of [null, undefined, "x", {}]) assert.deepEqual(A.susunDaftarPaket(x, false), { tampil: [], disembunyikan: 0, adaDibatalkan: false });
+  assert.deepEqual(A.susunDaftarPaket([null, { id: 1, status: "DIBATALKAN" }], false).tampil, [null], "elemen kosong tidak membuat galat");
+});
+
 test("BADGE SASARAN: jawaban lama yang tiba terlambat tidak menimpa yang baru (nomor urut) dan hanya menulis ulang bila berubah", () => {
   const src = fs.readFileSync(new URL("../../public/js/app-verifikasi-ulang-admin.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
   assert.match(src, /var urut = st\.sasaranUrut = \(st\.sasaranUrut \|\| 0\) \+ 1;/);

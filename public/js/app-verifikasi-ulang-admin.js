@@ -77,7 +77,17 @@
     return 'Tidak ikut: ' + fmt(r.hasilVerifikator) + ' data hasil verifikasi petugas verifikator dan ' + fmt(r.sudahDibayar) + ' data yang sudah masuk batch pembayaran.';
   }
 
-  var api = { kartuSasaran: kartuSasaran, catatanSasaran: catatanSasaran, susunKriteria: susunKriteria, validasiKriteria: validasiKriteria, sidik: sidik, persen: persen, tanggalPendek: tanggalPendek, singkatStatus: singkatStatus, esc: esc, fmt: fmt, buka: function () { /* diganti di browser */ } };
+  /**
+   * Daftar paket yang tampil di tab "Paket berjalan". Paket DIBATALKAN disembunyikan secara bawaan (tugas yang sudah selesai di dalamnya tidak boleh dihapus, jadi paketnya tetap ada
+   * di basis data); tombol menampilkannya kembali. Mengembalikan { tampil, disembunyikan (jumlah paket dibatalkan), adaDibatalkan }.
+   */
+  function susunDaftarPaket(paket, tampilkanDibatalkan) {
+    var semua = Array.isArray(paket) ? paket : [];
+    var dibatal = semua.filter(function (b) { return b && b.status === 'DIBATALKAN'; });
+    return { tampil: tampilkanDibatalkan ? semua : semua.filter(function (b) { return !(b && b.status === 'DIBATALKAN'); }), disembunyikan: dibatal.length, adaDibatalkan: dibatal.length > 0 };
+  }
+
+  var api = { susunDaftarPaket: susunDaftarPaket, kartuSasaran: kartuSasaran, catatanSasaran: catatanSasaran, susunKriteria: susunKriteria, validasiKriteria: validasiKriteria, sidik: sidik, persen: persen, tanggalPendek: tanggalPendek, singkatStatus: singkatStatus, esc: esc, fmt: fmt, buka: function () { /* diganti di browser */ } };
   if (!akar || !akar.document) return api;   // lingkungan uji Node: hanya bagian murni
 
   // ------------------------------------------------------------------ tampilan
@@ -227,9 +237,13 @@
   function htmlPaket() {
     if (st.paketStatus === 'muat' && !st.paket) return '<div class="vua-kosong" role="status">Memuat…</div>';
     if (st.paketStatus === 'gagal' && !st.paket) return '<div class="vua-pesan gagal" role="alert">' + esc(st.paketPesan) + ' <button type="button" class="vua-btn kecil" data-aksi="muat-paket">Coba lagi</button></div>';
-    var d = st.paket || [];
-    if (!d.length) return '<div class="vua-kosong">Belum ada paket tugas. Buat satu di tab "Buat paket".</div>';
-    var h = '<div class="vua-gulir"><table><thead><tr><th>Paket</th><th>Status</th><th class="n">Tugas</th><th class="n">Selesai</th><th class="n">Sesuai</th><th class="n">Dikoreksi</th><th class="n">Ditarik</th><th class="n">Sisa</th><th>Batas</th><th>Tindakan</th></tr></thead><tbody>';
+    var sp = susunDaftarPaket(st.paket, st.tampilBatal), d = sp.tampil;
+    var tombolBatal = sp.adaDibatalkan
+      ? '<div class="vua-cat" style="margin:0 0 8px">' + (st.tampilBatal ? 'Menampilkan juga paket yang dibatalkan. ' : fmt(sp.disembunyikan) + ' paket dibatalkan disembunyikan. ') +
+        '<button type="button" class="vua-btn kecil" data-aksi="toggle-batal">' + (st.tampilBatal ? 'Sembunyikan paket dibatalkan' : 'Tampilkan paket dibatalkan') + '</button></div>'
+      : '';
+    if (!d.length) return tombolBatal + '<div class="vua-kosong">' + (sp.adaDibatalkan ? 'Tidak ada paket tugas yang berjalan. Buat satu di tab "Buat paket".' : 'Belum ada paket tugas. Buat satu di tab "Buat paket".') + '</div>';
+    var h = tombolBatal + '<div class="vua-gulir"><table><thead><tr><th>Paket</th><th>Status</th><th class="n">Tugas</th><th class="n">Selesai</th><th class="n">Sesuai</th><th class="n">Dikoreksi</th><th class="n">Ditarik</th><th class="n">Sisa</th><th>Batas</th><th>Tindakan</th></tr></thead><tbody>';
     d.forEach(function (b) {
       var aktif = b.status === 'AKTIF', info = st.info[b.id];
       h += '<tr><td><b>' + esc(b.nama) + '</b><br><span class="vua-cat">' + esc(b.dibuatOleh) + ' · ' + esc(tanggalPendek(b.dibuatPada)) + '</span>' +
@@ -424,6 +438,7 @@
       else if (a === 'batal-tidak') { st.konfirmasiBatal = 0; gambar(); }
       else if (a === 'batal-ya') batalPaket(id);
       else if (a === 'muat-paket') muatPaket();
+      else if (a === 'toggle-batal') { st.tampilBatal = !st.tampilBatal; gambar(); }
       else if (a === 'muat-koreksi') muatKoreksi();
       else if (a === 'batal-koreksi') { st.bukaBatalKoreksi = id; st.alasanBatal = ''; st.pesanKoreksi = ''; gambar(); }
       else if (a === 'batal-koreksi-tidak') { st.bukaBatalKoreksi = 0; gambar(); }
@@ -437,6 +452,7 @@
     });
     o.addEventListener('change', function (e) { if (st.tab === 'buat' && e.target && e.target.type === 'checkbox') { ambilForm(); gambar(); } });
     dok.addEventListener('keydown', saatTombol, true);
+    st.tampilBatal = false;
     st.sasaran = null; st.sasaranStatus = 'muat';
     gambar(); muatLayanan(); muatSasaran();
     var b = dok.getElementById('vua-tutup'); if (b) b.focus();

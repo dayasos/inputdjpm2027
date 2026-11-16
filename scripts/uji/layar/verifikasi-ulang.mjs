@@ -282,7 +282,12 @@ try {
   cek("ADMIN: memilih 'Tidak' menutup konfirmasi tanpa memanggil server", !(await ada('[data-aksi="batal-ya"]')) && hitung("batalkanBatchUlang") === 0);
   sasaranGagal = true;   // penyegaran badge sesudah pembatalan gagal: angka lama tetap tampil dengan tanda, tidak diam-diam basi
   await klik('[data-aksi="batal"]'); await klik('[data-aksi="batal-ya"]');
-  await tungguSampai("/DIBATALKAN/.test(document.getElementById('vua-isi').textContent)", "paket dibatalkan");
+  // paket yang dibatalkan DISEMBUNYIKAN dari daftar (tugas selesai di dalamnya tidak boleh dihapus, jadi paketnya tetap ada); tombol menampilkannya kembali
+  await tungguSampai("/1 paket dibatalkan disembunyikan/.test(document.getElementById('vua-isi').textContent)", "paket dibatalkan disembunyikan");
+  cek("ADMIN: paket yang baru dibatalkan hilang dari daftar dan ada tombol 'Tampilkan paket dibatalkan'", !/DIBATALKAN/.test(await teks("#vua-isi")) && (await ada('[data-aksi="toggle-batal"]')), await teks("#vua-isi"));
+  await klik('[data-aksi="toggle-batal"]');
+  await tungguSampai("/DIBATALKAN/.test(document.getElementById('vua-isi').textContent)", "paket dibatalkan tampil lagi");
+  cek("ADMIN: 'Tampilkan paket dibatalkan' memunculkan paketnya (status DIBATALKAN) dan tombol berubah jadi 'Sembunyikan'", /Sembunyikan paket dibatalkan/.test(await teks("#vua-isi")));
   await tungguSampai("/Gagal memperbarui/.test(document.getElementById('vua-badge-cat').textContent)", "tanda gagal memperbarui").catch(() => {});
   cek("ADMIN: penyegaran badge gagal -> angka terakhir tetap tampil dan catatan 'Gagal memperbarui ... mungkin belum terbaru' muncul", /Gagal memperbarui \(galat uji\)/.test(await teks("#vua-badge-cat")) && /Sedang ditugaskan\s*724/.test(await teks("#vua-badge")), await teks("#vua-badge-cat"));
   sasaranGagal = false;
