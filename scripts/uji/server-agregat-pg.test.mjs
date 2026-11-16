@@ -23,6 +23,7 @@ async function siap() {
   await db.exec("create role anon; create role authenticated;");
   await db.exec(`
     create table akun (id uuid primary key, username text not null, nama_lengkap text not null default '', role text not null, aktif boolean not null default true);
+    create table setelan (key text primary key, value text);   -- dibaca verifikasiSatuData (saklar pembagian Verifikasi Awal); kosong = MATI
     create table penerima (
       id serial primary key, tahun int not null, layanan text, kecamatan text, kelurahan text, tempat_tugas text,
       status_verifikasi text, keterangan_verifikasi text default '', tanggal_verifikasi timestamptz, diverifikasi_oleh text,

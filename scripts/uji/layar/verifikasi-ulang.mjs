@@ -140,10 +140,10 @@ try {
   await masuk("VERIFIKATOR");
   cek("PETUGAS: modul Tugas Ulang dimuat; modul Admin TIDAK dimuat", skripDimuat.some((u) => /app-tugas-ulang\.js/.test(u)) && !skripDimuat.some((u) => /app-verifikasi-ulang-admin\.js/.test(u)), JSON.stringify(skripDimuat.map((u) => u.split("/").pop())));
   cek("PETUGAS: tidak ada tombol Verifikasi Ulang milik Admin", !(await ada("#btn-verifikasi-ulang")));
-  await tungguSampai("!!document.getElementById('djpm-tul-pil')", "tombol Tugas Ulang muncul");
-  cek("PETUGAS: tombol melayang 'Tugas Ulang · sisa 4' muncul", /sisa 4/.test(await teks("#djpm-tul-pil")), await teks("#djpm-tul-pil"));
+  await tidur(2500);
+  cek("PETUGAS: tombol melayang Tugas Ulang SUDAH DIHAPUS (diganti tab Verifikasi Ulang)", !(await ada("#djpm-tul-pil")));
   await pasangStubBuka();
-  await klik("#djpm-tul-pil");
+  await js("window.bukaTugasUlang(null); true");
   await tungguSampai("!!document.querySelector('#djpm-tul-overlay') && document.querySelectorAll('#djpm-tul-overlay .tul-berkas li').length === 3", "tugas pertama terbuka dengan 3 berkas");
   cek("PETUGAS: daftar memuat 4 tugas dan tugas pertama langsung terbuka (bukaTugasUlang dipanggil)", (await js("document.querySelectorAll('#djpm-tul-overlay .tul-daftar li').length")) === 4 && hitung("bukaTugasUlang") === 1);
   cek("PETUGAS: nama berbahaya tampil sebagai teks, tidak dieksekusi", (await js("window.__xss === undefined && !document.querySelector('#djpm-tul-overlay img')")) === true);

@@ -73,6 +73,7 @@ import {
   simpanHasilUlang,
 } from "./domains/verifikasiUlang.ts";
 import { unduhRekapPembagianUlang } from "./domains/pembagianUlangExcel.ts";
+import { aturPembagianAwal, bagiSekarangAwal, getStatusPembagianAwal, getTugasAwalSaya, jalankanPembagianAwalOtomatis, pratinjauPembagianAwal } from "./domains/verifikasiAwal.ts";
 import { getCapaianInput, getProgresKuota, getSemuaKuota, simpanKuota } from "./domains/kuota.ts";
 import {
   getTemplatAlasan,
@@ -200,6 +201,12 @@ const ALLOWED: Record<string, Handler> = {
   getDaftarKoreksiUlang,
   batalkanKoreksiUlang,
   getTugasUlangSaya,
+  getTugasAwalSaya,
+  getStatusPembagianAwal,         // Verifikasi Awal bagi rata: aksi Admin dicek di domains/verifikasiAwal.ts (sesiUtama)
+  aturPembagianAwal,
+  pratinjauPembagianAwal,
+  bagiSekarangAwal,
+  jalankanPembagianAwalOtomatis,  // dipanggil pg_cron lewat _secret; juga bisa lewat sesi non-Verifikator, tapi aman: idempotent dan dibatasi 1x/30 detik
   bukaTugasUlang,
   catatBerkasDibuka,
   simpanHasilUlang,

@@ -2078,7 +2078,8 @@ function saringDanTampilkanTabel() {
     const teksCari = row._cari || (row._cari = teksCariBarisLihat(row));
     const lolosCari = cocokKataKunci(teksCari, kataKunci);
     const lolosPenginput = typeof lolosFilterPenginputMui !== 'function' || lolosFilterPenginputMui(row); // app-penanda-mui.js (UTAMA & MUI)
-    if (lolosKec && lolosKel && lolosLay && lolosCari && lolosVerif && lolosPenginput) dataLolosSaring.push(row);
+    const lolosTugas = typeof window.djpmLolosTugas !== 'function' || window.djpmLolosTugas(row); // app-tab-tugas.js (verifikator: tab Verifikasi Awal/Ulang)
+    if (lolosKec && lolosKel && lolosLay && lolosCari && lolosVerif && lolosPenginput && lolosTugas) dataLolosSaring.push(row);
   }
   if (window.djpmPenandaMui) window.djpmPenandaMui.setelahSaring(dataLolosSaring);
   const totalDataLolos = dataLolosSaring.length;

@@ -277,7 +277,12 @@
       st.hitung = { sisa: res.sisa, selesai: res.selesai }; st.hitungWaktu = Date.now(); st.hitungToken = pengguna() ? pengguna().token : ''; selarasPil();
       st.aktif = 0; st.detail = null; st.detailStatus = 'idle';
       gambar();
-      if (bukaPertama && res.tugas.length) return pilih(0);
+      if (bukaPertama && res.tugas.length) {
+        // dibuka dari tabel tab Verifikasi Ulang: langsung ke tugas data yang diklik (bila ada di 50 tugas pertama)
+        var idx = st.fokusPenerima ? res.tugas.findIndex(function (x) { return Number(x.penerimaId) === Number(st.fokusPenerima); }) : -1;
+        st.fokusPenerima = 0;
+        return pilih(idx >= 0 ? idx : 0);
+      }
     }).catch(function (e) { st.status = 'gagal'; st.pesan = e.message; gambar(); });
   }
 
@@ -342,10 +347,11 @@
   }
   function saatTombol(e) { if (e.key === 'Escape') { e.preventDefault(); tutup(); } }
 
-  function bukaPanel(pembuka) {
+  function bukaPanel(pembuka, fokusPenerima) {
     if (!berhak()) { toast('Fitur ini khusus akun Verifikator.'); return; }
     suntikStyle();
     if (dok.getElementById(ID)) return;
+    st.fokusPenerima = Number(fokusPenerima) || 0;
     st.pembuka = pembuka || dok.activeElement; st.daftar = null; st.templat = null; st.status = 'muat';
     var o = dok.createElement('div'); o.id = ID; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-labelledby', 'tul-judul');
     o.innerHTML = '<div class="tul-kotak"><div class="tul-kepala"><div><h2 id="tul-judul">Tugas Ulang</h2><div class="tul-sub" id="tul-sub"></div></div><div class="tul-kemajuan" id="tul-kemajuan"></div><button type="button" class="tul-tutup" id="tul-tutup" aria-label="Tutup">✕</button></div>' +
@@ -385,32 +391,13 @@
   }
   api.buka = bukaPanel;
   akar.bukaTugasUlang = bukaPanel;
+  akar.bukaTugasUlangUntukPenerima = function (penerimaId, pembuka) { bukaPanel(pembuka || null, penerimaId); };
 
-  // ------------------------------------------------------------------ tombol melayang + penyelarasan (logout tidak memuat ulang halaman)
-  function selarasPil() {
-    var pil = dok.getElementById(ID_PIL), p = pengguna();
-    var h = st.hitung && st.hitungToken === (p && p.token) ? st.hitung : null;
-    if (!berhak() || !h || (!h.sisa && !h.selesai)) { if (pil && pil.parentNode) pil.parentNode.removeChild(pil); return; }
-    suntikStyle();
-    if (!pil) {
-      pil = dok.createElement('button'); pil.id = ID_PIL; pil.type = 'button';
-      pil.addEventListener('click', function () { bukaPanel(pil); });
-      dok.body.appendChild(pil);
-    }
-    var teks = h.sisa ? '📋 Tugas Ulang · sisa ' + fmt(h.sisa) : '📋 Tugas Ulang · selesai';
-    if (pil.textContent !== teks) pil.textContent = teks;
-  }
-
-  function segarkanHitung(paksa) {
-    var p = pengguna(); if (!berhak() || st.hitungMuat) return;
-    if (st.hitungToken !== p.token) { st.hitung = null; st.hitungToken = p.token; st.hitungWaktu = 0; }
-    if (!paksa && (Date.now() - st.hitungWaktu < SEGARKAN_HITUNG_MS || dok.hidden)) return;
-    if (dok.getElementById(ID)) return;   // panel terbuka: daftar sudah dimuat panel
-    st.hitungMuat = true;
-    rpc('getTugasUlangSaya', [1]).then(function (res) {
-      if (res && res.sukses === true) { st.hitung = { sisa: res.sisa, selesai: res.selesai }; }
-    }).catch(function () { /* diam: tombol tetap seperti sebelumnya */ }).then(function () { st.hitungMuat = false; st.hitungWaktu = Date.now(); selarasPil(); });
-  }
+  // ------------------------------------------------------------------ tombol melayang DIHAPUS
+  // Tombol melayang "Tugas Ulang" digantikan tab "Verifikasi Ulang" (app-tab-tugas.js). Panel pemeriksaan di atas tetap dipakai dan dibuka dari tab lewat
+  // bukaTugasUlangUntukPenerima. Tombol lama yang mungkin tertinggal di halaman dibuang; tidak ada lagi pemanggilan server berkala dari modul ini.
+  function selarasPil() { var pil = dok.getElementById(ID_PIL); if (pil && pil.parentNode) pil.parentNode.removeChild(pil); }
+  function segarkanHitung() { /* tidak dipakai lagi */ }
 
   setInterval(function () {
     try {

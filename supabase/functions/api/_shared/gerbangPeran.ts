@@ -41,6 +41,8 @@ export const AKSI_VERIFIKATOR: ReadonlySet<string> = new Set([
   "bukaTugasUlang",
   "catatBerkasDibuka",
   "simpanHasilUlang",
+  // Verifikasi Awal bagi rata (plans/plan-verifikasi-awal-bagi-rata.md): hanya tugas MILIK akun sendiri; pemilik diperiksa di domains/verifikasiAwal.ts
+  "getTugasAwalSaya",
 ]);
 
 export const PESAN_VERIFIKATOR_DITOLAK =

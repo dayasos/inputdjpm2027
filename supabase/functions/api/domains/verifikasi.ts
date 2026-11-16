@@ -1,6 +1,7 @@
 import { adalahVerifikator, bolehVerifikasiSatuData } from "../_shared/gerbangPeran.ts";
 import { catatRiwayatVerifikasi, catatRiwayatVerifikasiBanyak, catatRiwayatVerifikasiWajib } from "../_shared/riwayatVerifikasi.ts";
 import { nilaiStatusVerifikasi } from "../_shared/statusVerifikasi.ts";
+import { TugasBukanMilik, bebasGerbangAwal, pembagianAwalAktif, pesanTugasBukanMilik } from "./verifikasiAwal.ts";
 
 /** Nama lengkap akun pemverifikator (untuk tampilan segera sesudah verifikasi). Gagal/kosong -> "" (layar menampilkan username saja). */
 async function namaLengkapAkun(akunId: unknown): Promise<string> {
@@ -133,6 +134,10 @@ export async function verifikasiSatuData(
     // D9 (plans/plan-agregat-verifikator.md): akun VERIFIKATOR hanya boleh memberi hasil pada data yang MASIH menunggu
     // ("" atau "Proses Verifikasi", predikat sama dengan verifikasi massal). Mengubah data yang sudah berstatus = Admin Utama.
     const pelakuVerifikator = adalahVerifikator(sesi.role);
+    // Verifikasi Awal bagi rata: saat saklar NYALA, akun Verifikator hanya boleh memberi hasil pada data yang ditugaskan kepadanya
+    // (tugasnya ditutup dalam transaksi yang sama; bukan miliknya -> transaksi dibatalkan). Saklar MATI -> perilaku lama.
+    // Pimpinan dan akun khusus (yang tidak menerima tugas) tidak terkena gerbang ini: kemampuan mereka tidak berubah.
+    const wajibTugas = pelakuVerifikator && !bebasGerbangAwal(sesi.username) && (await pembagianAwalAktif());
     const riwayat = {
       penerimaId: id, tahun: TAHUN_AKTIF, statusLama: String(statusSebelumnya || ""), statusBaru, keterangan: keteranganBersih, oleh: namaVerifikator, sumber: "SATU" as const,
     };
@@ -155,7 +160,16 @@ export async function verifikasiSatuData(
           and (not ${pelakuVerifikator}::boolean or (status_verifikasi = '' or upper(trim(status_verifikasi)) = 'PROSES VERIFIKASI'))
         returning id
       `;
-      if (hasil.length > 0 && pelakuVerifikator) await catatRiwayatVerifikasiWajib(trx, riwayat);
+      if (hasil.length > 0 && pelakuVerifikator) {
+        await catatRiwayatVerifikasiWajib(trx, riwayat);
+        if (wajibTugas) {
+          const tugas = await trx`
+            update tugas_verifikasi_awal set status = 'SELESAI', selesai_pada = now(), hasil_status = ${statusBaru}
+            where penerima_id = ${id} and tahun = ${TAHUN_AKTIF} and akun_id = ${sesi.akunId as string}::uuid and status = 'AKTIF'
+            returning id`;
+          if (tugas.length === 0) throw new TugasBukanMilik();
+        }
+      }
       return hasil;
     });
 
@@ -208,6 +222,7 @@ export async function verifikasiSatuData(
       batasWaktu: batasWaktuBersih,
     };
   } catch (error) {
+    if (error instanceof TugasBukanMilik) return { sukses: false, bukanTugas: true, pesan: await pesanTugasBukanMilik(id) };
     return { sukses: false, pesan: String(error) };
   }
 }
