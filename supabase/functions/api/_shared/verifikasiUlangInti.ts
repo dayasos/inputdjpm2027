@@ -31,11 +31,21 @@ export interface BerkasTugas {
 /** Daftar berkas yang BENAR-BENAR diunggah (kolom tidak kosong). Diambil dari data, bukan dari layar. */
 export function daftarBerkasDariBaris(baris: Record<string, unknown>): BerkasTugas[] {
   const hasil: BerkasTugas[] = [];
+  const layanan = String(baris.layanan == null ? "" : baris.layanan).trim().toUpperCase();
   for (const s of SLOT_BERKAS) {
     const url = String(baris[s.kunci] == null ? "" : baris[s.kunci]).trim();
-    if (url) hasil.push({ kunci: s.kunci, label: s.label, url });
+    if (url) hasil.push({ kunci: s.kunci, label: labelBerkasUntukLayanan(s.kunci, s.label, layanan), url });
   }
   return hasil;
+}
+
+/**
+ * Nama berkas yang tampil. Untuk Ustadz/Ustadzah, kolom "berkas pendukung" berisi REKOMENDASI MUI (sama dengan layar Detail dan form input);
+ * layanan lain tetap "Berkas Pendukung". `layanan` sudah huruf besar dan dirapikan.
+ */
+export function labelBerkasUntukLayanan(kunci: string, label: string, layanan: string): string {
+  if (kunci === "link_berkas_pendukung" && (layanan === "USTADZ" || layanan === "USTADZAH")) return "Rekomendasi MUI";
+  return label;
 }
 
 /**

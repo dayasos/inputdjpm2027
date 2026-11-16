@@ -156,6 +156,24 @@ test("SESUAI: tugas selesai + riwayat ULANG dalam SATU transaksi; status data TI
   assert.deepEqual(daftarBerkasDariBaris(penerima).map((b) => b.kunci), ["link_ktp", "link_buku_rekening"], "koordinat dan kolom kosong bukan berkas");
 });
 
+test("NAMA BERKAS: untuk Ustadz/Ustadzah kolom berkas pendukung bernama 'Rekomendasi MUI' (sama dengan Detail); layanan lain tetap 'Berkas Pendukung'; kunci tidak berubah", () => {
+  const baris = (layanan) => ({ layanan, link_ktp: "https://x/ktp", link_berkas_pendukung: "https://x/bp" });
+  for (const l of ["USTADZ", "USTADZAH", " ustadz ", "Ustadzah"]) {
+    const b = daftarBerkasDariBaris(baris(l));
+    assert.deepEqual(b.map((x) => x.kunci), ["link_ktp", "link_berkas_pendukung"], "kunci sama: " + l);
+    assert.equal(b.find((x) => x.kunci === "link_berkas_pendukung").label, "Rekomendasi MUI", l);
+    assert.equal(b.find((x) => x.kunci === "link_ktp").label, "KTP", "berkas lain tidak ikut berganti nama");
+  }
+  for (const l of ["IMAM MASJID", "GURU SEKOLAH MINGGU", "PENGURUS GEREJA", "", undefined]) {
+    assert.equal(daftarBerkasDariBaris(baris(l)).find((x) => x.kunci === "link_berkas_pendukung").label, "Berkas Pendukung", String(l));
+  }
+  // pesan penolakan menyebut nama yang sama dengan yang tampil
+  const berkas = daftarBerkasDariBaris(baris("USTADZ"));
+  const r = cekSimpanHasil({ hasil: "SESUAI", statusSebelum: "Memenuhi Syarat", berkas, berkasDibuka: ["link_ktp"], centang: {}, sudahDibuka: true });
+  assert.equal(r.ok, false);
+  assert.match(r.pesan, /Belum dibuka: Rekomendasi MUI\./);
+});
+
 test("DIKOREKSI MS -> BTL: status data ikut berubah (batas seragam), riwayat ULANG; MS->TMS tanpa batas", async () => {
   pakai("VERIF");
   let h = await ulang.simpanHasilUlang(tok(), 11, { hasil: "DIKOREKSI", statusSesudah: "Berkas Tidak Lengkap", alasan: "KTP buram", centang: { link_ktp: false, link_buku_rekening: true } });
