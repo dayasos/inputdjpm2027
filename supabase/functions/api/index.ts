@@ -75,6 +75,7 @@ import {
 } from "./domains/verifikasiUlang.ts";
 import { unduhRekapPembagianUlang } from "./domains/pembagianUlangExcel.ts";
 import { getPenandaKoordinat, jalankanCekKoordinatOtomatis } from "./domains/cekKoordinat.ts";
+import { koreksiKoordinatBermasalah } from "./domains/koreksiKoordinat.ts";
 import { aturPembagianAwal, bagiSekarangAwal, getStatusPembagianAwal, getTugasAwalSaya, jalankanPembagianAwalOtomatis, pratinjauPembagianAwal } from "./domains/verifikasiAwal.ts";
 import { getCapaianInput, getProgresKuota, getSemuaKuota, simpanKuota } from "./domains/kuota.ts";
 import {
@@ -207,6 +208,7 @@ const ALLOWED: Record<string, Handler> = {
   getTugasAwalSaya,
   getPenandaKoordinat,            // penanda koordinat GMM: hanya baca, Admin Utama dan Verifikator
   jalankanCekKoordinatOtomatis,   // dipanggil pg_cron lewat _secret; dibatasi 1x/30 dtk
+  koreksiKoordinatBermasalah,     // koreksi sekali pakai oleh SISTEM (khusus Admin Utama; pratinjau lalu jalankan)
   getStatusPembagianAwal,         // Verifikasi Awal bagi rata: aksi Admin dicek di domains/verifikasiAwal.ts (sesiUtama)
   aturPembagianAwal,
   pratinjauPembagianAwal,

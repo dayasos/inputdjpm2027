@@ -60,5 +60,5 @@ test("KABEL: dimuat untuk UTAMA dan VERIFIKATOR saja; modul hanya memanggil aksi
   assert.deepEqual(aksi, ["getPenandaKoordinat"], "satu-satunya aksi server");
   assert.doesNotMatch(m, /simpan|verifikasiSatuData|editDataPenerima/);
   const html = baca("index.html");
-  assert.match(html, /app-pesan-periode\.js\?v=20271096/);
+  assert.match(html, /app-pesan-periode\.js\?v=20271097/);
 });
