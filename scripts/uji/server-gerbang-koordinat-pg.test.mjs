@@ -198,10 +198,10 @@ test("VERIFIKASI ULANG (simpanHasilUlang): SESUAI pada MS berkoordinat tidak val
 
 test("KABEL: gerbang dipasang SEBELUM penulisan di semua jalur; Admin Utama dikecualikan; kunci sementara sudah tidak ada", () => {
   const p = baca("supabase/functions/api/domains/penerima.ts"), v = baca("supabase/functions/api/domains/verifikasi.ts"), u = baca("supabase/functions/api/domains/verifikasiUlang.ts");
-  const sim = p.indexOf("tolakKoordinatSalah(koordinatLink)");
+  const sim = p.indexOf("tolakKoordinatSalah(koordinatLink, koordinatMentah)");
   assert.ok(sim > 0 && sim < p.indexOf("insert into penerima"), "simpan baru: gerbang sebelum insert");
   assert.match(p, /LAYANAN_GERBANG && String\(sesi\.role \|\| ""\)\.trim\(\)\.toUpperCase\(\) !== "UTAMA"/);
-  const edt = p.indexOf("tolakKoordinatSalah(nilaiBaru)");
+  const edt = p.indexOf("tolakKoordinatSalah(nilaiBaru, nilaiMentah)");
   assert.ok(edt > 0 && edt < p.indexOf("await sql.begin", edt), "edit: gerbang sebelum penulisan");
   assert.match(p, /nilaiBaru !== String\(rowLama\.link_koordinat_lokasi \?\? ""\)\.trim\(\)/, "edit: hanya bila tautan berubah");
   assert.ok(v.indexOf("tolakHasilKarenaKoordinat(id, statusBaru, keteranganBersih)") > 0 && v.indexOf("tolakHasilKarenaKoordinat(id, statusBaru, keteranganBersih)") < v.indexOf("const rows = await sql.begin"));

@@ -5,6 +5,8 @@
 //   TIDAK_VALID  : tampilan peta tanpa penanda, Street View, hasil pencarian teks, petunjuk arah (rute), di luar Medan, tautan mati, bukan Google Maps, atau tanpa titik.
 //   BELUM_DICEK  : tidak bisa dipastikan (Google tidak menjawab, dibatasi, pengalihan tak dikenal). TIDAK PERNAH dianggap salah.
 
+import { normalisasiKoordinat } from "./koordinat.ts";
+
 export type HasilCek = "VALID" | "TIDAK_VALID" | "BELUM_DICEK";
 
 export interface Penilaian {
@@ -87,7 +89,7 @@ export function nilaiTautan(url: unknown): Penilaian {
   }
   // 2) Koordinat pada parameter kueri (bentuk yang dibuat aplikasi sendiri: /maps?q=lat,lng) dan tujuan rute berupa koordinat (daddr)
   for (const kunci of ["q", "ll", "query", "center", "destination", "daddr"]) {
-    const v = u.searchParams.get(kunci);
+    const v = (u.searchParams.get(kunci) || "").replace(/^\s*loc:/i, "");
     const m = v ? v.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/) : null;
     if (m) return titik(parseFloat(m[1]), parseFloat(m[2]));
   }
@@ -101,6 +103,15 @@ export function nilaiTautan(url: unknown): Penilaian {
   const nama = jalur.match(/^\/maps\/place\/([^/@?]+)(?:\/|$)/i);
   if (nama) {
     const n = dekode(nama[1]).replace(/\+/g, " ").trim();
+    // Nama tempat berupa koordinat LENGKAP (mis. /maps/place/3.5952,98.6722 atau DMS utuh): titik yang pasti. Yang terpotong tidak terbaca normalizer dan tetap TERPOTONG.
+    const lengkap = !idTempat && (/\d+\.\d+\s*[,;]\s*-?\d+\.\d+/.test(n) || (/\d/.test(n) && /[NS]\b|[NS]\s/i.test(n) && /[EW]\b|[EW]$/i.test(n)) || /[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,6}/i.test(dekode(nama[1])));   // tempat ber-ID sudah teridentifikasi: ditangani aturan di bawah
+    // Tautan Street View tetap TIDAK sah walau nama tempatnya berupa koordinat (yang terbaca hanya posisi kamera, aturan ketat user).
+    if (lengkap && (/,\d+(?:\.\d+)?a,\d+(?:\.\d+)?y/.test(t) || /streetviewpixels|!1e1!3m/.test(t))) return salah("STREET_VIEW");
+    for (const calon of lengkap ? [n, dekode(nama[1]).trim()] : []) {
+      const k = normalisasiKoordinat(calon);
+      if (k.ok && k.lat !== null && k.lng !== null) return titik(k.lat, k.lng);
+      if (!k.ok && /luar Kota Medan/.test(String(k.pesan || ""))) return salah("LUAR_MEDAN");
+    }
     if (/^\d+\s*[°º]/.test(n) || /^\d+\s*$/.test(n)) return salah("TERPOTONG");   // koordinat DMS yang terpotong pada tanda petik
     if (idTempat) return valid(at ? parseFloat(at[1]) : null, at ? parseFloat(at[2]) : null);
     if (at) {

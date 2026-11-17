@@ -112,3 +112,41 @@ test("INPUT BARU: Admin Utama tidak dibatasi; layanan Guru lain tidak diperiksa"
   r = await simpanBaru("GSM", "t-baru-6", { koordinatLink: BAD, selectLayanan: "GURU SEKOLAH MINGGU" });
   assert.doesNotMatch(String(r.pesan || ""), /Koordinat tidak dapat diterima/, "layanan lain lolos gerbang koordinat (penolakan lain tidak terkait): " + JSON.stringify(r));
 });
+
+// ---------------------------------------------------------------- tinjauan mendalam: tautan mentah, batas waktu
+const SV_PANJANG = "https://www.google.com/maps/@3.595200,98.672200,34a,75y,26.65h,88.21t/data=!3m7!1e1!3m5!1s" + "A".repeat(520) + "!2e0!7i16384!8i8192";
+
+test("TAUTAN MENTAH: Street View PANJANG (>500 huruf, yang oleh normalizer dijadikan ?q=lat,lng) tetap DITOLAK pada Edit Data; tautan panjang yang sah diterima", async () => {
+  peran("GMM", "t-gmm-sv"); jaringanPutus();
+  pasang();
+  const norm = (await import("../../supabase/functions/api/_shared/koordinat.ts")).normalisasiKoordinat(SV_PANJANG);
+  assert.equal(norm.ok, true); assert.match(norm.tautan, /^https:\/\/www\.google\.com\/maps\?q=3\.595200,98\.672200$/, "bukti: normalizer menyembunyikan Street View ini");
+  let r = await edit(SV_PANJANG);
+  assert.equal(r.sukses, false, JSON.stringify(r)); assert.match(r.pesan, /tautan Street View/); assert.equal(menulis().length, 0);
+  pasang();
+  r = await edit("https://www.google.com/maps/place/Masjid/@3.5952,98.6722,17z/data=!3m1!4b1!4m6!3m5!1s0x1:0x2!8m2!3d3.5952!4d98.6722" + "&x=" + "B".repeat(520));
+  assert.equal(r.sukses, true, "tautan panjang yang sah: " + JSON.stringify(r));
+});
+
+test("TAUTAN MENTAH: tautan di tengah teks dibaca seperti normalizer; teks dengan tautan non-Google + angka koordinat dinilai dari hasil normalisasi", async () => {
+  peran("GMM", "t-gmm-teks"); jaringanPutus();
+  pasang(); let r = await edit("Lokasi saya https://www.google.com/maps?q=3.6,98.67 terima kasih");
+  assert.equal(r.sukses, true, JSON.stringify(r));
+  pasang(); r = await edit("Lokasi saya https://www.google.com/maps/@3.5,98.6,34a,75y/data=!1e1 tolong");
+  assert.equal(r.sukses, false); assert.match(r.pesan, /Street View/);
+  pasang(); r = await edit("3.595200, 98.672200");
+  assert.equal(r.sukses, true, "angka polos sah: " + JSON.stringify(r));
+  pasang(); r = await edit("https://example.com/x 3.595200, 98.672200");
+  assert.equal(r.sukses, true, "tautan non-Google di teks diabaikan normalizer; angkanya yang dinilai: " + JSON.stringify(r));
+});
+
+test("BATAS WAKTU: Google menggantung -> petugas tetap bisa menyimpan (gagal-terbuka) dalam ±6 detik, tidak menunggu tanpa batas", async () => {
+  peran("GMM", "t-gmm-gantung");
+  globalThis.__ujiFetch = () => new Promise(() => {});   // tidak pernah selesai
+  pasang();
+  const mulai = Date.now();
+  const r = await edit(PENDEK);
+  const dtk = (Date.now() - mulai) / 1000;
+  assert.equal(r.sukses, true, JSON.stringify(r));
+  assert.ok(dtk >= 5 && dtk < 9, "menunggu sekitar batas total 6 dtk: " + dtk);
+});

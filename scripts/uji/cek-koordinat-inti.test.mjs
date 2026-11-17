@@ -35,6 +35,14 @@ const kasus = [
   ["kosong", "", "TIDAK_VALID", "TANPA_TITIK"],
   ["bukan URL", "3.5952, 98.6722", "TIDAK_VALID", "TANPA_TITIK"],
   ["Google non-peta (jalur lain)", G + "/search?q=masjid", "TIDAK_VALID", "BUKAN_GOOGLE"],
+  // --- bentuk sah yang diterima normalizer input dan TIDAK boleh keliru ditolak (tinjauan mendalam 2026-11-17)
+  ["place/<lat,lng> desimal tanpa data", G + "/maps/place/3.5952,98.6722", "VALID", ""],
+  ["place/<DMS utuh>", G + "/maps/place/3%C2%B035'42.7%22N+98%C2%B040'19.9%22E", "VALID", ""],
+  ["place/<lat,lng> di luar Medan", G + "/maps/place/-6.2,106.8", "TIDAK_VALID", "LUAR_MEDAN"],
+  ["place/<lat,lng> tetapi Street View tetap tidak sah", G + "/maps/place/3.714626,98.659867/@3.7145638,98.6598358,3a,75y,43.27h,77.26t/data=!3m5!1e1!3m3!1s5gUYZwi4q_YizHAdlYAZ8Q", "TIDAK_VALID", "STREET_VIEW"],
+  ["tempat ber-ID dengan nama diawali Plus Code tetap sah (mode Street View)", G + "/maps/place/JJ84%2BP3V+PuFood+Kitchen,+Jl.+Klambir/@3.6,98.67,3a,75y,43.27h,77.26t/data=!3m5!1e1!4m6!3m5!1s0x3031:0xabc", "VALID", ""],
+  ["?q=loc:lat,lng (bentuk lama)", "https://maps.google.com/maps?q=loc:3.5952,98.6722", "VALID", ""],
+  ["api=1&query=lat,lng (tautan resmi Google)", G + "/maps/search/?api=1&query=3.5952,98.6722", "VALID", ""],
 ];
 for (const [nama, url, hasil, alasan] of kasus) {
   test("NILAI: " + nama, () => {

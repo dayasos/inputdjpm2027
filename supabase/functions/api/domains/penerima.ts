@@ -770,12 +770,13 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
     // penentu terakhir (layar bisa dilewati / halaman lama masih mengirim teks bebas); nilai disimpan dalam bentuk ternormalisasi.
     // Sengaja SESUDAH cek hak akses & data wajib: peran yang tidak berhak tetap menerima pesan hak-akses, bukan pesan koordinat.
     if (layananWajibKoordinat(layanan)) {
+      const koordinatMentah = koordinatLink;   // yang dikirim klien; dinilai gerbang Tahap B sebelum diganti hasil normalisasi
       const hk = normalisasiKoordinat(koordinatLink);
       if (!hk.ok) return { sukses: false, pesan: "GAGAL: Koordinat lokasi tidak valid. " + hk.pesan };
       koordinatLink = hk.tautan;
       // Tahap B penanda koordinat: petugas lapangan tidak boleh menyimpan koordinat yang jelas bukan titik lokasi (Street View, pencarian, rute, tanpa penanda, di luar Medan, mati). Admin Utama tidak dibatasi.
       if (String(layanan).trim().toUpperCase() === LAYANAN_GERBANG && String(sesi.role || "").trim().toUpperCase() !== "UTAMA") {
-        const tolak = await tolakKoordinatSalah(koordinatLink);
+        const tolak = await tolakKoordinatSalah(koordinatLink, koordinatMentah);
         if (tolak) return { sukses: false, pesan: tolak };
       }
     }
@@ -1225,6 +1226,7 @@ export async function editDataPenerimaInti(
       if (!namaKolom) continue;
 
       let nilaiBaru: string = String(teks[idxStr] || "").trim();
+      const nilaiMentah = nilaiBaru;
       if (idx === 31) {
         // Koordinat lokasi: hanya layanan Guru; wajib sah (tautan Maps / angka koordinat / Plus Code) dan disimpan ternormalisasi.
         if (!layananWajibKoordinat(layananSheet)) continue;
@@ -1233,7 +1235,7 @@ export async function editDataPenerimaInti(
         nilaiBaru = hk.tautan;
         // Tahap B: hanya bila tautan BERUBAH (data yang tautannya tak diubah tetap bisa diedit di kolom lain). Admin Utama tidak dibatasi.
         if (String(layananSheet).trim().toUpperCase() === LAYANAN_GERBANG && peranSesi !== "UTAMA" && nilaiBaru !== String(rowLama.link_koordinat_lokasi ?? "").trim()) {
-          const tolak = await tolakKoordinatSalah(nilaiBaru);
+          const tolak = await tolakKoordinatSalah(nilaiBaru, nilaiMentah);
           if (tolak) return { sukses: false, pesan: tolak };
         }
       } else if (![2, 13, 15].includes(idx)) {

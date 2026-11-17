@@ -312,6 +312,22 @@
     var h = normalisasiKoordinat(tautan);
     return h.ok ? '' : 'Lokasi GPS pada foto tidak dapat dipakai. ' + h.pesan + ' Isi lokasi yang benar secara manual di bawah ini.';
   };
+  // Tahap B penanda koordinat (khusus Guru Maghrib Mengaji = mode 'plank'): tautan Street View tidak dipakai (hanya posisi kamera). Server menegakkan hal yang sama;
+  // pemeriksaan di sini perlu karena inti normalizer mengubah tautan PANJANG menjadi ?q=lat,lng sebelum dikirim, sehingga Street View panjang tak terlihat lagi oleh server.
+  // Mengikuti aturan server: titik penanda (!3d!4d) atau ID tempat membuat tautan sah walau tampil Street View.
+  function adalahStreetViewTanpaTitik(teks) {
+    var t = String(teks || '');
+    try { t = decodeURIComponent(t); } catch (e) { /* pakai apa adanya */ }
+    if (!/https?:\/\//i.test(t)) return false;
+    if (!(/,\d+(?:\.\d+)?a,\d+(?:\.\d+)?y/.test(t) || /streetviewpixels|!1e1!3m/.test(t))) return false;
+    var pin = t.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+    if (pin && !(parseFloat(pin[1]) === 0 && parseFloat(pin[2]) === 0)) return false;
+    if (/!1s0x[0-9a-f]+:0x[0-9a-f]+/i.test(t)) return false;
+    return true;
+  }
+  api.adalahStreetViewTanpaTitik = adalahStreetViewTanpaTitik;
+  var PESAN_STREET_VIEW = 'Tautan Street View tidak dapat dipakai karena hanya menunjukkan posisi kamera, bukan titik lokasi. ' + PETUNJUK;
+
   /** Dipanggil saat petugas mengetik/menempel di kolom manual. */
   api.periksaManual = function (mode) {
     var cfg = KONFIG_KOORDINAT[mode];
@@ -325,6 +341,7 @@
     if (peringatan && peringatan.getAttribute('data-disembunyikan') === '1') { peringatan.classList.remove('hidden'); peringatan.removeAttribute('data-disembunyikan'); }
     if (nilai.trim()) {
       var h = normalisasiKoordinat(nilai);
+      if (h.ok && mode === 'plank' && adalahStreetViewTanpaTitik(nilai)) h = tolak(PESAN_STREET_VIEW);
       if (h.ok) {
         hidden.value = h.tautan;
         cfg.siap = true;

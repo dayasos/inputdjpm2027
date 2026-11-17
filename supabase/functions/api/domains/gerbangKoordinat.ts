@@ -10,12 +10,27 @@
 // Penyapu (domains/cekKoordinat.ts) tetap menandai tautan yang lolos itu kemudian.
 import { sql } from "../_shared/db.ts";
 import { TAHUN_AKTIF } from "../_shared/config.ts";
-import { ALASAN, periksaTautan } from "../_shared/cekKoordinat.ts";
+import { ALASAN, periksaTautan, type Penilaian } from "../_shared/cekKoordinat.ts";
 import { ambilJaringanDengan } from "./cekKoordinat.ts";
 
 export const LAYANAN_GERBANG = "GURU MAGHRIB MENGAJI";
 const BATAS_GERBANG_MS = 4_000;   // pembukaan tautan pendek saat menyimpan/memeriksa: lebih singkat daripada penyapu agar layar tidak menunggu lama
 const ambilCepat = ambilJaringanDengan(BATAS_GERBANG_MS);
+const BATAS_TOTAL_MS = 6_000;     // seluruh pemeriksaan (semua lompatan pengalihan): lewat dari ini = BELUM_DICEK = lolos
+const BELUM: Penilaian & { tujuan: string } = { hasil: "BELUM_DICEK", alasan: "", lat: null, lng: null, tujuan: "" };
+
+/** Menilai satu tautan dengan batas waktu TOTAL; tidak pernah melempar dan tidak pernah menahan lebih lama dari BATAS_TOTAL_MS. */
+async function nilai(url: string): Promise<Penilaian & { tujuan: string }> {
+  let pewaktu: ReturnType<typeof setTimeout> | undefined;
+  const habis = new Promise<Penilaian & { tujuan: string }>((r) => { pewaktu = setTimeout(() => r(BELUM), BATAS_TOTAL_MS); });
+  try { return await Promise.race([periksaTautan(url, ambilCepat).catch(() => BELUM), habis]); } finally { if (pewaktu) clearTimeout(pewaktu); }
+}
+
+/** Tautan https pertama dalam masukan mentah petugas (cara membaca yang sama dengan normalizer koordinat); kosong bila tidak ada. */
+export function ambilUrlMentah(masukan: unknown): string {
+  const m = String(masukan == null ? "" : masukan).match(/https?:\/\/[^\s<>"']+/i);
+  return m ? m[0].replace(/[.,;:)\]}]+$/, "") : "";
+}
 
 const huruf = (v: unknown) => String(v == null ? "" : v).trim();
 const teksAlasan = (kode: string) => ALASAN[kode] || "Tautan tidak memuat titik lokasi yang jelas";
@@ -33,14 +48,24 @@ export function keteranganKoordinatTidakValid(kode: string): string {
 export const menyebutKoordinat = (keterangan: unknown) => /koordinat/i.test(huruf(keterangan));
 
 /**
- * (1) Menilai tautan koordinat yang akan disimpan petugas (sudah dinormalkan). Mengembalikan pesan penolakan, atau null bila boleh disimpan.
- * Tautan pendek dibuka (batas 4 dtk); tidak terjawab = lolos.
+ * (1) Menilai koordinat yang akan disimpan petugas. `tautan` = hasil normalisasi; `mentah` = apa yang ditempel petugas (bila ada).
+ * Tautan MENTAH dinilai lebih dulu: normalizer mengubah tautan panjang (>500 huruf) menjadi tautan koordinat ringkas sehingga Street View panjang tidak terlihat lagi.
+ * Mengembalikan pesan penolakan, atau null bila boleh disimpan. Tautan pendek dibuka (batas 4 dtk per lompatan, 6 dtk total); tidak terjawab = lolos.
  */
-export async function tolakKoordinatSalah(tautan: string): Promise<string | null> {
+export async function tolakKoordinatSalah(tautan: string, mentah?: unknown): Promise<string | null> {
   try {
-    const p = await periksaTautan(tautan, ambilCepat);
-    if (p.hasil !== "TIDAK_VALID") return null;
-    return "GAGAL: Koordinat tidak dapat diterima karena " + teksAlasan(p.alasan).charAt(0).toLowerCase() + teksAlasan(p.alasan).slice(1) + ". " + PETUNJUK_TITIK;
+    const url = ambilUrlMentah(mentah);
+    const daftar = [...new Set([url, huruf(tautan)].filter((x) => x !== ""))];
+    for (const k of daftar) {
+      const p = await nilai(k);
+      if (p.hasil === "VALID") return null;
+      if (p.hasil === "TIDAK_VALID") {
+        if (p.alasan === "BUKAN_GOOGLE" && k === url && daftar.length > 1) continue;   // tautan lain di teks; yang dinilai hasil normalisasi
+        const sebab = teksAlasan(p.alasan);
+        return "GAGAL: Koordinat tidak dapat diterima karena " + sebab.charAt(0).toLowerCase() + sebab.slice(1) + ". " + PETUNJUK_TITIK;
+      }
+    }
+    return null;
   } catch (e) {
     console.error("tolakKoordinatSalah: dilewati (gagal-terbuka):", e);
     return null;
@@ -64,7 +89,7 @@ export async function nilaiKoordinatData(penerimaId: number): Promise<{ layanan:
   if (layanan !== LAYANAN_GERBANG) return null;
   const h = huruf(r.hasil);
   if (h === "VALID" || h === "TIDAK_VALID") return { layanan, hasil: h, alasan: huruf(r.alasan) };
-  const p = await periksaTautan(huruf(r.tautan), ambilCepat);
+  const p = await nilai(huruf(r.tautan));
   if (p.hasil === "BELUM_DICEK") return { layanan, hasil: "BELUM_DICEK", alasan: "" };
   await sql`
     insert into cek_koordinat (penerima_id, tahun, tautan, hasil, alasan, tujuan, lat, lng, dicek_pada)
