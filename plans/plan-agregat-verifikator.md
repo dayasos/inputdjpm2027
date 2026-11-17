@@ -297,3 +297,11 @@ Urutan penayangan yang disarankan (menunggu izin Anda): (1) terapkan migrasi; (2
 - Panel menampilkan DUA baris status: **Hasil verifikator** (dasar hitungan, dari riwayat) dan **Status data sekarang** (informasi, dari `penerima` lewat left join) beserta chip **Dikoreksi Admin** (jumlah data yang status sekarangnya berbeda dari hasil verifikator, termasuk data yang sudah dihapus). Tabel mendapat kolom "Dikoreksi"; Excel mendapat kolom "Dikoreksi Admin (informasi, per tanggal unduh)" dengan subtotal per tim dan penjelasan di sheet Aturan.
 - **Lembur aman:** total, jam kerja, luar jam kerja, dan hasil verifikator TIDAK dihitung dari status sekarang. Dijaga uji invarian di tiga lapis (logika murni, server tiruan, Postgres sungguhan: kasus TMS -> Admin naikkan ke BTL -> total/jam/lembur identik, dikoreksi = 1) dan percobaan merusak kode.
 - Status sekarang berubah mengikuti koreksi berikutnya; jangan dipakai sebagai dasar pembayaran.
+
+## Beban tugas pada Excel (2026-11-17, lokal, belum tayang)
+Permintaan pimpinan: Excel unduhan tab Agregat Verifikasi memuat BEBAN TUGAS per verifikator saat unduh (Awal dan Ulang) agar terlihat sudah berapa yang dikerjakan dari yang ditugaskan.
+- Kolom baru di ujung kanan sheet Rekap (21-30): Awal = Ditugaskan | Selesai | Sisa | % Selesai | Ditutup; Ulang = Ditugaskan | Selesai | Sisa | % Selesai | Ditarik. Subtotal per tim dan TOTAL dihitung dari jumlah (persen = jumlah selesai / jumlah ditugaskan, bukan rata-rata persen); "-" bila belum ada tugas.
+- Definisi: Ditugaskan = Selesai + Sisa (yang harus dikerjakan). Ditutup (Awal: data sudah diverifikasi pihak lain / terhapus) dan Ditarik (Ulang: paket dikosongkan / status data berubah) hanya informasi. Alasan: di produksi ada 5.120 tugas Ulang berstatus ditarik (sisa pembagian Tahap 1 yang dikosongkan) yang akan menggelembungkan "Ditugaskan".
+- Kumulatif per WAKTU UNDUH (tidak mengikuti rentang tanggal); aturan "sisa" Awal sama dengan yang dilihat verifikator (tugas aktif yang datanya masih menunggu).
+- Hanya unduhan Excel (hitung(..., sertakanBeban=true)); layar agregat tidak berubah dan tidak menjalankan kueri tambahan. Hanya membaca. Cakupan hak sama (Admin Utama semua, koordinator timnya, verifikator dirinya).
+- Uji: `npm run uji:agregat-beban`; berkas .xlsx asli (ExcelJS) dibangun dan dibaca kembali; mutan 17/17 terbunuh.

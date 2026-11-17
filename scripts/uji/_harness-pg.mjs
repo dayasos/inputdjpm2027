@@ -84,7 +84,15 @@ export async function muatServerPg(entriRelatif, opsi = {}) {
         name: "stub",
         setup(b) {
           b.onResolve({ filter: /(^|\/)db\.ts$/ }, () => ({ path: stubDb }));
-          b.onResolve({ filter: /^npm:/ }, (x) => ({ path: x.path, external: true }));   // pustaka npm milik Deno (mis. exceljs) tidak dimuat di uji
+          // Pustaka npm milik Deno (mis. exceljs) tidak dimuat di uji. OPSIONAL: bila DJPM_EXCELJS_DIR diisi (folder yang memuat node_modules/exceljs), exceljs ASLI dimuat
+          // sehingga endpoint unduhan Excel dapat diuji utuh (hanya uji yang meminta; tanpa variabel ini uji tersebut DILEWATI).
+          b.onResolve({ filter: /^npm:/ }, (x) => {
+            const dirEx = process.env.DJPM_EXCELJS_DIR;
+            if (dirEx && /^npm:exceljs/.test(x.path)) {
+              try { return { path: pathToFileURL(createRequire(path.join(dirEx, "x.js")).resolve("exceljs")).href, external: true }; } catch (_e) { /* jatuh ke bawaan */ }
+            }
+            return { path: x.path, external: true };
+          });
           if (stubOpsi.length > 0) b.onResolve({ filter: new RegExp("(^|/)(" + stubOpsi.map((n) => n.replace(".ts", "")).join("|") + ")\\.ts$") }, (a) => ({ path: path.join(tmp, "stub-" + path.basename(a.path) + ".mjs") }));
           b.onResolve({ filter: /(^|\/)(setelan|validasi|master|gasDrive|storage|sesi)\.ts$/ }, (a) => {
             // Berkas stub sudah ditulis SEKALI di awal (menulis ulang saat resolusi = balapan dengan pembacaan esbuild -> terbaca kosong).
