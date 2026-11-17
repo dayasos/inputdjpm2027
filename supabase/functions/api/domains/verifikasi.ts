@@ -1,3 +1,4 @@
+import { PESAN_PERBAIKAN_GMM_DIKUNCI, perbaikanGmmDikunci } from "../_shared/kunciSementara.ts";
 import { adalahVerifikator, bolehVerifikasiSatuData } from "../_shared/gerbangPeran.ts";
 import { catatRiwayatVerifikasi, catatRiwayatVerifikasiBanyak, catatRiwayatVerifikasiWajib } from "../_shared/riwayatVerifikasi.ts";
 import { nilaiStatusVerifikasi } from "../_shared/statusVerifikasi.ts";
@@ -294,6 +295,8 @@ export async function laporkanPerbaikanBerkas(token: string, nomorBarisAsli: num
       tempatTugasSheet: (rowCek.tempat_tugas || "").toUpperCase(),
     });
     if (!bolehLapor) return { sukses: false, pesan: "Anda tidak berhak melapor untuk data ini." };
+    // KUNCI SEMENTARA selama Tahap B penanda koordinat (hapus saat Tahap B tayang): laporan perbaikan data GMM ditahan.
+    if (perbaikanGmmDikunci(sesi.role, rowCek.layanan)) return { sukses: false, pesan: PESAN_PERBAIKAN_GMM_DIKUNCI };
 
     const namaPelapor = (sesi.username || "").toString().toUpperCase();
     const waktuLapor = new Date();

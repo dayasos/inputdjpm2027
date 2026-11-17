@@ -66,7 +66,7 @@ export async function muatServer(entriRelatif) {
         },
       }],
     });
-    globalThis.Deno = { env: { get: () => undefined } };
+    globalThis.Deno = { env: { get: (k) => (k === "KUNCI_PERBAIKAN_GMM" ? "off" : undefined) } };   // kunci sementara perbaikan GMM dimatikan di uji (uji khusus kunci menyalakannya)
     globalThis.__ujiDb = globalThis.__ujiDb || { handler: () => [], panggilan: [] };
     return await import(pathToFileURL(keluar).href);
   } finally {

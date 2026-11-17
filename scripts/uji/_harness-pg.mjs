@@ -65,7 +65,7 @@ const STUB_DB = `
 
 // Stub OPSIONAL (hanya bila diminta lewat opsi.stub): modul sampingan yang tidak relevan bagi uji dan menyentuh tabel yang tidak dibuat di sana.
 const STUB_OPSIONAL = {
-  "dataDetail.ts": "export const arsipkanDataDetail = async (ids, alasan, tahun, oleh) => { (globalThis.__ujiArsip = globalThis.__ujiArsip || []).push({ ids, alasan, tahun, oleh }); return { sukses: true, jumlahDihapus: 0 }; }; export const pastikanDataDetailTersinkron = async () => {};",
+  "dataDetail.ts": "export const arsipkanDataDetail = async () => {}; export const pastikanDataDetailTersinkron = async () => {};",
 };
 
 export async function muatServerPg(entriRelatif, opsi = {}) {
@@ -94,7 +94,7 @@ export async function muatServerPg(entriRelatif, opsi = {}) {
       }],
     });
     if (process.env.DJPM_SIMPAN_BUNDEL) fs.copyFileSync(keluar, process.env.DJPM_SIMPAN_BUNDEL);
-    globalThis.Deno = { env: { get: () => undefined } };
+    globalThis.Deno = { env: { get: (k) => (k === "KUNCI_PERBAIKAN_GMM" ? "off" : undefined) } };   // kunci sementara perbaikan GMM dimatikan di uji (uji khusus kunci menyalakannya)
     return await import(pathToFileURL(keluar).href);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

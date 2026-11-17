@@ -18,10 +18,5 @@ petugas lapangan yang mengirim koordinat benar; Tahap B dinyalakan ±2 hari sete
 - Petugas lapangan ditolak saat menyimpan koordinat TIDAK_VALID, dengan petunjuk "tekan lama titik -> Bagikan -> Salin tautan"; fail-open bila Google gagal.
 - Data Memenuhi Syarat yang kini bermasalah (±90) dibereskan lewat Verifikasi Ulang (dikoreksi ke BTL dengan keterangan koordinat).
 
-## Koreksi sekali pakai oleh SISTEM (2026-11-17, lokal, belum tayang)
-Data GMM yang sudah Memenuhi Syarat oleh akun verifikator (sudah terhitung pekerjaan/lembur mereka) tetapi koordinatnya TIDAK_VALID diturunkan ke Berkas Tidak Lengkap oleh **SISTEM** (bukan Admin, bukan verifikator).
-- Aksi `koreksiKoordinatBermasalah(token, jalankan?, ids?)` di `domains/koreksiKoordinat.ts`, khusus Admin Utama: pratinjau (tanpa perubahan) lalu jalankan dengan daftar id dari pratinjau (satu transaksi per data; riwayat `oleh=SISTEM`, `sumber=OTOMATIS`; Data Detail diarsipkan; maks 300).
-- Kandidat: GMM, MS, koordinat TIDAK_VALID terkini, pemverifikasi terakhir VERIF_*, ada riwayat SATU oleh verifikator, tak ada tugas Verifikasi Ulang aktif/selesai. Tidak mengubah hitungan verifikator; tidak masuk kolam Verifikasi Ulang (V12).
-- Layar: `public/js/app-koreksi-koordinat.js` (UTAMA saja; tombol "Koreksi koordinat (SISTEM)" di Lihat Data; modal pratinjau + centang + Jalankan). Skrip ?v=20271097.
-- Uji: `npm run uji:koreksi-koordinat`, layar `scripts/uji/layar/koreksi-koordinat.mjs`; mutan 20/20 terbunuh atau setara (3 lapisan pengaman ganda sengaja).
-- Setelah dipakai: aksi + layar dapat dikeluarkan lagi dari kode (bukan fitur permanen).
+## Koreksi sekali pakai oleh SISTEM (SELESAI 2026-11-17, kode sudah DIHAPUS)
+Data GMM yang sudah Memenuhi Syarat oleh akun verifikator tetapi koordinatnya TIDAK_VALID (36 data) diturunkan ke Berkas Tidak Lengkap oleh **SISTEM** lewat aksi sekali pakai (pratinjau lalu jalankan, khusus Admin Utama; commit 847c609). Hasil terverifikasi di database: 36 data BTL, 36 riwayat oleh=SISTEM sumber=OTOMATIS, hitungan verifikator tidak berubah, Data Detail bersih. Aksi dan layarnya kemudian dihapus dari kode (bukan fitur permanen); data hasilnya tetap.

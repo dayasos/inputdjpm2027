@@ -36,7 +36,7 @@
     "uji:pengingat-koordinat": "node --test scripts/uji/pengingat-koordinat-gmm.test.mjs",
     "uji:cek-koordinat": "node --test scripts/uji/cek-koordinat-inti.test.mjs scripts/uji/penanda-koordinat-murni.test.mjs",
     "uji:cek-koordinat-pg": "node --test scripts/uji/server-cek-koordinat-pg.test.mjs",
-    "uji:koreksi-koordinat": "node --test scripts/uji/koreksi-koordinat-murni.test.mjs scripts/uji/server-koreksi-koordinat-pg.test.mjs",
+    "uji:kunci-gmm": "node --test scripts/uji/kunci-perbaikan-gmm.test.mjs",
     "uji:verifikator": "node --test scripts/uji/server-verifikator.test.mjs",
     "uji:pembagian-ulang": "node --test scripts/uji/pembagian-ulang.test.mjs",
     "uji:verifikasi-ulang": "node --test scripts/uji/server-verifikasi-ulang.test.mjs",

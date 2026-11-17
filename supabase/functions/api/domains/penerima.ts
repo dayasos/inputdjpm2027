@@ -1,3 +1,4 @@
+import { PESAN_PERBAIKAN_GMM_DIKUNCI, perbaikanGmmDikunci } from "../_shared/kunciSementara.ts";
 import { adalahVerifikator, bolehVerifikasiSatuData, PESAN_VERIFIKATOR_DITOLAK } from "../_shared/gerbangPeran.ts";
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
@@ -1039,6 +1040,8 @@ export async function editDataPenerimaInti(
       tempatTugasSheet: (rowLama.tempat_tugas || "").toString().toUpperCase(),
     });
     if (!bolehEdit) return { sukses: false, pesan: "Anda tidak berhak mengedit data ini." };
+    // KUNCI SEMENTARA selama Tahap B penanda koordinat (hapus saat Tahap B tayang): petugas tidak boleh memperbaiki data GMM.
+    if (perbaikanGmmDikunci(sesi.role, rowLama.layanan)) return { sukses: false, pesan: PESAN_PERBAIKAN_GMM_DIKUNCI };
 
     // ── Cek sakelar tutup (port Kode.gs baris 2618-2632) ──
     const peranSesi = (sesi.role || "").toString().trim().toUpperCase();
