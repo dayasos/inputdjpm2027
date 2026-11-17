@@ -36,7 +36,11 @@ test("TEKS: tahap A netral (tanpa ancaman penolakan); lencana tiga jenis; banner
   assert.equal(P.teksBanner(null), "");
   assert.match(P.teksBanner(s), /^Koordinat bermasalah: Tautan Street View/);
   assert.match(P.teksBanner({ s: "tunggu" }), /belum dicek/);
-  for (const t of [s, { s: "tunggu" }]) assert.doesNotMatch(P.teksBanner(t), /ditolak|wajib|tidak bisa disimpan/i, "Tahap A belum menolak apa pun");
+  // Tahap B: verifikator diberi tahu akibatnya (tidak dapat Memenuhi Syarat, pilih BTL + alasan koordinat); Admin Utama diberi tahu bahwa ia tidak diblokir
+  assert.match(P.teksBanner(s, "VERIFIKATOR"), /tidak dapat diberi Memenuhi Syarat.*Berkas Tidak Lengkap.*alasan koordinat/);
+  assert.match(P.teksBanner(s, "UTAMA"), /Verifikator tidak dapat memberi Memenuhi Syarat.*Admin Utama\) tidak diblokir/);
+  assert.match(P.teksBanner(s), /tidak dapat diberi Memenuhi Syarat/, "tanpa peran diperlakukan seperti verifikator (bukan melonggarkan)");
+  assert.doesNotMatch(P.teksBanner({ s: "tunggu" }, "VERIFIKATOR"), /Memenuhi Syarat/, "belum dicek: tidak menakut-nakuti");
 });
 
 test("PERAN: hanya Admin Utama dan Verifikator", () => {
@@ -60,5 +64,5 @@ test("KABEL: dimuat untuk UTAMA dan VERIFIKATOR saja; modul hanya memanggil aksi
   assert.deepEqual(aksi, ["getPenandaKoordinat"], "satu-satunya aksi server");
   assert.doesNotMatch(m, /simpan|verifikasiSatuData|editDataPenerima/);
   const html = baca("index.html");
-  assert.match(html, /app-pesan-periode\.js\?v=20271098/);
+  assert.match(html, /app-pesan-periode\.js\?v=20271099/);
 });

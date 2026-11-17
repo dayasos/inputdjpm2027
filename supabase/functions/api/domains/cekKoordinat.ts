@@ -26,11 +26,12 @@ const tidur = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const literalAngkaTeks = (a: (number | null)[]) => literalArrayTeks(a.map((x) => (x == null ? "" : String(x))));
 
 // Fungsi pengambil dapat diganti uji lewat globalThis.__ujiFetch (tidak ada jalur di produksi yang mengisinya).
-const ambilJaringan: FungsiAmbil = (url, init) => {
+/** Pengambil dengan batas waktu per permintaan (ms). Google yang menggantung tidak boleh menahan putaran/penyimpanan (hasilnya BELUM_DICEK, bukan salah). */
+export const ambilJaringanDengan = (ms: number): FungsiAmbil => (url, init) => {
   const f = (globalThis as unknown as { __ujiFetch?: FungsiAmbil }).__ujiFetch;
-  // Batas waktu per permintaan: Google yang menggantung tidak boleh menahan putaran sampai batas fungsi (hasilnya BELUM_DICEK, bukan salah).
-  return f ? f(url, init) : (fetch(url, { ...init, signal: AbortSignal.timeout(BATAS_AMBIL_MS) }) as unknown as ReturnType<FungsiAmbil>);
+  return f ? f(url, init) : (fetch(url, { ...init, signal: AbortSignal.timeout(ms) }) as unknown as ReturnType<FungsiAmbil>);
 };
+const ambilJaringan: FungsiAmbil = ambilJaringanDengan(BATAS_AMBIL_MS);
 
 interface Antrean { id: number; tautan: string }
 

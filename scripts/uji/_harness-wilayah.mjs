@@ -29,7 +29,7 @@ export async function muatWilayahTugas(akar = akarRepo) {
     bundle: true, format: "esm", platform: "node", outfile: keluar, logLevel: "error",
     plugins: [{ name: "stub-db", setup(b) { b.onResolve({ filter: /(^|\/)db\.ts$/ }, () => ({ path: stubDb })); } }],
   });
-  globalThis.Deno = { env: { get: (k) => (k === "KUNCI_PERBAIKAN_GMM" ? "off" : undefined) } };   // kunci sementara perbaikan GMM dimatikan di uji (uji khusus kunci menyalakannya)
+  globalThis.Deno = { env: { get: () => undefined } };
   const modul = await import(pathToFileURL(keluar).href);
   fs.rmSync(tmp, { recursive: true, force: true }); // bundel sudah dimuat ke memori; bersihkan folder sementara
   return { tentukanWilayahTugas: modul.tentukanWilayahTugas, pilihRumahIbadahId: modul.pilihRumahIbadahId, modul, state: globalThis.__ujiState };

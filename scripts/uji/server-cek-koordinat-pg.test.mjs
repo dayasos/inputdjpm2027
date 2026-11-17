@@ -151,14 +151,15 @@ test("JALUR OTOMATIS: dibatasi 1x/30 dtk; tidak melempar galat bila basis data b
   assert.match(String(b.dilewati || ""), /Baru saja/);
 });
 
-test("KABEL: aksi terdaftar di ALLOWED dan daftar-putih Verifikator; penyapu BUKAN aksi daftar-putih Verifikator; pemuat skrip peran; tidak ada penolakan simpan di Tahap A", () => {
+test("KABEL: aksi terdaftar di ALLOWED dan daftar-putih Verifikator; penyapu BUKAN aksi daftar-putih Verifikator; pemuat skrip peran; penyapu tidak menolak apa pun (penolakan ada di gerbangKoordinat.ts)", () => {
   const idx = baca("supabase/functions/api/index.ts");
   assert.match(idx, /^\s*getPenandaKoordinat,/m); assert.match(idx, /^\s*jalankanCekKoordinatOtomatis,/m);
   const gp = baca("supabase/functions/api/_shared/gerbangPeran.ts");
   assert.match(gp, /"getPenandaKoordinat"/); assert.doesNotMatch(gp, /"jalankanCekKoordinatOtomatis"/);
   const dom = baca("supabase/functions/api/domains/cekKoordinat.ts");
   assert.doesNotMatch(dom, /verifikasiSatuData|simpanDataKeSheet/, "Tahap A: modul ini tidak menolak penyimpanan apa pun");
-  assert.match(dom, /AbortSignal\.timeout\(BATAS_AMBIL_MS\)/, "setiap permintaan ke Google punya batas waktu");
+  assert.match(dom, /AbortSignal\.timeout\(ms\)/, "setiap permintaan ke Google punya batas waktu");
+  assert.match(dom, /ambilJaringanDengan\(BATAS_AMBIL_MS\)/, "penyapu memakai batas waktu BATAS_AMBIL_MS");
   const angg = Number((dom.match(/const ANGGARAN_MS = ([\d_]+)/) || [])[1].replace(/_/g, "")), batas = Number((dom.match(/const BATAS_AMBIL_MS = ([\d_]+)/) || [])[1].replace(/_/g, ""));
   assert.ok(angg + 4 * batas < 60_000, "kasus terburuk (anggaran + 4 lompatan) di bawah batas fungsi 60 dtk: " + (angg + 4 * batas));
 });

@@ -7,6 +7,7 @@
 //  - 1 data = 1 hitungan: satu tugas per data per paket; hasil hanya ditulis sekali (pemicu basis data menolak ubah/hapus tugas selesai).
 //  - Menyimpan hasil = SATU transaksi (tugas + status data + riwayat). Waktu selesai = waktu server.
 //  - Koreksi tidak boleh menaikkan ke Memenuhi Syarat dan ditolak bila data sudah masuk batch pembayaran (K15).
+import { tolakHasilKarenaKoordinat } from "./gerbangKoordinat.ts";
 import { adalahVerifikator } from "../_shared/gerbangPeran.ts";
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
@@ -601,6 +602,12 @@ export async function simpanHasilUlang(token: string, tugasId: number, masuk: Ha
       berkas, berkasDibuka: dibuka, centang: masuk?.centang, sudahDibuka: t.dibuka_pada != null,
     });
     if (!cek.ok) return { sukses: false, pesan: cek.pesan };
+
+    // Tahap B penanda koordinat: hasil yang berakhir Memenuhi Syarat ditolak bila koordinat data GMM tidak valid; koreksi ke Berkas Tidak Lengkap wajib menyebut koordinat.
+    {
+      const tolakKoordinat = await tolakHasilKarenaKoordinat(Number(t.penerima_id), cek.statusSesudah, cek.alasan, { wajibKeteranganBTL: cek.hasil === "DIKOREKSI" });
+      if (tolakKoordinat) return { sukses: false, koordinatTidakValid: true, pesan: tolakKoordinat };
+    }
 
     if (cek.hasil === "DIKOREKSI") {
       const dibayar = await sql`select 1 from pembayaran_baris where tahun = ${Number(t.tahun)} and nik = ${huruf(p.nik)} limit 1`;

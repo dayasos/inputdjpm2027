@@ -54,9 +54,15 @@
     return 'Tautan koordinat belum sempat diperiksa sistem (akan dicoba lagi otomatis).';
   }
   /** Kalimat banner di Detail; kosong bila tidak perlu (valid atau tak ada penanda tidak membuat banner). */
-  function teksBanner(t) {
+  function teksBanner(t, role) {
     if (!t) return '';
-    if (t.s === 'salah') return 'Koordinat bermasalah: ' + t.alasan + '. Pastikan titik lokasi yang benar dikirim petugas lapangan.';
+    if (t.s === 'salah') {
+      // Tahap B: server menolak Memenuhi Syarat dari verifikator pada koordinat bermasalah; Admin Utama tidak diblokir.
+      var admin = String(role || '').trim().toUpperCase() === 'UTAMA';
+      return 'Koordinat bermasalah: ' + t.alasan + '. ' + (admin
+        ? 'Verifikator tidak dapat memberi Memenuhi Syarat pada data ini. Anda (Admin Utama) tidak diblokir, tetapi sebaiknya jadikan Berkas Tidak Lengkap dengan keterangan koordinat agar petugas lapangan mengirim titik yang benar.'
+        : 'Data ini tidak dapat diberi Memenuhi Syarat. Pilih Berkas Tidak Lengkap dan tulis alasan koordinat di keterangan; petugas lapangan yang mengirim titik yang benar.');
+    }
     if (t.s === 'tunggu') return 'Koordinat belum dicek sistem. Hasil pemeriksaan akan muncul otomatis.';
     return '';
   }
@@ -145,7 +151,7 @@
     var isi = dok.getElementById('isi-konten-detail'); if (!isi) return;
     var lama = dok.getElementById(ID_BANNER);
     var t = berhak() && st.idDetail != null ? tandaUntuk(st.peta, st.idDetail) : null;
-    var kalimat = t ? teksBanner(t) : '';
+    var kalimat = t ? teksBanner(t, (pengguna() || {}).role) : '';
     var terisi = isi.children.length > 0 && !(isi.children.length === 1 && isi.firstElementChild === lama);
     if (!kalimat || !terisi) { if (lama && lama.parentNode) lama.parentNode.removeChild(lama); return; }
     if (lama && lama.getAttribute('data-id') === String(st.idDetail) && lama.getAttribute('data-s') === t.s && lama.textContent === kalimat && lama === isi.firstElementChild) return;

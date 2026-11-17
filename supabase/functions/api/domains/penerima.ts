@@ -1,4 +1,4 @@
-import { PESAN_PERBAIKAN_GMM_DIKUNCI, perbaikanGmmDikunci } from "../_shared/kunciSementara.ts";
+import { LAYANAN_GERBANG, tolakKoordinatSalah } from "./gerbangKoordinat.ts";
 import { adalahVerifikator, bolehVerifikasiSatuData, PESAN_VERIFIKATOR_DITOLAK } from "../_shared/gerbangPeran.ts";
 import { sql } from "../_shared/db.ts";
 import { wajibSesi } from "../_shared/sesi.ts";
@@ -773,6 +773,11 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
       const hk = normalisasiKoordinat(koordinatLink);
       if (!hk.ok) return { sukses: false, pesan: "GAGAL: Koordinat lokasi tidak valid. " + hk.pesan };
       koordinatLink = hk.tautan;
+      // Tahap B penanda koordinat: petugas lapangan tidak boleh menyimpan koordinat yang jelas bukan titik lokasi (Street View, pencarian, rute, tanpa penanda, di luar Medan, mati). Admin Utama tidak dibatasi.
+      if (String(layanan).trim().toUpperCase() === LAYANAN_GERBANG && String(sesi.role || "").trim().toUpperCase() !== "UTAMA") {
+        const tolak = await tolakKoordinatSalah(koordinatLink);
+        if (tolak) return { sukses: false, pesan: tolak };
+      }
     }
 
     // ── Wilayah tugas: kecamatan & kelurahan dari rumah ibadah / sesi login (lihat wilayahTugas.ts) ──
@@ -1040,8 +1045,6 @@ export async function editDataPenerimaInti(
       tempatTugasSheet: (rowLama.tempat_tugas || "").toString().toUpperCase(),
     });
     if (!bolehEdit) return { sukses: false, pesan: "Anda tidak berhak mengedit data ini." };
-    // KUNCI SEMENTARA selama Tahap B penanda koordinat (hapus saat Tahap B tayang): petugas tidak boleh memperbaiki data GMM.
-    if (perbaikanGmmDikunci(sesi.role, rowLama.layanan)) return { sukses: false, pesan: PESAN_PERBAIKAN_GMM_DIKUNCI };
 
     // ── Cek sakelar tutup (port Kode.gs baris 2618-2632) ──
     const peranSesi = (sesi.role || "").toString().trim().toUpperCase();
@@ -1228,6 +1231,11 @@ export async function editDataPenerimaInti(
         const hk = normalisasiKoordinat(nilaiBaru);
         if (!hk.ok) return { sukses: false, pesan: "GAGAL: Koordinat lokasi tidak valid. " + hk.pesan };
         nilaiBaru = hk.tautan;
+        // Tahap B: hanya bila tautan BERUBAH (data yang tautannya tak diubah tetap bisa diedit di kolom lain). Admin Utama tidak dibatasi.
+        if (String(layananSheet).trim().toUpperCase() === LAYANAN_GERBANG && peranSesi !== "UTAMA" && nilaiBaru !== String(rowLama.link_koordinat_lokasi ?? "").trim()) {
+          const tolak = await tolakKoordinatSalah(nilaiBaru);
+          if (tolak) return { sukses: false, pesan: tolak };
+        }
       } else if (![2, 13, 15].includes(idx)) {
         // Uppercase kecuali kolom numerik/kontak (NIK=2, rekening=13, kontak=15)
         nilaiBaru = nilaiBaru.toUpperCase();

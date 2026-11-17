@@ -1,4 +1,4 @@
-import { PESAN_PERBAIKAN_GMM_DIKUNCI, perbaikanGmmDikunci } from "../_shared/kunciSementara.ts";
+import { tolakHasilKarenaKoordinat, tolakLaporKarenaKoordinat } from "./gerbangKoordinat.ts";
 import { adalahVerifikator, bolehVerifikasiSatuData } from "../_shared/gerbangPeran.ts";
 import { catatRiwayatVerifikasi, catatRiwayatVerifikasiBanyak, catatRiwayatVerifikasiWajib } from "../_shared/riwayatVerifikasi.ts";
 import { nilaiStatusVerifikasi } from "../_shared/statusVerifikasi.ts";
@@ -156,6 +156,12 @@ export async function verifikasiSatuData(
     // D9 (plans/plan-agregat-verifikator.md): akun VERIFIKATOR hanya boleh memberi hasil pada data yang MASIH menunggu
     // ("" atau "Proses Verifikasi", predikat sama dengan verifikasi massal). Mengubah data yang sudah berstatus = Admin Utama.
     const pelakuVerifikator = adalahVerifikator(sesi.role);
+    // Tahap B penanda koordinat: verifikator tidak boleh memberi Memenuhi Syarat pada data GMM berkoordinat tidak valid; Berkas Tidak Lengkap wajib menyebut koordinat.
+    // Admin Utama tidak dibatasi (hanya melihat penanda). Gagal-terbuka bila pemeriksaan tak dapat dilakukan.
+    if (pelakuVerifikator) {
+      const tolakKoordinat = await tolakHasilKarenaKoordinat(id, statusBaru, keteranganBersih);
+      if (tolakKoordinat) return { sukses: false, koordinatTidakValid: true, pesan: tolakKoordinat };
+    }
     // Verifikasi Awal bagi rata: saat saklar NYALA, akun Verifikator hanya boleh memberi hasil pada data yang ditugaskan kepadanya
     // (tugasnya ditutup dalam transaksi yang sama; bukan miliknya -> transaksi dibatalkan). Saklar MATI -> perilaku lama.
     // Pimpinan dan akun khusus (yang tidak menerima tugas) tidak terkena gerbang ini: kemampuan mereka tidak berubah.
@@ -295,8 +301,11 @@ export async function laporkanPerbaikanBerkas(token: string, nomorBarisAsli: num
       tempatTugasSheet: (rowCek.tempat_tugas || "").toUpperCase(),
     });
     if (!bolehLapor) return { sukses: false, pesan: "Anda tidak berhak melapor untuk data ini." };
-    // KUNCI SEMENTARA selama Tahap B penanda koordinat (hapus saat Tahap B tayang): laporan perbaikan data GMM ditahan.
-    if (perbaikanGmmDikunci(sesi.role, rowCek.layanan)) return { sukses: false, pesan: PESAN_PERBAIKAN_GMM_DIKUNCI };
+    // Tahap B penanda koordinat: laporan perbaikan ditolak bila koordinat data GMM masih tidak valid. Admin Utama tidak dibatasi.
+    if ((sesi.role || "").toString().trim().toUpperCase() !== "UTAMA") {
+      const tolakLapor = await tolakLaporKarenaKoordinat(id);
+      if (tolakLapor) return { sukses: false, pesan: tolakLapor };
+    }
 
     const namaPelapor = (sesi.username || "").toString().toUpperCase();
     const waktuLapor = new Date();

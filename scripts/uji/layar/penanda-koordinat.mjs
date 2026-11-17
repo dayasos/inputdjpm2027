@@ -1,4 +1,4 @@
-// Penanda koordinat GMM (Tahap A) di Chrome sungguhan, server TIRUAN: Admin Utama, Verifikator, peran lain, dan server gagal.
+// Penanda koordinat GMM di Chrome sungguhan, server TIRUAN: Admin Utama, Verifikator, peran lain, dan server gagal.
 // Jalankan: node scripts/uji/layar/penanda-koordinat.mjs   (Chrome + npx vite --port 3123 --strictPort)
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -114,7 +114,7 @@ try {
   await klik('#body-tabel-lihat button[onclick*="(702)"]');
   await tungguSampai("!document.getElementById('modal-detail-penerima').classList.contains('hidden') && /Sri Wahyuni/.test(document.getElementById('isi-konten-detail').textContent) && !!document.getElementById('djpm-pk-banner')", "banner Detail 702");
   const b702 = await js("(() => { const b = document.getElementById('djpm-pk-banner'); return { teks: b.textContent, s: b.dataset.s, pertama: b === document.getElementById('isi-konten-detail').firstElementChild, jumlah: document.querySelectorAll('#djpm-pk-banner').length }; })()");
-  cek("UTAMA Detail 702: banner merah di paling atas, alasan jelas, tanpa nada ancaman", b702.s === "salah" && b702.pertama && b702.jumlah === 1 && /^Koordinat bermasalah: Tautan hanya menampilkan tampilan peta/.test(b702.teks) && !/ditolak|wajib/i.test(b702.teks), JSON.stringify(b702));
+  cek("UTAMA Detail 702: banner merah di paling atas, alasan jelas, Admin Utama diberi tahu tidak diblokir", b702.s === "salah" && b702.pertama && b702.jumlah === 1 && /^Koordinat bermasalah: Tautan hanya menampilkan tampilan peta/.test(b702.teks) && /Admin Utama\) tidak diblokir/.test(b702.teks), JSON.stringify(b702));
   await js("document.getElementById('tutup-modal-detail').click(); true");
   await klik('#body-tabel-lihat button[onclick*="(701)"]');
   await tungguSampai("!document.getElementById('modal-detail-penerima').classList.contains('hidden') && /Budi/.test(document.getElementById('isi-konten-detail').textContent)", "detail 701");
