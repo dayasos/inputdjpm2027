@@ -201,6 +201,8 @@
   }
   // Pintu uji: memuat ulang peta tanpa menunggu cache.
   api.muatUlangUntukUji = function () { return muat(true); };
+  /** Tanda koordinat data ini (dibaca modul Verifikasi Ulang): {s:'valid'|'salah'|'tunggu', alasan} atau null bila bukan data GMM / belum dimuat. */
+  api.tandaSekarang = function (id) { return berhak() ? tandaUntuk(st.peta, id) : null; };
   api.terapkanUntukUji = terapkan;
   setInterval(putaran, 2000);
   putaran();

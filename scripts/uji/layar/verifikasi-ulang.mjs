@@ -1,4 +1,4 @@
-// Layar verifikasi ulang di Chrome sungguhan (server TIRUAN): petugas verifikator dan Admin Utama. Rencana: plans/plan-verifikasi-ulang.md (T5)
+// Layar verifikasi ulang milik ADMIN UTAMA di Chrome sungguhan (server TIRUAN). Alur petugas ada di verifikasi-ulang-detail.mjs. Rencana: plans/plan-verifikasi-ulang.md (T5)
 // Jalankan: node scripts/uji/layar/verifikasi-ulang.mjs   (Chrome + npx vite --port 3123 --strictPort)
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -139,92 +139,7 @@ try {
   await kirim("Runtime.enable"); await kirim("Page.enable"); await kirim("Network.enable");
   await kirim("Fetch.enable", { patterns: [{ urlPattern: "*supabase.co*" }, { urlPattern: "*api/gas*" }] });
 
-  // ============================ PETUGAS VERIFIKATOR ============================
-  namaJahat = true; reset();
-  await masuk("VERIFIKATOR");
-  cek("PETUGAS: modul Tugas Ulang dimuat; modul Admin TIDAK dimuat", skripDimuat.some((u) => /app-tugas-ulang\.js/.test(u)) && !skripDimuat.some((u) => /app-verifikasi-ulang-admin\.js/.test(u)), JSON.stringify(skripDimuat.map((u) => u.split("/").pop())));
-  cek("PETUGAS: tidak ada tombol Verifikasi Ulang milik Admin", !(await ada("#btn-verifikasi-ulang")));
-  await tidur(2500);
-  cek("PETUGAS: tombol melayang Tugas Ulang SUDAH DIHAPUS (diganti tab Verifikasi Ulang)", !(await ada("#djpm-tul-pil")));
-  await pasangStubBuka();
-  await js("window.bukaTugasUlang(null); true");
-  await tungguSampai("!!document.querySelector('#djpm-tul-overlay') && document.querySelectorAll('#djpm-tul-overlay .tul-berkas li').length === 3", "tugas pertama terbuka dengan 3 berkas");
-  cek("PETUGAS: daftar memuat 4 tugas dan tugas pertama langsung terbuka (bukaTugasUlang dipanggil)", (await js("document.querySelectorAll('#djpm-tul-overlay .tul-daftar li').length")) === 4 && hitung("bukaTugasUlang") === 1);
-  cek("PETUGAS: nama berbahaya tampil sebagai teks, tidak dieksekusi", (await js("window.__xss === undefined && !document.querySelector('#djpm-tul-overlay img')")) === true);
-  cek("PETUGAS: panel 'Data input untuk dicocokkan' tampil dengan tiga kelompok (Identitas/KTP, Rekening/Buku Rekening, Penugasan) dan nilai dari server",
-    JSON.stringify(await js("Array.from(document.querySelectorAll('#djpm-tul-overlay .tul-grup h4')).map((h) => h.textContent.replace(/\\s+/g, ' ').trim())")) === JSON.stringify(["Identitas · cocokkan dengan KTP", "Rekening · cocokkan dengan Buku Rekening", "Penugasan · cocokkan dengan surat, foto, dan rekomendasi"]), await teks("#tul-detail"));
-  cek("PETUGAS: tanggal lahir 04-02-1989, alamat, nama rekening, nomor rekening, alamat tugas, dan tautan peta tampil",
-    /Tanggal lahir\s*04-02-1989/.test(await teks("#tul-detail")) && /Alamat\s*JL MARELAN NO 5/.test(await teks("#tul-detail")) && /Nama rekening\s*SITI AMINAH/.test(await teks("#tul-detail")) && /Nomor rekening\s*1234567890/.test(await teks("#tul-detail")) && /Alamat tugas\s*JL MESJID 1/.test(await teks("#tul-detail")) && (await js("!!document.querySelector('#djpm-tul-overlay .tul-grup a[href=\"https://maps.app.goo.gl/abc\"][rel*=noopener]')")) === true, await teks("#tul-detail"));
-  cek("PETUGAS: semua centang NONAKTIF sebelum berkas dibuka; Simpan nonaktif; pesan menyebut berkas yang belum dibuka",
-    (await js("Array.from(document.querySelectorAll('#djpm-tul-overlay .tul-berkas input[type=checkbox]')).every((c) => c.disabled)")) === true && (await nonaktif("#tul-simpan")) === true && /Belum dibuka: KTP, BUKU REKENING, SURAT PERMOHONAN/i.test(await teks("#tul-valid")), await teks("#tul-valid"));
-
-  await klik('[data-aksi="buka-berkas"][data-kunci="link_ktp"]');
-  await tungguSampai("document.querySelector('#djpm-tul-overlay input[data-kunci=\"link_ktp\"]') && !document.querySelector('#djpm-tul-overlay input[data-kunci=\"link_ktp\"]').disabled", "centang KTP aktif");
-  cek("PETUGAS: klik 'Buka berkas' membuka tautan asli di tab baru dan server mencatat; centang berkas itu saja yang aktif",
-    (await js("window.__dibuka.length")) === 1 && (await js("window.__dibuka[0]")) === "https://berkas.example/101/ktp" && hitung("catatBerkasDibuka") === 1 && (await nonaktif('input[data-kunci="link_buku_rekening"]')) === true, JSON.stringify(await js("window.__dibuka")));
-  await klik('input[data-kunci="link_ktp"]');
-  cek("PETUGAS: berkas belum lengkap -> Simpan tetap nonaktif", (await nonaktif("#tul-simpan")) === true && /Belum dibuka/.test(await teks("#tul-valid")));
-  for (const k of ["link_buku_rekening", "link_surat"]) {
-    await klik(`[data-aksi="buka-berkas"][data-kunci="${k}"]`);
-    await tungguSampai(`!document.querySelector('input[data-kunci="${k}"]').disabled`, "centang " + k);
-  }
-  cek("PETUGAS: semua berkas dibuka tetapi belum dicentang -> Simpan nonaktif, pesan menyebut yang belum dicentang", (await nonaktif("#tul-simpan")) === true && /Belum dicentang: BUKU REKENING/i.test(await teks("#tul-valid")), await teks("#tul-valid"));
-  await klik('input[data-kunci="link_buku_rekening"]'); await klik('input[data-kunci="link_surat"]');
-  cek("PETUGAS: semua dibuka dan dicentang -> Simpan AKTIF", (await nonaktif("#tul-simpan")) === false && /Siap disimpan/.test(await teks("#tul-valid")));
-  await kirim("Page.captureScreenshot", { format: "png" }).then((s) => fs.writeFileSync(path.join(os.tmpdir(), "djpm_tugas_ulang.png"), Buffer.from(s.result.data, "base64")));
-
-  simpanGagal = "Gagal menyimpan: galat contoh dari server.";
-  const daftarAwal = hitung("getTugasUlangSaya");
-  await klik("#tul-simpan");
-  await tungguSampai("/galat contoh dari server/.test(document.querySelector('#djpm-tul-overlay #tul-detail').textContent)", "pesan galat server");
-  cek("PETUGAS: penolakan biasa dari server tampil di layar dan tugas tidak hilang dari daftar (tanpa memuat ulang)", (await js("document.querySelectorAll('#djpm-tul-overlay .tul-daftar li').length")) === 4 && hitung("getTugasUlangSaya") === daftarAwal);
-  // konflik (data berubah / tugas ditarik): daftar dimuat ulang dan tugas berikutnya dibuka, pesan sampai ke petugas lewat toast
-  simpanGagal = "Status data berubah saat Anda memeriksa. Muat ulang daftar tugas.";
-  const daftarSebelum = hitung("getTugasUlangSaya"), bukaSebelum = hitung("bukaTugasUlang");
-  await klik("#tul-simpan");
-  for (let i = 0; i < 30 && !(hitung("getTugasUlangSaya") > daftarSebelum && hitung("bukaTugasUlang") > bukaSebelum); i++) await tidur(250);
-  cek("PETUGAS: konflik dari server memuat ulang daftar dan membuka tugas berikutnya (data basi tidak dibiarkan terbuka)", hitung("getTugasUlangSaya") > daftarSebelum && hitung("bukaTugasUlang") > bukaSebelum);
-  await tungguSampai("document.querySelectorAll('#djpm-tul-overlay .tul-berkas li').length === 3", "tugas dibuka ulang");
-  cek("PETUGAS: setelah konflik pesan lama tidak menempel pada tugas yang baru dibuka", !/Status data berubah/.test(await teks("#djpm-tul-overlay #tul-detail")));
-  for (const k of ["link_ktp", "link_buku_rekening", "link_surat"]) await klik(`input[data-kunci="${k}"]`);   // centang direset oleh pemuatan ulang
-  simpanGagal = "";
-  await klik("#tul-simpan");
-  await tungguSampai("document.querySelectorAll('#djpm-tul-overlay .tul-daftar li').length === 3 && document.querySelectorAll('#djpm-tul-overlay .tul-berkas li').length === 2", "tugas berikutnya terbuka");
-  const simpan1 = panggilan.filter((x) => x.aksi === "simpanHasilUlang").pop();
-  cek("PETUGAS: simpan 'Sesuai' mengirim hasil SESUAI + centang; daftar tinggal 3; tugas berikutnya otomatis terbuka; kemajuan 1 dari 4",
-    simpan1.args[2].hasil === "SESUAI" && simpan1.args[2].centang.link_ktp === true && /Selesai 1 dari 4/.test(await teks("#tul-kemajuan")), JSON.stringify(simpan1.args));
-
-  cek("PETUGAS: isian KOSONG ditulis 'kosong' berwarna merah (kantor cabang pada tugas kedua)", /Kantor cabang\s*kosong/.test(await teks("#tul-detail")) && (await js("Array.from(document.querySelectorAll('#djpm-tul-overlay .tul-grup dd.kosong')).some((e) => e.textContent.trim() === 'kosong')")) === true, await teks("#tul-detail"));
-  // koreksi
-  await js("document.querySelector('#djpm-tul-overlay input[name=tul-mode][value=koreksi]').click(); true");
-  await tungguSampai("!!document.querySelector('#tul-status')", "form koreksi");
-  cek("PETUGAS: pilihan status baru hanya BTL dan TMS (tidak ada Memenuhi Syarat)", JSON.stringify(await js("Array.from(document.querySelectorAll('#tul-status option')).map((o) => o.textContent)")) === JSON.stringify(["Berkas Tidak Lengkap", "Tidak Memenuhi Syarat"]));
-  cek("PETUGAS: dampak koreksi (keluar calon pembayaran, batas 30-11-2026) tampil", /calon pembayaran/.test(await teks("#tul-detail")) && /30-11-2026/.test(await teks("#tul-detail")));
-  for (const k of ["link_ktp", "link_buku_rekening"]) { await klik(`[data-aksi="buka-berkas"][data-kunci="${k}"]`); await tungguSampai(`!document.querySelector('input[data-kunci="${k}"]').disabled`, "centang " + k); }
-  cek("PETUGAS: koreksi tanpa alasan -> Simpan nonaktif; centang tidak diwajibkan untuk koreksi", (await nonaktif("#tul-simpan")) === true && /Alasan koreksi wajib/.test(await teks("#tul-valid")));
-  await klik('[data-aksi="templat"][data-i="0"]');
-  cek("PETUGAS: klik alasan cepat mengisi alasan (layanan terisi) dan mengaktifkan Simpan", /KTP IMAM MASJID tidak terbaca/.test(await js("document.getElementById('tul-alasan').value")) && (await nonaktif("#tul-simpan")) === false);
-  await klik("#tul-simpan");
-  await tungguSampai("document.querySelectorAll('#djpm-tul-overlay .tul-daftar li').length === 2", "koreksi tersimpan");
-  const simpan2 = panggilan.filter((x) => x.aksi === "simpanHasilUlang").pop();
-  cek("PETUGAS: koreksi mengirim DIKOREKSI + status baru + alasan; kemajuan menunjukkan 1 dikoreksi", simpan2.args[2].hasil === "DIKOREKSI" && simpan2.args[2].statusSesudah === "Berkas Tidak Lengkap" && /1 dikoreksi/.test(await teks("#tul-kemajuan")), JSON.stringify(simpan2.args[2]));
-
-  // data tanpa berkas + selesai semua
-  await klik('#djpm-tul-overlay .tul-daftar li:last-child button');
-  await tungguSampai("document.querySelectorAll('#djpm-tul-overlay .tul-berkas li').length === 0 && /tidak memiliki berkas/.test(document.getElementById('tul-detail').textContent)", "data tanpa berkas");
-  cek("PETUGAS: data tanpa berkas unggahan boleh langsung disimpan Sesuai", (await nonaktif("#tul-simpan")) === false);
-  for (let i = 0; i < 2; i++) { await klik("#tul-simpan"); await tidur(900); await klik('#djpm-tul-overlay .tul-daftar li button'); await tidur(600); const b = await js("document.querySelectorAll('#djpm-tul-overlay .tul-berkas li').length"); for (let j = 0; j < b; j++) { const kunci = await js(`document.querySelectorAll('#djpm-tul-overlay [data-aksi="buka-berkas"]')[${j}].getAttribute('data-kunci')`); await klik(`[data-aksi="buka-berkas"][data-kunci="${kunci}"]`); await tidur(300); await klik(`input[data-kunci="${kunci}"]`); } }
-  await tungguSampai("document.querySelectorAll('#djpm-tul-overlay .tul-daftar li').length <= 1", "hampir selesai", 20).catch(() => {});
-  // selesaikan sisa (jika ada)
-  for (let i = 0; i < 3 && (await js("!!document.querySelector('#tul-simpan')")); i++) { if (!(await nonaktif("#tul-simpan"))) { await klik("#tul-simpan"); await tidur(900); } else break; }
-  await tidur(500);
-
-  for (const lebar of [320, 360, 390]) {
-    const hp = await ukurPonsel(OVT, ".tul-kotak", lebar);
-    cek("PONSEL " + lebar + "px (petugas): panel pas, tanpa elemen terpotong atau gulir horizontal halaman", hp.kotakKanan <= hp.W + 1 && hp.lewat.length === 0 && !hp.gulirHalaman && !hp.gulirOverlay, JSON.stringify(hp));
-  }
-  await klik("#tul-tutup");
-  cek("PETUGAS: menutup panel menghapus overlay", !(await ada("#djpm-tul-overlay")));
+  // (Alur PETUGAS di halaman Detail kini diuji oleh scripts/uji/layar/verifikasi-ulang-detail.mjs.)
 
   // ============================ ADMIN UTAMA ============================
   namaJahat = false; reset();

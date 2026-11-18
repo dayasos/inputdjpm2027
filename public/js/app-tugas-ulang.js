@@ -1,11 +1,11 @@
 /**
  * public/js/app-tugas-ulang.js
- * Layar petugas verifikator untuk VERIFIKASI ULANG ("Tugas Ulang"). Rencana: plans/plan-verifikasi-ulang.md (T5).
+ * Verifikasi ULANG untuk akun VERIFIKATOR, di dalam halaman DETAIL biasa (dibuka dengan mengklik nama di tab Verifikasi Ulang; app-tab-tugas.js). Rencana: plans/plan-verifikasi-ulang.md.
  * Dimuat malas hanya untuk role VERIFIKATOR (SKRIP_PER_PERAN di app-pesan-periode.js).
  *
- * Yang dikerjakan petugas: membuka tugas miliknya, mengklik tiap berkas yang diunggah, mencentang berkas yang sudah diperiksa,
- * lalu memilih "Sesuai" atau "Koreksi status". SERVER yang menegakkan semua aturan (pemilik tugas, berkas wajib diklik, centang lengkap,
- * status yang boleh, waktu tersimpan); modul ini hanya menampilkan dan meniru pesan agar petugas tahu apa yang kurang sebelum menekan Simpan.
+ * Yang dikerjakan petugas: membuka Detail data tugasnya, mengklik tiap berkas yang diunggah, mencentang berkas yang sudah diperiksa,
+ * lalu memilih "Sesuai" atau "Koreksi status" di kotak Verifikasi Ulang pada bagian bawah Detail. SERVER yang menegakkan semua aturan (pemilik tugas,
+ * berkas wajib diklik, centang lengkap, status yang boleh, waktu tersimpan); modul ini hanya menampilkan dan meniru pesan agar petugas tahu apa yang kurang sebelum menekan Simpan.
  * Satu data dihitung satu kali. Semua teks dari server dipasang lewat esc().
  */
 (function (akar, pabrik) {
@@ -90,20 +90,26 @@
 
   var api = {
     kelompokData: kelompokData, statusTujuan: statusTujuan, kelasStatus: kelasStatus, urlBolehDibuka: urlBolehDibuka, dampakKoreksi: dampakKoreksi, templatUntuk: templatUntuk,
-    isiTemplat: isiTemplat, validasiPeriksa: validasiPeriksa, kemajuan: kemajuan, esc: esc, buka: function () { /* diganti di browser */ }
+    isiTemplat: isiTemplat, validasiPeriksa: validasiPeriksa, kemajuan: kemajuan, esc: esc
   };
   if (!akar || !akar.document) return api;   // lingkungan uji Node: hanya bagian murni
 
-  // ------------------------------------------------------------------ tampilan
+  // ------------------------------------------------------------------ tampilan: kotak "Verifikasi Ulang" di halaman Detail
+  // Verifikator mengklik nama di tab Verifikasi Ulang -> halaman Detail biasa terbuka (app-transaksi.js). Modul ini menambahkan kotak pemeriksaan di bagian bawah Detail
+  // dan kotak centang "Sudah diperiksa" pada tiap baris berkas. Aturan lama tetap: setiap berkas harus DIBUKA (klik "Buka", dicatat server) sebelum bisa dicentang.
   var dok = akar.document;
-  var ID = 'djpm-tul-overlay', ID_STYLE = 'djpm-tul-style', ID_PIL = 'djpm-tul-pil';
-  var BATAS_TUNGGU_MS = 40000, SEGARKAN_HITUNG_MS = 180000;
-  var st = { daftar: null, status: 'idle', pesan: '', aktif: 0, detail: null, detailStatus: 'idle', detailPesan: '', centang: {}, mode: 'sesuai', statusBaru: '', alasan: '',
-    simpan: false, pesanSimpan: '', templat: null, pembuka: null, hitung: null, hitungToken: '', hitungWaktu: 0, hitungMuat: false, bukaAntrean: 0 };
+  var ID_KOTAK = 'djpm-uld-kotak', ID_ATAS = 'djpm-uld-atas', ID_STYLE = 'djpm-uld-style';
+  var BATAS_TUNGGU_MS = 40000;
+  var st = { penerima: 0, tugasId: 0, detail: null, status: 'idle', pesan: '', centang: {}, mode: 'sesuai', statusBaru: '', alasan: '', simpan: false, pesanSimpan: '', templat: null, antrean: 0, sigTanda: '' };
 
   function pengguna() { return (typeof dataPengguna !== 'undefined') ? dataPengguna : null; }
   function berhak() { var p = pengguna(); return !!(p && p.token && String(p.role || '').trim().toUpperCase() === 'VERIFIKATOR'); }
   function toast(pesan, jenis) { try { if (typeof tampilkanToast === 'function') tampilkanToast(pesan, jenis || 'gagal', { durasi: 6000 }); } catch (_e) { /* abaikan */ } }
+  function tab() { return akar.djpmTabTugas || null; }
+  function modeUlang() { var t = tab(); return !!(t && typeof t.modeSekarang === 'function' && t.modeSekarang() === 'ulang'); }
+  function tugasIdUntuk(penerima) { var t = tab(); return t && typeof t.tugasIdUntuk === 'function' ? (Number(t.tugasIdUntuk(penerima)) || 0) : 0; }
+  function isiDetail() { return dok.getElementById('isi-konten-detail'); }
+  function modalTerbuka() { var m = dok.getElementById('modal-detail-penerima'); return !!m && !m.classList.contains('hidden'); }
 
   /** Satu panggilan server -> Promise; sesi yang berganti selama menunggu dibuang. */
   function rpc(nama, args) {
@@ -126,295 +132,284 @@
     if (dok.getElementById(ID_STYLE)) return;
     var s = dok.createElement('style'); s.id = ID_STYLE;
     s.textContent = [
-      '#' + ID + '{position:fixed;inset:0;z-index:9500;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:max(12px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));font-family:inherit}',
-      '#' + ID + ' *{box-sizing:border-box}',
-      '#' + ID + ' .tul-kotak{background:#fff;color:#0f172a;border-radius:16px;width:100%;max-width:1040px;margin:8px auto;box-shadow:0 20px 50px rgba(0,0,0,.3);overflow:hidden}',
-      '#' + ID + ' .tul-kepala{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:16px 18px;background:#f1f5f9;border-bottom:1px solid #dbe1ea}',
-      '#' + ID + ' .tul-kepala h2{margin:0;font-size:1.15rem;font-weight:700}',
-      '#' + ID + ' .tul-sub{font-size:.78rem;color:#5a6879;margin-top:2px}',
-      '#' + ID + ' .tul-tutup{border:1px solid #cbd5e1;background:#fff;border-radius:8px;min-height:40px;min-width:40px;cursor:pointer;font-size:1.1rem}',
-      '#' + ID + ' .tul-kemajuan{flex:1 1 220px;max-width:340px;min-width:0}',
-      '#' + ID + ' .tul-bar{height:8px;border-radius:99px;background:#dbe1ea;overflow:hidden;margin-top:6px}',
-      '#' + ID + ' .tul-bar i{display:block;height:100%;background:#17365d;border-radius:99px}',
-      '#' + ID + ' .tul-isi{padding:18px;display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:16px;align-items:start}',
-      '@media (max-width:820px){#' + ID + ' .tul-isi{grid-template-columns:minmax(0,1fr)}}',
-      '#' + ID + ' .tul-isi>*{min-width:0}',
-      '#' + ID + ' h3{margin:0 0 6px;font-size:.95rem;font-weight:700}',
-      '#' + ID + ' h2{font-weight:700}',
-      // gaya dasar aplikasi memaksa huruf kapital pada isian; di sini teks isian dan petunjuk tampil apa adanya
-      '#' + ID + ' input,#' + ID + ' textarea,#' + ID + ' select{text-transform:none}',
-      '#' + ID + ' .tul-cat{font-size:.78rem;color:#5a6879}',
-      '#' + ID + ' .tul-daftar{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}',
-      '#' + ID + ' .tul-daftar button{width:100%;text-align:left;border:1px solid #dbe1ea;background:#fff;border-radius:10px;padding:10px 12px;display:grid;gap:3px;font:inherit;color:inherit;cursor:pointer;min-height:44px}',
-      '#' + ID + ' .tul-daftar button[aria-current="true"]{border-color:#17365d;background:#eef3fb;box-shadow:inset 0 0 0 1px #17365d}',
-      '#' + ID + ' .tul-baris{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}',
-      '#' + ID + ' .tul-pil{display:inline-block;padding:2px 9px;border-radius:99px;font-size:.72rem;font-weight:700;white-space:nowrap;border:1px solid #cbd5e1}',
-      '#' + ID + ' .tul-pil.ms{background:#e1f4ea;color:#15803d;border-color:#9bd3b4}#' + ID + ' .tul-pil.btl{background:#fff0d4;color:#9a5b00;border-color:#e8c27a}#' + ID + ' .tul-pil.tms{background:#fde7e5;color:#b3261e;border-color:#f0aaa4}',
-      '#' + ID + ' .tul-berkas{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}',
-      '#' + ID + ' .tul-berkas li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid #dbe1ea;border-radius:10px;padding:8px 12px}',
-      '#' + ID + ' .tul-berkas li.belum{background:#f1f5f9}',
-      '#' + ID + ' .tul-berkas input[type=checkbox]{width:20px;height:20px}',
-      '#' + ID + ' button,#' + ID + ' input,#' + ID + ' select,#' + ID + ' textarea{font:inherit}',
-      '#' + ID + ' .tul-btn{border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:8px;padding:8px 14px;min-height:40px;font-weight:600;cursor:pointer}',
-      '#' + ID + ' .tul-btn.utama{background:#17365d;color:#fff;border-color:#17365d}',
-      '#' + ID + ' .tul-btn[disabled]{opacity:.45;cursor:not-allowed}',
-      '#' + ID + ' .tul-btn.kecil{padding:4px 10px;min-height:34px;font-size:.8rem}',
-      '#' + ID + ' button:focus-visible,#' + ID + ' input:focus-visible,#' + ID + ' select:focus-visible,#' + ID + ' textarea:focus-visible{outline:3px solid #0f766e;outline-offset:2px}',
-      '#' + ID + ' select,#' + ID + ' textarea{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;background:#fff;color:#0f172a}',
-      '#' + ID + ' textarea{min-height:76px;resize:vertical}',
-      '#' + ID + ' .tul-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}',
-      '#' + ID + ' .tul-chip{border:1px solid #cbd5e1;background:#f1f5f9;border-radius:99px;padding:4px 12px;font-size:.8rem;cursor:pointer;min-height:34px}',
-      '#' + ID + ' .tul-pesan{border-radius:8px;padding:8px 12px;font-size:.85rem;margin-top:12px;overflow-wrap:anywhere}',
-      '#' + ID + ' .tul-pesan.info{background:#eef3fb;color:#17365d}#' + ID + ' .tul-pesan.ok{background:#e1f4ea;color:#15803d}#' + ID + ' .tul-pesan.gagal{background:#fde7e5;color:#b3261e}#' + ID + ' .tul-pesan.peringatan{background:#fff0d4;color:#9a5b00}',
-      '#' + ID + ' .tul-kosong{text-align:center;padding:28px 12px;color:#5a6879;border:1px dashed #cbd5e1;border-radius:10px}',
-      '#' + ID + ' .tul-opsi{display:grid;gap:10px;margin-top:10px}',
-      '#' + ID + ' .tul-radio{display:flex;gap:18px;flex-wrap:wrap;margin-top:6px}',
-      '#' + ID + ' .tul-radio label{display:flex;gap:6px;align-items:center;min-height:40px}',
-      '#' + ID + ' .tul-radio input{width:18px;height:18px}',
-      '#' + ID + ' .tul-data{font-size:.85rem;color:#475569;overflow-wrap:anywhere}',
-      '#' + ID + ' .tul-banding{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}',
-      '#' + ID + ' .tul-grup{border:1px solid #dbe1ea;border-radius:10px;padding:10px 12px;background:#f8fafc;min-width:0}',
-      '#' + ID + ' .tul-grup h4{margin:0 0 6px;font-size:.8rem;font-weight:700}',
-      '#' + ID + ' .tul-grup h4 span{font-weight:400;color:#5a6879}',
-      '#' + ID + ' .tul-grup dl{margin:0;display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:3px 10px;font-size:.85rem}',
-      '#' + ID + ' .tul-grup dt{color:#5a6879}',
-      '#' + ID + ' .tul-grup dd{margin:0;font-weight:600;overflow-wrap:anywhere}',
-      '#' + ID + ' .tul-grup dd.kosong{color:#b3261e;font-weight:500;font-style:italic}',
-      '#' + ID_PIL + '{position:fixed;left:16px;bottom:76px;z-index:60;background:#17365d;color:#fff;border:1px solid #0f2744;border-radius:14px;padding:8px 14px;font:600 13px/1.35 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.3);cursor:pointer;max-width:calc(100vw - 32px);min-height:40px}',
-      '#' + ID_PIL + ':focus-visible{outline:3px solid #0f766e;outline-offset:2px}'
-    ].join('\n');
+      '#' + ID_KOTAK + '{margin:16px 0;padding:14px 16px;border:2px solid #17365d;border-radius:12px;background:#f5f8fc;color:#0f172a;font-size:.85rem;line-height:1.5}',
+      '#' + ID_KOTAK + ' h3{margin:0 0 4px;font-size:.95rem;font-weight:700;color:#17365d}',
+      '#' + ID_KOTAK + ' .uld-sub{font-size:.75rem;color:#475569;margin-bottom:8px}',
+      '#' + ID_KOTAK + ' .uld-pil{display:inline-block;padding:1px 9px;border-radius:99px;font-size:.72rem;font-weight:600;border:1px solid #cbd5e1;background:#fff}',
+      '#' + ID_KOTAK + ' .uld-pil.ms{background:#e7f6ec;border-color:#9fd5b0;color:#14532d}#' + ID_KOTAK + ' .uld-pil.btl{background:#fff4dc;border-color:#f0cd86;color:#7a4b00}#' + ID_KOTAK + ' .uld-pil.tms{background:#fde8e8;border-color:#f1a6a6;color:#7f1d1d}',
+      '#' + ID_KOTAK + ' .uld-pesan{margin:8px 0;padding:8px 10px;border-radius:8px;font-size:.8rem;border:1px solid #cbd5e1;background:#fff}',
+      '#' + ID_KOTAK + ' .uld-pesan.ok{background:#e7f6ec;border-color:#9fd5b0}#' + ID_KOTAK + ' .uld-pesan.info{background:#eef3fb;border-color:#c9d7ee}',
+      '#' + ID_KOTAK + ' .uld-pesan.gagal{background:#fde8e8;border-color:#f1a6a6;color:#7f1d1d}#' + ID_KOTAK + ' .uld-pesan.peringatan{background:#fff4dc;border-color:#f0cd86}',
+      '#' + ID_KOTAK + ' .uld-radio{display:flex;flex-wrap:wrap;gap:6px 18px;margin:6px 0}#' + ID_KOTAK + ' .uld-radio label{display:inline-flex;align-items:center;gap:6px;min-height:36px;cursor:pointer}',
+      '#' + ID_KOTAK + ' select,#' + ID_KOTAK + ' textarea{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px;font:inherit;background:#fff}',
+      '#' + ID_KOTAK + ' textarea{min-height:72px;resize:vertical}',
+      '#' + ID_KOTAK + ' .uld-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}',
+      '#' + ID_KOTAK + ' .uld-chip,#' + ID_KOTAK + ' .uld-btn{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;min-height:36px;font:inherit;cursor:pointer}',
+      '#' + ID_KOTAK + ' .uld-btn.utama{background:#17365d;border-color:#17365d;color:#fff;font-weight:600;min-height:42px;padding:8px 16px}',
+      '#' + ID_KOTAK + ' .uld-btn[disabled]{opacity:.5;cursor:not-allowed}',
+      '#' + ID_KOTAK + ' .uld-lain{margin:6px 0;padding:6px 0;border-top:1px dashed #cbd5e1;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between}',
+      '#' + ID_ATAS + '{margin:0 0 12px;padding:8px 12px;border:1px solid #17365d;border-radius:10px;background:#eef3fb;color:#17365d;font-size:.8rem;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between}',
+      '#' + ID_ATAS + ' button{border:1px solid #17365d;background:#17365d;color:#fff;border-radius:8px;padding:6px 12px;min-height:36px;font:inherit;font-weight:600;cursor:pointer}',
+      '.uld-cek{display:inline-flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap;color:#475569}.uld-cek input{width:18px;height:18px}',
+      'a.uld-dibuka{background:#047857 !important}',
+    ].join('');
     dok.head.appendChild(s);
   }
 
-  function pilStatus(s) { return '<span class="tul-pil ' + kelasStatus(s) + '">' + esc(s) + '</span>'; }
-
-  function aktifTugas() { return st.daftar && st.daftar.tugas ? st.daftar.tugas[st.aktif] || null : null; }
-
-  function gambarKepala() {
-    var o = dok.getElementById(ID); if (!o) return;
-    var d = st.daftar, k = kemajuan(d ? d.sisa : 0, d ? d.selesai : 0);
-    var paket = d && d.tugas && d.tugas[0] ? d.tugas[0].namaPaket : '';
-    var batas = d && d.tugas && d.tugas[0] && d.tugas[0].batasSelesai ? String(d.tugas[0].batasSelesai).slice(0, 10) : '';
-    o.querySelector('#tul-sub').textContent = paket ? (paket + (batas ? ' · batas selesai ' + batas : '')) : 'Verifikasi ulang data yang sudah terverifikasi';
-    o.querySelector('#tul-kemajuan').innerHTML = d
-      ? '<div class="tul-baris" style="font-size:.8rem"><span>Selesai ' + fmt(d.selesai) + ' dari ' + fmt(k.total) + '</span><span style="color:#5a6879">' + fmt(d.dikoreksi) + ' dikoreksi</span></div><div class="tul-bar"><i style="width:' + k.persen + '%"></i></div>'
-      : '';
-  }
-
-  function gambarDaftar() {
-    var d = st.daftar, h = '<h3>Daftar tugas</h3><div class="tul-cat">Hanya data yang dibagikan kepada Anda. Data yang berubah sebelum diperiksa ditarik otomatis.</div>';
-    if (st.status === 'muat' && !d) h += '<div class="tul-kosong" role="status">Memuat…</div>';
-    else if (st.status === 'gagal' && !d) h += '<div class="tul-pesan gagal" role="alert">' + esc(st.pesan) + '<br><button type="button" class="tul-btn kecil" data-aksi="muat" style="margin-top:8px">Coba lagi</button></div>';
-    else if (d) {
-      if (d.ditarikBaruSaja) h += '<div class="tul-pesan peringatan" role="status">' + fmt(d.ditarikBaruSaja) + ' tugas ditarik karena datanya berubah sebelum diperiksa.</div>';
-      if (!d.tugas.length) h += '<div class="tul-kosong" style="margin-top:10px">' + (d.selesai ? 'Semua tugas sudah selesai. Terima kasih.' : 'Belum ada tugas ulang untuk Anda.') + '</div>';
-      else {
-        h += '<ul class="tul-daftar">' + d.tugas.map(function (t, i) {
-          return '<li><button type="button" data-aksi="pilih" data-i="' + i + '" aria-current="' + (i === st.aktif) + '"><span class="tul-baris"><b>' + esc(t.nama) + '</b>' + pilStatus(t.status) + '</span><span class="tul-cat">' + esc(t.layanan) + ' · ' + esc(t.kelurahan) + '</span></button></li>';
-        }).join('') + '</ul>';
-        if (d.adaBerikutnya) h += '<div class="tul-cat" style="margin-top:8px">Menampilkan 50 tugas pertama; sisanya muncul setelah ini selesai.</div>';
-      }
-    }
-    dok.getElementById('tul-daftar').innerHTML = h;
-  }
-
-  function berkasDetail() { return st.detail && st.detail.berkas ? st.detail.berkas : []; }
+  function berkas() { return st.detail && st.detail.berkas ? st.detail.berkas : []; }
   function cekValid() {
-    return validasiPeriksa({ berkas: berkasDetail(), centang: st.centang, mode: st.mode, statusSaatIni: st.detail ? st.detail.status : '', statusBaru: st.statusBaru, alasan: st.alasan });
+    return validasiPeriksa({ berkas: berkas(), centang: st.centang, mode: st.mode, statusSaatIni: st.detail ? st.detail.status : '', statusBaru: st.statusBaru, alasan: st.alasan });
+  }
+  /** Tanda koordinat data ini dari modul penanda (hanya data GMM; null bila belum dimuat/bukan GMM). */
+  function tandaKoordinat() { var p = akar.djpmPenandaKoordinat; return p && typeof p.tandaSekarang === 'function' ? p.tandaSekarang(st.penerima) : null; }
+  /** Keterangan baku (sama dengan yang disarankan server pada penolakan): "Koordinat tidak valid: <alasan>. Mohon kirim ulang ...". */
+  function keteranganKoordinat(t) {
+    var a = String((t && t.alasan) || ''); a = a.charAt(0).toLowerCase() + a.slice(1);
+    return 'Koordinat tidak valid: ' + a + '. Mohon kirim ulang titik lokasi yang benar (tekan lama titik di Google Maps, pilih Bagikan, lalu Salin tautan).';
+  }
+  function pilStatus(s) { return '<span class="uld-pil ' + kelasStatus(s) + '">' + esc(s) + '</span>'; }
+
+  function normUrl(u) { try { return new URL(String(u || '').trim()).href; } catch (_e) { return String(u || '').trim(); } }
+  /** Tautan "Buka" pada baris berkas di Detail yang menunjuk ke berkas ini (dicocokkan lewat alamatnya; bukan lewat nama berkas). */
+  function tautanDetail(b, terklaim) {
+    var isi = isiDetail(); if (!isi) return null;
+    var daftar = isi.querySelectorAll('a[href]'), tujuan = normUrl(b.url), i;
+    for (i = 0; i < daftar.length; i++) {
+      var a = daftar[i];
+      if (a.closest('#' + ID_KOTAK) || a.closest('#' + ID_ATAS)) continue;
+      if (terklaim && terklaim.indexOf(a) !== -1) continue;   // sudah dipakai berkas lain yang beralamat sama
+      if (a.getAttribute('href') === String(b.url).trim() || normUrl(a.getAttribute('href')) === tujuan) return a;
+    }
+    return null;
   }
 
-  function htmlBanding(data) {
-    var koord = String((data && data.koordinat) || '').trim();
-    return '<div class="tul-banding">' + kelompokData(data).map(function (g) {
-      return '<div class="tul-grup"><h4>' + esc(g.judul) + ' <span>· ' + esc(g.petunjuk) + '</span></h4><dl>' + g.baris.map(function (r) {
-        return '<dt>' + esc(r.label) + '</dt><dd' + (r.nilai ? '' : ' class="kosong"') + '>' + (r.nilai ? esc(r.nilai) : 'kosong') + '</dd>';
-      }).join('') + (g.judul === 'Penugasan' ? '<dt>Koordinat</dt><dd' + (koord ? '' : ' class="kosong"') + '>' + (koord ? (urlBolehDibuka(koord) ? '<a href="' + esc(koord) + '" target="_blank" rel="noopener noreferrer">Buka peta ↗</a>' : esc(koord)) : 'kosong') + '</dd>' : '') + '</dl></div>';
-    }).join('') + '</div>';
+  /** Pasang/perbarui kotak centang pada tiap baris berkas di Detail; berkas yang tautannya tidak ditemukan dicatat untuk dibuka dari kotak. */
+  function hiasiBerkas() {
+    var terklaim = [];
+    berkas().forEach(function (b) {
+      var a = tautanDetail(b, terklaim);
+      b.tanpaTautan = !a;
+      if (!a) return;
+      terklaim.push(a);
+      a.setAttribute('data-uld-kunci', b.kunci);
+      a.classList.toggle('uld-dibuka', !!b.dibuka);
+      var baris = a.parentNode, cek = baris.querySelector('label.uld-cek[data-uld-kunci="' + b.kunci + '"]');
+      if (!cek) {
+        cek = dok.createElement('label'); cek.className = 'uld-cek'; cek.setAttribute('data-uld-kunci', b.kunci);
+        cek.innerHTML = '<input type="checkbox" data-uld-centang="' + esc(b.kunci) + '" aria-label="Sudah diperiksa: ' + esc(b.label) + '"><span></span>';
+        baris.insertBefore(cek, a);
+      }
+      var inp = cek.querySelector('input'), tek = cek.querySelector('span');
+      if (inp.disabled !== !b.dibuka) inp.disabled = !b.dibuka;
+      var dicentang = st.centang[b.kunci] === true; if (inp.checked !== dicentang) inp.checked = dicentang;
+      var teks = b.dibuka ? 'Diperiksa' : 'Buka dulu'; if (tek.textContent !== teks) tek.textContent = teks;
+    });
+    // Detail biasa menulis "Perubahan hanya dapat dilakukan oleh Admin Utama" untuk data yang sudah punya hasil; pada tugas ini petugas memang boleh mengoreksi lewat kotak.
+    var isi = isiDetail();
+    if (isi) Array.prototype.forEach.call(isi.querySelectorAll('p'), function (p) {
+      if (!p.closest('#' + ID_KOTAK) && /^Hasil verifikasi sudah diberikan\. Perubahan hanya dapat dilakukan oleh Admin Utama\.$/.test(p.textContent.trim())) {
+        p.textContent = 'Hasil verifikasi awal sudah diberikan. Ini tugas Verifikasi Ulang: isi hasil pemeriksaan pada kotak "Verifikasi Ulang" di bagian bawah halaman ini.';
+      }
+    });
   }
 
-  function gambarDetail() {
-    var w = dok.getElementById('tul-detail'); if (!w) return;
-    var t = aktifTugas();
-    if (!t) { w.innerHTML = '<div class="tul-kosong">' + (st.daftar && st.daftar.selesai && !st.daftar.sisa ? 'Semua tugas selesai.' : 'Pilih satu tugas di daftar.') + '</div>'; return; }
-    if (st.detailStatus === 'muat') { w.innerHTML = '<div class="tul-kosong" role="status">Membuka data…</div>'; return; }
-    if (st.detailStatus === 'gagal') { w.innerHTML = '<div class="tul-pesan gagal" role="alert">' + esc(st.detailPesan) + '<br><button type="button" class="tul-btn kecil" data-aksi="muat" style="margin-top:8px">Muat ulang daftar tugas</button></div>'; return; }
-    var d = st.detail; if (!d) { w.innerHTML = ''; return; }
-    var v = cekValid(), tujuan = statusTujuan(d.status);
+  function htmlKotak() {
+    if (st.status === 'muat') return '<h3>Verifikasi Ulang</h3><div class="uld-pesan info" role="status">Membuka tugas…</div>';
+    if (st.status === 'gagal') return '<h3>Verifikasi Ulang</h3><div class="uld-pesan gagal" role="alert">' + esc(st.pesan) + '<br><button type="button" class="uld-btn" data-uld="muat" style="margin-top:8px">Coba lagi</button></div>';
+    var d = st.detail; if (!d) return '';
+    var v = cekValid(), tujuan = statusTujuan(d.status), bk = berkas(), tk = tandaKoordinat(), koordSalah = !!(tk && tk.s === 'salah');
     if (st.mode === 'koreksi' && !st.statusBaru) st.statusBaru = tujuan[0] || '';
-    var h = '<div class="tul-baris"><div><h2 style="margin:0;font-size:1.05rem">' + esc(d.data.nama) + '</h2><div class="tul-data">' + esc(d.data.layanan) + ' · ' + esc(d.data.kelurahan) + ', ' + esc(d.data.kecamatan) + '</div></div>' + pilStatus(d.status) + '</div>' +
-      '<h3 style="margin-top:14px">Data input untuk dicocokkan</h3><div class="tul-cat">Bandingkan setiap isian dengan isi berkas yang dibuka. Isian yang kosong ditulis merah.</div>' + htmlBanding(d.data) +
-      '<div class="tul-cat" style="margin-top:6px">Verifikasi awal oleh ' + esc(d.diverifikasiOleh || '-') + (d.keteranganVerifikasi ? ' · keterangan: ' + esc(d.keteranganVerifikasi) : '') + '. Status hanya bisa diubah lewat tugas ini.</div>' +
-      '<h3 style="margin-top:16px">Berkas yang diunggah (' + fmt(d.berkas.length) + ')</h3><div class="tul-cat">Klik "Buka berkas" lebih dulu. Kotak centang baru aktif setelah berkasnya dibuka.</div>';
-    h += d.berkas.length ? '<ul class="tul-berkas">' + d.berkas.map(function (b) {
-      return '<li class="' + (b.dibuka ? '' : 'belum') + '"><input type="checkbox" data-aksi="centang" data-kunci="' + esc(b.kunci) + '"' + (b.dibuka ? '' : ' disabled') + (st.centang[b.kunci] === true ? ' checked' : '') + ' aria-label="Sudah diperiksa: ' + esc(b.label) + '">' +
-        '<div><b>' + esc(b.label) + '</b> <span class="tul-cat">· ' + (b.dibuka ? 'sudah dibuka' : 'belum dibuka') + '</span></div>' +
-        '<button type="button" class="tul-btn kecil" data-aksi="buka-berkas" data-kunci="' + esc(b.kunci) + '">Buka berkas ↗</button></li>';
-    }).join('') + '</ul>' : '<div class="tul-pesan info">Data ini tidak memiliki berkas unggahan.</div>';
-    h += '<h3 style="margin-top:16px">Hasil pemeriksaan</h3><div class="tul-radio" role="radiogroup" aria-label="Hasil pemeriksaan"><label><input type="radio" name="tul-mode" value="sesuai"' + (st.mode === 'sesuai' ? ' checked' : '') + '> Sesuai</label>' +
-      (tujuan.length ? '<label><input type="radio" name="tul-mode" value="koreksi"' + (st.mode === 'koreksi' ? ' checked' : '') + '> Koreksi status</label>' : '') + '</div>';
+    var dibuka = bk.filter(function (b) { return b.dibuka; }).length, dicentang = bk.filter(function (b) { return st.centang[b.kunci] === true; }).length;
+    var h = '<h3>Verifikasi Ulang</h3><div class="uld-sub">Status saat ini ' + pilStatus(d.status) + ' · diverifikasi awal oleh ' + esc(d.diverifikasiOleh || '-') + (d.keteranganVerifikasi ? ' · keterangan: ' + esc(d.keteranganVerifikasi) : '') + '</div>' +
+      '<div class="uld-pesan info">Cocokkan data di atas dengan isi tiap berkas. Pada bagian <b>Berkas &amp; Dokumen Pendukung</b>, klik <b>Buka</b> pada setiap berkas, lalu centang <b>Diperiksa</b> pada berkas itu.</div>' +
+      '<div class="uld-sub" id="uld-hitung">Berkas dibuka ' + fmt(dibuka) + ' dari ' + fmt(bk.length) + ' · dicentang ' + fmt(dicentang) + ' dari ' + fmt(bk.length) + '</div>';
+    var lain = bk.filter(function (b) { return b.tanpaTautan; });
+    if (lain.length) h += lain.map(function (b) {
+      return '<div class="uld-lain"><span><b>' + esc(b.label) + '</b> · ' + (b.dibuka ? 'sudah dibuka' : 'belum dibuka') + '</span><span><button type="button" class="uld-btn" data-uld="buka" data-kunci="' + esc(b.kunci) + '">Buka berkas ↗</button> ' +
+        '<label class="uld-cek"><input type="checkbox" data-uld-centang="' + esc(b.kunci) + '"' + (b.dibuka ? '' : ' disabled') + (st.centang[b.kunci] === true ? ' checked' : '') + '> Diperiksa</label></span></div>';
+    }).join('');
+    if (!bk.length) h += '<div class="uld-pesan info">Data ini tidak memiliki berkas unggahan.</div>';
+    h += '<h3 style="margin-top:12px">Hasil pemeriksaan</h3><div class="uld-radio" role="radiogroup" aria-label="Hasil pemeriksaan"><label><input type="radio" name="uld-mode" value="sesuai"' + (st.mode === 'sesuai' ? ' checked' : '') + '> Sesuai (status tetap)</label>' +
+      (tujuan.length ? '<label><input type="radio" name="uld-mode" value="koreksi"' + (st.mode === 'koreksi' ? ' checked' : '') + '> Koreksi status</label>' : '') + '</div>';
+    if (koordSalah && d.status === MS && st.mode === 'sesuai') {
+      h += '<div class="uld-pesan peringatan" role="alert">Koordinat lokasi data ini <b>bermasalah</b>: ' + esc(tk.alasan) + '. Hasil <b>Sesuai</b> akan ditolak sistem karena status Memenuhi Syarat tidak boleh dipertahankan pada koordinat yang salah. Pilih <b>Koreksi status</b> &rarr; Berkas Tidak Lengkap dan sebutkan masalah koordinat.</div>';
+    }
     if (st.mode === 'koreksi') {
       var chips = templatUntuk(st.templat, st.statusBaru, d.data.layanan);
-      h += '<div class="tul-opsi"><label>Status baru<select id="tul-status">' + tujuan.map(function (s) { return '<option' + (s === st.statusBaru ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label>' +
-        '<div><div class="tul-cat">Alasan cepat</div><div class="tul-chips">' + (chips.length ? chips.map(function (c, i) { return '<button type="button" class="tul-chip" data-aksi="templat" data-i="' + i + '">' + esc(c.judul) + '</button>'; }).join('') : '<span class="tul-cat">' + (st.templat ? 'Tidak ada templat untuk status ini.' : 'Memuat…') + '</span>') + '</div>' +
-        '<textarea id="tul-alasan" placeholder="Alasan koreksi (wajib)">' + esc(st.alasan) + '</textarea></div>' +
-        '<div class="tul-pesan peringatan">' + esc(dampakKoreksi(d.status, st.statusBaru)) + '</div></div>';
+      var chipKoordinat = koordSalah && st.statusBaru === BTL;
+      h += '<div><label>Status baru<select id="uld-status">' + tujuan.map(function (s) { return '<option' + (s === st.statusBaru ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label>' +
+        '<div class="uld-sub" style="margin-top:6px">Alasan cepat</div><div class="uld-chips">' + (chips.length ? chips.map(function (c, i) { return '<button type="button" class="uld-chip" data-uld="templat" data-i="' + i + '">' + esc(c.judul) + '</button>'; }).join('') : (chipKoordinat ? '' : '<span class="uld-sub">Tidak ada alasan cepat untuk status ini.</span>')) +
+        (chipKoordinat ? '<button type="button" class="uld-chip" data-uld="koordinat">Koordinat tidak valid</button>' : '') + '</div>' +
+        '<textarea id="uld-alasan" placeholder="Alasan koreksi (wajib)">' + esc(st.alasan) + '</textarea>' +
+        '<div class="uld-pesan peringatan">' + esc(dampakKoreksi(d.status, st.statusBaru)) + '</div></div>';
     }
-    h += '<div class="tul-pesan ' + (v.ok ? 'ok' : 'info') + '" id="tul-valid" role="status">' + esc(v.pesan) + '</div>';
-    if (st.pesanSimpan) h += '<div class="tul-pesan gagal" role="alert">' + esc(st.pesanSimpan) + '</div>';
-    h += '<div class="tul-baris" style="margin-top:12px"><button type="button" class="tul-btn utama" id="tul-simpan" data-aksi="simpan"' + (v.ok && !st.simpan ? '' : ' disabled') + '>' + (st.simpan ? 'Menyimpan…' : 'Simpan &amp; berikutnya') + '</button><span class="tul-cat">Waktu tersimpan dicatat server dan ikut hitungan lembur. Satu data dihitung satu kali.</span></div>';
-    w.innerHTML = h;
+    h += '<div class="uld-pesan ' + (v.ok ? 'ok' : 'info') + '" id="uld-valid" role="status">' + esc(v.pesan) + '</div>';
+    if (st.pesanSimpan) h += '<div class="uld-pesan gagal" role="alert">' + esc(st.pesanSimpan) + '</div>';
+    h += '<div style="margin-top:10px"><button type="button" class="uld-btn utama" id="uld-simpan" data-uld="simpan"' + (v.ok && !st.simpan ? '' : ' disabled') + '>' + (st.simpan ? 'Menyimpan…' : 'Simpan &amp; berikutnya') + '</button></div>';
+    return h;
   }
 
-  function gambar() { gambarKepala(); gambarDaftar(); gambarDetail(); }
-
-  // ------------------------------------------------------------------ aliran data
-  function muatDaftar(bukaPertama) {
-    if (!berhak()) return Promise.resolve();
-    st.status = 'muat'; if (!st.daftar) gambar();
-    return rpc('getTugasUlangSaya', [1]).then(function (res) {
-      if (!res || res.sukses !== true) throw new Error((res && res.pesan) || 'Gagal memuat tugas.');
-      st.daftar = res; st.status = 'ok'; st.pesan = '';
-      st.hitung = { sisa: res.sisa, selesai: res.selesai }; st.hitungWaktu = Date.now(); st.hitungToken = pengguna() ? pengguna().token : ''; selarasPil();
-      st.aktif = 0; st.detail = null; st.detailStatus = 'idle';
-      gambar();
-      if (bukaPertama && res.tugas.length) {
-        // dibuka dari tabel tab Verifikasi Ulang: langsung ke tugas data yang diklik (tugas di luar 50 pertama disisipkan di urutan teratas)
-        var idx = st.fokusPenerima ? res.tugas.findIndex(function (x) { return Number(x.penerimaId) === Number(st.fokusPenerima); }) : -1;
-        if (st.fokusPenerima && idx < 0 && Array.isArray(res.semua)) {
-          // tugas di luar 50 pertama: server memperbolehkan membuka tugas milik sendiri yang mana pun, jadi tampilkan di urutan teratas daftar
-          var lain = res.semua.filter(function (x) { return Number(x.penerimaId) === Number(st.fokusPenerima); })[0];
-          if (lain) {
-            var baris = null;
-            try { baris = (typeof masterDataLihat !== 'undefined' && Array.isArray(masterDataLihat)) ? masterDataLihat.filter(function (r) { return Number(r[0]) === Number(st.fokusPenerima); })[0] : null; } catch (_e) { baris = null; }
-            res.tugas.unshift({ tugasId: lain.tugasId, penerimaId: lain.penerimaId, nama: baris ? String(baris[1] || '') : 'Data #' + lain.penerimaId, layanan: baris ? String(baris[7] || '') : '', kecamatan: baris ? String(baris[10] || '') : '', kelurahan: baris ? String(baris[11] || '') : '', status: baris ? String(baris[18] || '') : '', dibuka: false, namaPaket: res.tugas[0] ? res.tugas[0].namaPaket : '', batasSelesai: res.tugas[0] ? res.tugas[0].batasSelesai : null });
-            idx = 0;
-          }
-        }
-        st.fokusPenerima = 0;
-        return pilih(idx >= 0 ? idx : 0);
-      }
-    }).catch(function (e) { st.status = 'gagal'; st.pesan = e.message; gambar(); });
+  /** Gambar ulang kotak + hiasan baris berkas (idempoten). Fokus dan isian yang sedang diketik dipertahankan. */
+  function gambar() {
+    var kotak = dok.getElementById(ID_KOTAK); if (!kotak) return;
+    var fokus = dok.activeElement && kotak.contains(dok.activeElement) ? dok.activeElement.id : '';
+    var pos = fokus === 'uld-alasan' ? dok.activeElement.selectionStart : 0;
+    hiasiBerkas();   // lebih dulu: menentukan berkas yang tak punya tautan di Detail (baris cadangan di kotak)
+    kotak.innerHTML = htmlKotak();
+    if (fokus) { var el = dok.getElementById(fokus); if (el && el.focus) { el.focus(); if (fokus === 'uld-alasan') { try { el.setSelectionRange(pos, pos); } catch (_e) { /* abaikan */ } } } }
+    hiasiBerkas();
   }
 
-  function pilih(i) {
-    var t = st.daftar && st.daftar.tugas[i]; if (!t) return Promise.resolve();
-    st.aktif = i; st.detail = null; st.detailStatus = 'muat'; st.centang = {}; st.mode = 'sesuai'; st.statusBaru = ''; st.alasan = ''; st.pesanSimpan = '';
-    gambar();
-    var saya = ++st.bukaAntrean;
-    return rpc('bukaTugasUlang', [t.tugasId]).then(function (res) {
-      if (saya !== st.bukaAntrean) return;
-      if (!res || res.sukses !== true) throw new Error((res && res.pesan) || 'Gagal membuka data.');
-      st.detail = res; st.detailStatus = 'ok'; gambar();
-    }).catch(function (e) { if (saya !== st.bukaAntrean) return; st.detailStatus = 'gagal'; st.detailPesan = e.message; gambar(); });
+  function lepasKotak() {
+    var k = dok.getElementById(ID_KOTAK); if (k && k.parentNode) k.parentNode.removeChild(k);
+    var at = dok.getElementById(ID_ATAS); if (at && at.parentNode) at.parentNode.removeChild(at);
+    Array.prototype.forEach.call(dok.querySelectorAll('label.uld-cek[data-uld-kunci]'), function (e) { if (e.parentNode) e.parentNode.removeChild(e); });
+  }
+
+  function muatTugas(tugasId) {
+    st.tugasId = tugasId; st.detail = null; st.status = 'muat'; st.centang = {}; st.mode = 'sesuai'; st.statusBaru = ''; st.alasan = ''; st.pesanSimpan = '';
+    var saya = ++st.antrean; gambar();
+    return rpc('bukaTugasUlang', [tugasId]).then(function (res) {
+      if (saya !== st.antrean) return;
+      if (!res || res.sukses !== true) throw new Error((res && res.pesan) || 'Gagal membuka tugas.');
+      st.detail = res; st.status = 'ok'; st.pesan = ''; gambar();
+    }).catch(function (e) { if (saya !== st.antrean) return; st.status = 'gagal'; st.pesan = e.message; gambar(); });
   }
 
   function muatTemplat() {
     if (st.templat) return;
-    rpc('getTemplatAlasan', []).then(function (res) { st.templat = (res && res.sukses === true && Array.isArray(res.templat)) ? res.templat : []; gambarDetail(); })
-      .catch(function () { st.templat = []; gambarDetail(); });
+    rpc('getTemplatAlasan', []).then(function (res) { st.templat = (res && res.sukses === true && Array.isArray(res.templat)) ? res.templat : []; gambar(); })
+      .catch(function () { st.templat = []; gambar(); });
   }
 
-  function bukaBerkas(kunci) {
+  function catatDibuka(kunci) {
     var d = st.detail; if (!d) return;
     var b = d.berkas.filter(function (x) { return x.kunci === kunci; })[0]; if (!b) return;
-    // window.open harus terjadi langsung di dalam klik pengguna
-    if (urlBolehDibuka(b.url)) { try { akar.open(b.url, '_blank', 'noopener'); } catch (_e) { /* diblokir: petugas dapat mengklik lagi */ } }
-    else { toast('Tautan berkas tidak valid.'); return; }
     var tugasId = d.tugasId;
     rpc('catatBerkasDibuka', [tugasId, kunci]).then(function (res) {
       if (!res || res.sukses !== true) throw new Error((res && res.pesan) || 'Gagal mencatat berkas.');
-      if (st.detail && st.detail.tugasId === tugasId) { b.dibuka = true; gambarDetail(); }
+      if (st.detail && st.detail.tugasId === tugasId) { b.dibuka = true; gambar(); }
     }).catch(function (e) { toast(e.message); });
+  }
+
+  function bukaDariKotak(kunci) {
+    var b = berkas().filter(function (x) { return x.kunci === kunci; })[0]; if (!b) return;
+    if (!urlBolehDibuka(b.url)) { toast('Tautan berkas tidak valid.'); return; }
+    try { akar.open(b.url, '_blank', 'noopener'); } catch (_e) { /* diblokir: petugas dapat mengklik lagi */ }   // harus langsung di dalam klik pengguna
+    catatDibuka(kunci);
+  }
+
+  function lanjutKeBerikutnya() {
+    var t = tab();
+    var tutupDetail = dok.getElementById('tutup-modal-detail'); if (tutupDetail) tutupDetail.click();
+    if (!t || typeof t.setelahUlangSelesai !== 'function') return;
+    t.setelahUlangSelesai().then(function (berikut) {
+      if (berikut && typeof akar.tampilkanDetailKeModalOnDemand === 'function') akar.tampilkanDetailKeModalOnDemand(berikut);
+      else toast('Semua tugas Verifikasi Ulang sudah selesai. Terima kasih.', 'sukses');
+    });
   }
 
   function simpan() {
     var d = st.detail, v = cekValid(); if (!d || !v.ok || st.simpan) return;
-    st.simpan = true; st.pesanSimpan = ''; gambarDetail();
+    st.simpan = true; st.pesanSimpan = ''; gambar();
     var masuk = { hasil: st.mode === 'sesuai' ? 'SESUAI' : 'DIKOREKSI', centang: st.centang };
     if (st.mode === 'koreksi') { masuk.statusSesudah = st.statusBaru; masuk.alasan = st.alasan; }
     rpc('simpanHasilUlang', [d.tugasId, masuk]).then(function (res) {
       st.simpan = false;
       if (!res || res.sukses !== true) {
-        st.pesanSimpan = (res && res.pesan) || 'Gagal menyimpan.'; gambarDetail();
-        // Tugas sudah tidak berlaku (data berubah, ditarik, selesai di tab lain, paket dibatalkan): daftar dimuat ulang dan tugas berikutnya dibuka.
-        // Pesannya ditampilkan sebagai toast karena panel detail diganti oleh tugas berikutnya.
-        if (res && (res.konflik || /Muat ulang|ditarik|tidak aktif|sudah selesai/.test(st.pesanSimpan))) { toast(st.pesanSimpan); muatDaftar(true); }
+        st.pesanSimpan = (res && res.pesan) || 'Gagal menyimpan.'; gambar();
+        // Tugas tidak berlaku lagi (data berubah, ditarik, selesai di tab lain, paket dibatalkan): Detail ditutup dan daftar dimuat ulang; pesan lewat toast.
+        if (res && (res.konflik || /Muat ulang|ditarik|tidak aktif|sudah selesai/.test(st.pesanSimpan))) {
+          toast(st.pesanSimpan);
+          var tutupDetail = dok.getElementById('tutup-modal-detail'); if (tutupDetail) tutupDetail.click();
+          var t = tab(); if (t && typeof t.setelahUlangSelesai === 'function') t.setelahUlangSelesai();
+        }
         return;
       }
       toast(res.pesan || 'Tersimpan.', 'sukses');
-      return muatDaftar(true);
-    }).catch(function (e) { st.simpan = false; st.pesanSimpan = e.message; gambarDetail(); });
+      lanjutKeBerikutnya();
+    }).catch(function (e) { st.simpan = false; st.pesanSimpan = e.message; gambar(); });
   }
 
-  // ------------------------------------------------------------------ jendela
-  function tutup() {
-    var o = dok.getElementById(ID); if (o && o.parentNode) o.parentNode.removeChild(o);
-    st.bukaAntrean++; st.detail = null; st.detailStatus = 'idle'; st.simpan = false;
-    dok.removeEventListener('keydown', saatTombol, true);
-    if (st.pembuka && st.pembuka.focus) { try { st.pembuka.focus(); } catch (_e) { /* abaikan */ } }
-    st.pembuka = null;
-    segarkanHitung(true);
-  }
-  function saatTombol(e) { if (e.key === 'Escape') { e.preventDefault(); tutup(); } }
-
-  function bukaPanel(pembuka, fokusPenerima) {
-    if (!berhak()) { toast('Fitur ini khusus akun Verifikator.'); return; }
+  // ------------------------------------------------------------------ pemasangan di Detail
+  /** Pastikan kotak ada di Detail yang sedang tampil (bila data ini tugas Verifikasi Ulang milik verifikator) atau dibuang bila tidak. */
+  function sinkron() {
+    if (!berhak() || !modeUlang() || !modalTerbuka()) { if (dok.getElementById(ID_KOTAK)) lepasKotak(); return; }
+    var tugasId = tugasIdUntuk(st.penerima);
+    var riwayat = dok.getElementById('riwayat-edit-wrap');
+    if (!tugasId || !riwayat) { if (!tugasId && dok.getElementById(ID_KOTAK)) lepasKotak(); return; }   // belum selesai digambar, atau bukan tugas ulang
     suntikStyle();
-    if (dok.getElementById(ID)) return;
-    st.fokusPenerima = Number(fokusPenerima) || 0;
-    st.pembuka = pembuka || dok.activeElement; st.daftar = null; st.templat = null; st.status = 'muat';
-    var o = dok.createElement('div'); o.id = ID; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-labelledby', 'tul-judul');
-    o.innerHTML = '<div class="tul-kotak"><div class="tul-kepala"><div><h2 id="tul-judul">Tugas Ulang</h2><div class="tul-sub" id="tul-sub"></div></div><div class="tul-kemajuan" id="tul-kemajuan"></div><button type="button" class="tul-tutup" id="tul-tutup" aria-label="Tutup">✕</button></div>' +
-      '<div class="tul-isi"><div id="tul-daftar"></div><div id="tul-detail"></div></div></div>';
-    dok.body.appendChild(o);
-    o.addEventListener('mousedown', function (e) { if (e.target === o) tutup(); });
-    o.addEventListener('click', function (e) {
-      var t = e.target.closest ? e.target.closest('[data-aksi], #tul-tutup') : null; if (!t) return;
-      if (t.id === 'tul-tutup') { tutup(); return; }
-      var a = t.getAttribute('data-aksi');
-      if (a === 'pilih') pilih(Number(t.getAttribute('data-i')));
-      else if (a === 'buka-berkas') bukaBerkas(t.getAttribute('data-kunci'));
-      else if (a === 'simpan') simpan();
-      else if (a === 'muat') muatDaftar(true);
-      else if (a === 'templat') {
-        var c = templatUntuk(st.templat, st.statusBaru, st.detail.data.layanan)[Number(t.getAttribute('data-i'))];
-        if (c) { st.alasan = isiTemplat(c.isi, st.detail.data.layanan); gambarDetail(); }
+    var kotak = dok.getElementById(ID_KOTAK);
+    if (!kotak) {
+      kotak = dok.createElement('div'); kotak.id = ID_KOTAK; kotak.setAttribute('role', 'region'); kotak.setAttribute('aria-label', 'Verifikasi Ulang');
+      riwayat.parentNode.insertBefore(kotak, riwayat);
+      var isi = isiDetail();
+      if (isi && !dok.getElementById(ID_ATAS)) {
+        var atas = dok.createElement('div'); atas.id = ID_ATAS;
+        atas.innerHTML = '<span><b>Verifikasi Ulang</b> · periksa data dan berkasnya, lalu isi hasilnya di kotak pada bagian bawah halaman ini.</span><button type="button" data-uld="gulir">Ke kotak Verifikasi Ulang ↓</button>';
+        isi.insertBefore(atas, isi.firstChild);
       }
-    });
-    o.addEventListener('change', function (e) {
-      var t = e.target;
-      if (t.getAttribute('data-aksi') === 'centang') { st.centang[t.getAttribute('data-kunci')] = t.checked; gambarDetail(); }
-      else if (t.name === 'tul-mode') { st.mode = t.value; st.pesanSimpan = ''; if (st.mode === 'koreksi') { st.statusBaru = ''; muatTemplat(); } gambarDetail(); }
-      else if (t.id === 'tul-status') { st.statusBaru = t.value; gambarDetail(); }
-    });
-    o.addEventListener('input', function (e) {
-      if (e.target.id !== 'tul-alasan') return;
-      st.alasan = e.target.value;
-      var v = cekValid(), vp = dok.getElementById('tul-valid'), tb = dok.getElementById('tul-simpan');
-      if (vp) { vp.textContent = v.pesan; vp.className = 'tul-pesan ' + (v.ok ? 'ok' : 'info'); }
-      if (tb) tb.disabled = !(v.ok && !st.simpan);
-    });
-    dok.addEventListener('keydown', saatTombol, true);
-    gambar();
-    muatDaftar(true);
-    var b = dok.getElementById('tul-tutup'); if (b) b.focus();
+      if (st.tugasId === tugasId && st.status !== 'idle') gambar();
+    }
+    if (st.tugasId !== tugasId || st.status === 'idle') muatTugas(tugasId);
+    else {
+      var tk = tandaKoordinat(), sig = tk ? tk.s + '|' + tk.alasan : '';
+      if (sig !== st.sigTanda) { st.sigTanda = sig; gambar(); } else hiasiBerkas();
+    }
   }
-  api.buka = bukaPanel;
-  akar.bukaTugasUlang = bukaPanel;
-  akar.bukaTugasUlangUntukPenerima = function (penerimaId, pembuka) { bukaPanel(pembuka || null, penerimaId); };
 
-  // ------------------------------------------------------------------ tombol melayang DIHAPUS
-  // Tombol melayang "Tugas Ulang" digantikan tab "Verifikasi Ulang" (app-tab-tugas.js). Panel pemeriksaan di atas tetap dipakai dan dibuka dari tab lewat
-  // bukaTugasUlangUntukPenerima. Tombol lama yang mungkin tertinggal di halaman dibuang; tidak ada lagi pemanggilan server berkala dari modul ini.
-  function selarasPil() { var pil = dok.getElementById(ID_PIL); if (pil && pil.parentNode) pil.parentNode.removeChild(pil); }
-  function segarkanHitung() { /* tidak dipakai lagi */ }
+  /** Detail dibuka untuk data lain: keadaan pemeriksaan direset. */
+  function pasangPembungkus() {
+    if (akar.__djpmUlangDetailDibungkus || typeof akar.tampilkanDetailKeModalOnDemand !== 'function') return;
+    var asli = akar.tampilkanDetailKeModalOnDemand;
+    akar.tampilkanDetailKeModalOnDemand = function (nomorBaris) {
+      st.penerima = Number(nomorBaris) || 0; st.tugasId = 0; st.detail = null; st.status = 'idle'; st.centang = {}; st.mode = 'sesuai'; st.statusBaru = ''; st.alasan = ''; st.pesanSimpan = ''; st.simpan = false; st.antrean++; st.sigTanda = '';
+      lepasKotak();
+      var hasil = asli.apply(this, arguments);
+      try { sinkron(); } catch (_e) { /* abaikan */ }
+      return hasil;
+    };
+    akar.__djpmUlangDetailDibungkus = true;
+  }
 
-  setInterval(function () {
-    try {
-      if (!berhak()) { var pil = dok.getElementById(ID_PIL); if (pil && pil.parentNode) pil.parentNode.removeChild(pil); if (dok.getElementById(ID)) tutup(); st.hitung = null; return; }
-      selarasPil(); segarkanHitung(false);
-    } catch (_e) { /* abaikan */ }
-  }, 2000);
-  try { segarkanHitung(false); } catch (_e) { /* abaikan */ }
+  // Klik pada tautan "Buka" berkas di Detail: dicatat server (browser tetap membuka tab baru seperti biasa)
+  dok.addEventListener('click', function (e) {
+    var t = e.target; if (!t || !t.closest) return;
+    var a = t.closest('a[data-uld-kunci]'); if (a && modeUlang() && berhak()) { catatDibuka(a.getAttribute('data-uld-kunci')); return; }
+    var ap = t.closest('[data-uld]'); if (!ap || !(t.closest('#' + ID_KOTAK) || t.closest('#' + ID_ATAS))) return;
+    var aksi = ap.getAttribute('data-uld');
+    if (aksi === 'gulir') { var kt = dok.getElementById(ID_KOTAK); if (kt && kt.scrollIntoView) kt.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    if (aksi === 'simpan') simpan();
+    else if (aksi === 'buka') bukaDariKotak(ap.getAttribute('data-kunci'));
+    else if (aksi === 'muat') { var tid = tugasIdUntuk(st.penerima); if (tid) muatTugas(tid); }
+    else if (aksi === 'koordinat') { var tkk = tandaKoordinat(); if (tkk && tkk.s === 'salah') { st.alasan = keteranganKoordinat(tkk); gambar(); } }
+    else if (aksi === 'templat') {
+      var c = st.detail ? templatUntuk(st.templat, st.statusBaru, st.detail.data.layanan)[Number(ap.getAttribute('data-i'))] : null;
+      if (c) { st.alasan = isiTemplat(c.isi, st.detail.data.layanan); gambar(); }
+    }
+  });
+  dok.addEventListener('change', function (e) {
+    var t = e.target; if (!t || !t.closest || !modeUlang()) return;
+    if (t.getAttribute && t.getAttribute('data-uld-centang')) { st.centang[t.getAttribute('data-uld-centang')] = t.checked; gambar(); return; }
+    if (!t.closest('#' + ID_KOTAK)) return;
+    if (t.name === 'uld-mode') { st.mode = t.value; st.pesanSimpan = ''; if (st.mode === 'koreksi') { st.statusBaru = ''; muatTemplat(); } gambar(); }
+    else if (t.id === 'uld-status') { st.statusBaru = t.value; gambar(); }
+  });
+  dok.addEventListener('input', function (e) {
+    if (!e.target || e.target.id !== 'uld-alasan') return;
+    st.alasan = e.target.value;
+    var v = cekValid(), vp = dok.getElementById('uld-valid'), tb = dok.getElementById('uld-simpan');
+    if (vp) { vp.textContent = v.pesan; vp.className = 'uld-pesan ' + (v.ok ? 'ok' : 'info'); }
+    if (tb) tb.disabled = !(v.ok && !st.simpan);
+  });
+
+  var MO = akar.MutationObserver, diamati = null;
+  function pasangPengamat() {
+    var isi = isiDetail();
+    if (MO && isi && isi !== diamati) { diamati = isi; new MO(function () { try { sinkron(); } catch (_e) { /* abaikan */ } }).observe(isi, { childList: true }); }
+  }
+  setInterval(function () { try { pasangPembungkus(); pasangPengamat(); sinkron(); } catch (_e) { /* abaikan */ } }, 1500);
+  try { pasangPembungkus(); pasangPengamat(); } catch (_e) { /* abaikan */ }
+  api.sinkronUntukUji = sinkron;
   return api;
 });

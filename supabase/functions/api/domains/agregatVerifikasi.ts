@@ -272,8 +272,7 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   const judulCakupan = h.cakupan === "SAYA" ? "Hasil Kerja Saya" : h.cakupan === "TIM" ? `Hasil Tim ${h.timFokus}` : (h.timFokus ? `Agregat Tim ${h.timFokus}` : "Agregat Semua Tim");
   const rentangTeks = `${h.rentang.dari} s/d ${h.rentang.sampai}`;
   const urut = urutkanPerTim(h.hasil.perOrang);
-  const adaBeban = !!h.beban;
-  const kolom = adaBeban ? 30 : 20;
+  const kolom = 20;
   const nolU = { total: 0, jamKerja: 0, luarJamKerja: 0, sesuai: 0, dikoreksi: 0, sisa: 0 };
   const ulangOrang = new Map((h.ulang?.perOrang ?? []).map((u) => [u.username.toUpperCase(), u]));
   const ulangDari = (username: string) => ulangOrang.get(username.toUpperCase()) ?? nolU;
@@ -295,27 +294,22 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   const persen = (selesai: number, ditugaskan: number): number | string => ditugaskan > 0 ? selesai / ditugaskan : "-";
   const bebanBaris = (c: number[]): (number | string)[] => [c[0], c[1], c[2], persen(c[1], c[0]), c[3], c[4], c[5], c[6], persen(c[5], c[4]), c[7]];
   const jumlahB = (daftar: number[][]) => nolB.map((_, i) => daftar.reduce((s, x) => s + x[i], 0));
-  const bebanSemua: number[][] = [];
 
   // Sheet 1: rekap per orang, DIURUTKAN per tim (Admin Utama: dengan subtotal tiap tim)
   const ws = wb.addWorksheet("Rekap");
   ws.addRow([`Rekap Hasil Kerja Verifikator - ${judulCakupan}`]);
   ws.addRow([`Periode: ${rentangTeks} (WIB)`]);
   ws.addRow([TEKS_ATURAN]);
-  ws.addRow(h.beban
-    ? [`Beban tugas (kolom paling kanan) dihitung per ${h.beban.dibuatPada} WIB saat file diunduh dan TIDAK mengikuti periode di atas. Ditugaskan = Selesai + Sisa (tugas yang harus dikerjakan); % Selesai = Selesai / Ditugaskan; Ditutup/Ditarik = tugas yang tidak dihitung lagi (hanya informasi).`]
-    : []);
+  ws.addRow([]);
   // Dua baris judul: baris 5 = kelompok (sel digabung), baris 6 = nama kolom.
   const barisKelompok = 5;
   const barisHeader = 6;
-  ws.addRow(["", "", "", "", "", "VERIFIKASI AWAL", "", "", "VERIFIKASI ULANG", "", "", "", "", "TOTAL PEKERJAAN (AWAL + ULANG)", "", "", "HASIL VERIFIKASI AWAL", "", "", "INFORMASI",
-    ...(adaBeban ? ["BEBAN TUGAS AWAL (dari sistem, per unduh)", "", "", "", "", "BEBAN TUGAS ULANG (per unduh)", "", "", "", ""] : [])]);
+  ws.addRow(["", "", "", "", "", "VERIFIKASI AWAL", "", "", "VERIFIKASI ULANG", "", "", "", "", "TOTAL PEKERJAAN (AWAL + ULANG)", "", "", "HASIL VERIFIKASI AWAL", "", "", "INFORMASI"]);
   ws.addRow(["No", "Tim", "Username", "Nama Lengkap", "Peran",
     "Jam Kerja", "Luar Jam Kerja", "Total",
     "Jam Kerja", "Luar Jam Kerja", "Total", "Sesuai", "Dikoreksi",
     "Jam Kerja", "Luar Jam Kerja (Lembur)", "Total",
-    "Memenuhi Syarat", "Berkas Tidak Lengkap", "Tidak Memenuhi Syarat", "Dikoreksi (per tanggal unduh)",
-    ...(adaBeban ? ["Ditugaskan", "Selesai", "Sisa", "% Selesai", "Ditutup", "Ditugaskan", "Selesai", "Sisa", "% Selesai", "Ditarik"] : [])]);
+    "Memenuhi Syarat", "Berkas Tidak Lengkap", "Tidak Memenuhi Syarat", "Dikoreksi (per tanggal unduh)"]);
   let baris = barisHeader;
   let no = 0;
   const barisSubtotal: number[] = [];
@@ -323,23 +317,20 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   for (const o of urut) { const k = o.tim || "-"; if (!kelompok.has(k)) kelompok.set(k, []); kelompok.get(k)!.push(o); }
   for (const [k, anggota] of kelompok) {
     const nilaiAnggota: number[][] = [];
-    const bebanAnggota: number[][] = [];
     for (const o of anggota) {
       no++; baris++;
       const a = angka(o, ulangDari(o.username));
       nilaiAnggota.push(a);
-      const b = bebanHitungan(o.username);
-      bebanAnggota.push(b); bebanSemua.push(b);
-      ws.addRow([no, labelTim(o.tim), o.username, namaTampil(o.namaLengkap), o.koordinator ? "Koordinator" : "Anggota", ...a, ...(adaBeban ? bebanBaris(b) : [])]);
+      ws.addRow([no, labelTim(o.tim), o.username, namaTampil(o.namaLengkap), o.koordinator ? "Koordinator" : "Anggota", ...a]);
     }
     if (h.cakupan === "SEMUA") {
       baris++; barisSubtotal.push(baris);
-      ws.addRow(["", "Subtotal " + labelTim(k === "-" ? null : k), "", "", `${anggota.length} orang`, ...jumlahKolom(nilaiAnggota), ...(adaBeban ? bebanBaris(jumlahB(bebanAnggota)) : [])]);
+      ws.addRow(["", "Subtotal " + labelTim(k === "-" ? null : k), "", "", `${anggota.length} orang`, ...jumlahKolom(nilaiAnggota)]);
     }
   }
   const r = h.hasil.ringkasan;
   baris++;
-  ws.addRow(["", "TOTAL", "", "", `${urut.length} orang`, ...angka(r, h.ulang?.ringkasan ?? nolU), ...(adaBeban ? bebanBaris(jumlahB(bebanSemua)) : [])]);
+  ws.addRow(["", "TOTAL", "", "", `${urut.length} orang`, ...angka(r, h.ulang?.ringkasan ?? nolU)]);
   const barisTotal = baris;
   if (h.cakupan === "SEMUA" && h.hasil.luarTim) {
     const a = h.hasil.luarTim;
@@ -348,14 +339,56 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
   }
   ws.getRow(1).font = { bold: true, size: 13 };
   terapkanGayaHeaderKolom(ws, barisKelompok, kolom);
-  for (const [a, b] of [[6, 8], [9, 13], [14, 16], [17, 19], ...(adaBeban ? [[21, 25], [26, 30]] : [])]) terapkanMergeLabel(ws, barisKelompok, a, b);
+  for (const [a, b] of [[6, 8], [9, 13], [14, 16], [17, 19]]) terapkanMergeLabel(ws, barisKelompok, a, b);
   terapkanGayaHeaderKolom(ws, barisHeader, kolom);
   terapkanBorderData(ws, barisHeader + 1, barisTotal, kolom);
-  if (adaBeban) for (let br = barisHeader + 1; br <= barisTotal; br++) for (const kc of [24, 29]) ws.getCell(br, kc).numFmt = "0%";
   for (const b of barisSubtotal) ws.getRow(b).font = { bold: true };
   terapkanGayaBarisTotal(ws, barisTotal, kolom);
-  [6, 12, 28, 30, 13, 12, 14, 12, 12, 14, 12, 12, 14, 14, 20, 14, 16, 18, 20, 22, ...(adaBeban ? [12, 10, 10, 10, 11, 12, 10, 10, 10, 11] : [])].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  [6, 12, 28, 30, 13, 12, 14, 12, 12, 14, 12, 12, 14, 14, 20, 14, 16, 18, 20, 22].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   ws.views = [{ state: "frozen", ySplit: barisHeader }];
+
+  // Sheet 1b: BEBAN TUGAS per verifikator (hanya unduhan Excel). Sheet tersendiri agar Rekap tidak melebar dan mudah dibaca pimpinan.
+  if (h.beban) {
+    const wb2 = wb.addWorksheet("Beban Tugas");
+    wb2.addRow([`Beban Tugas Verifikasi - ${judulCakupan}`]);
+    wb2.addRow([`Dihitung per ${h.beban.dibuatPada} WIB (saat file diunduh). Kumulatif dan TIDAK mengikuti periode laporan di sheet Rekap.`]);
+    wb2.addRow(["Ditugaskan = Selesai + Sisa (tugas yang harus dikerjakan). % Selesai = Selesai / Ditugaskan. Ditutup (Awal) dan Ditarik (Ulang) hanya informasi: tugas yang tidak dihitung lagi. Penjelasan lengkap di sheet Aturan."]);
+    wb2.addRow([]);
+    wb2.addRow(["", "", "", "", "", "VERIFIKASI AWAL (tugas dari sistem)", "", "", "", "", "VERIFIKASI ULANG", "", "", "", ""]);
+    wb2.addRow(["No", "Tim", "Username", "Nama Lengkap", "Peran", "Ditugaskan", "Selesai", "Sisa", "% Selesai", "Ditutup", "Ditugaskan", "Selesai", "Sisa", "% Selesai", "Ditarik"]);
+    const kolomB = 15, barisKelompokB = 5, barisHeaderB = 6;
+    let nomorB = 0, barisB = barisHeaderB;
+    const barisSubtotalB: number[] = [];
+    const semuaB: number[][] = [];
+    for (const [k, anggota] of kelompok) {
+      const jumlahTim: number[][] = [];
+      for (const o of anggota) {
+        nomorB++; barisB++;
+        const b = bebanHitungan(o.username);
+        jumlahTim.push(b); semuaB.push(b);
+        wb2.addRow([nomorB, labelTim(o.tim), o.username, namaTampil(o.namaLengkap), o.koordinator ? "Koordinator" : "Anggota", ...bebanBaris(b)]);
+      }
+      if (h.cakupan === "SEMUA") {
+        barisB++; barisSubtotalB.push(barisB);
+        wb2.addRow(["", "Subtotal " + labelTim(k === "-" ? null : k), "", "", `${anggota.length} orang`, ...bebanBaris(jumlahB(jumlahTim))]);
+      }
+    }
+    barisB++;
+    wb2.addRow(["", "TOTAL", "", "", `${urut.length} orang`, ...bebanBaris(jumlahB(semuaB))]);
+    const barisTotalB = barisB;
+    wb2.getRow(1).font = { bold: true, size: 13 };
+    terapkanGayaHeaderKolom(wb2, barisKelompokB, kolomB);
+    terapkanMergeLabel(wb2, barisKelompokB, 6, 10); terapkanMergeLabel(wb2, barisKelompokB, 11, 15);
+    terapkanGayaHeaderKolom(wb2, barisHeaderB, kolomB);
+    terapkanBorderData(wb2, barisHeaderB + 1, barisTotalB, kolomB);
+    for (const b of barisSubtotalB) wb2.getRow(b).font = { bold: true };
+    terapkanGayaBarisTotal(wb2, barisTotalB, kolomB);
+    for (let br = barisHeaderB + 1; br <= barisTotalB; br++) for (const kc of [9, 14]) wb2.getCell(br, kc).numFmt = "0%";
+    [6, 12, 28, 30, 13, 13, 11, 11, 12, 11, 13, 11, 11, 12, 11].forEach((w, i) => { wb2.getColumn(i + 1).width = w; });
+    wb2.getRow(barisKelompokB).height = 24;
+    wb2.getRow(barisHeaderB).height = 32;   // tinggi tetap: judul tidak bergantung pada hitung-otomatis tinggi baris milik aplikasi Excel
+    wb2.views = [{ state: "frozen", ySplit: barisHeaderB }];
+  }
 
   // Sheet 2: per orang per hari (dasar lembur), diurutkan per tim -> orang -> tanggal. Verifikasi Awal dan Verifikasi Ulang dirinci terpisah.
   const wh = wb.addWorksheet("Per Hari");
@@ -394,7 +427,7 @@ export function susunBukuRekap(ExcelJS: any, h: HasilHitung, namaPembuat: string
     "Verifikasi Awal dihitung dari HASIL VERIFIKATOR saat diberikan; Verifikasi Ulang dari waktu server saat hasilnya disimpan (1 kali per data per petugas). TOTAL PEKERJAAN = Awal + Ulang, jam kerja dan luar jam kerja dijumlahkan terpisah (dasar lembur).", "Kolom \"Dikoreksi\" hanya informasi: jumlah data yang statusnya SEKARANG berbeda dari hasil verifikator (diubah Admin Utama, dikoreksi saat verifikasi ulang, atau dihapus), dihitung per tanggal unduh, dan tidak memengaruhi angka lembur."].forEach((x) => wa.addRow([x]));
   if (h.beban) {
     for (const x of [
-      `Beban tugas dihitung per ${h.beban.dibuatPada} WIB (saat file diunduh), kumulatif sejak tugas dibagikan, dan tidak mengikuti periode laporan.`,
+      `Sheet "Beban Tugas": dihitung per ${h.beban.dibuatPada} WIB (saat file diunduh), kumulatif sejak tugas dibagikan, dan tidak mengikuti periode laporan.`,
       "Verifikasi Awal: Ditugaskan = Selesai + Sisa. Selesai = hasil sudah diberikan verifikator; Sisa = masih menunggu verifikator; Ditutup (informasi, tidak masuk Ditugaskan) = data sudah diverifikasi pihak lain sehingga tugasnya tidak perlu dikerjakan.",
       "Verifikasi Ulang: Ditugaskan = Selesai + Sisa. Selesai = hasil sudah disimpan; Sisa = masih di paket aktif; Ditarik (informasi, tidak masuk Ditugaskan) = tugas ditarik, misalnya paket dikosongkan atau status data berubah sebelum diperiksa.",
       "% Selesai = Selesai / Ditugaskan; tanda '-' berarti belum ada tugas yang harus dikerjakan.",

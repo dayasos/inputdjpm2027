@@ -158,22 +158,18 @@ try {
   await klik("#tab-verif-ulang");
   await tungguSampai("document.querySelectorAll('#body-tabel-lihat tr').length === 3 && /Periksa/.test(document.querySelector('#body-tabel-lihat button').textContent)", "tabel tiga tugas ulang berlabel Periksa");
   cek("PETUGAS (Ulang): tabel yang sama memuat SEMUA 3 data tugas ulang (termasuk data di luar 50 tugas pertama daftar) dan tombol berlabel 'Periksa'", /Total Data: 3 Baris/.test(await teks("#info-total-penerima")) && (await js("Array.from(document.querySelectorAll('#body-tabel-lihat button')).every((b) => /Periksa/.test(b.textContent))")) === true);
-  cek("PETUGAS (Ulang): banner menyebut Periksa dan data tugas ulang", /3 data Verifikasi Ulang.*Periksa/.test(await teks("#djpm-tab-tugas-banner")) && !/Hanya 50/.test(await teks("#djpm-tab-tugas-banner")), await teks("#djpm-tab-tugas-banner"));
-  const detailSebelum = panggilan.filter((x) => x.aksi === "ambilDetailPenerimaPerBaris").length;
+  cek("PETUGAS (Ulang): banner menyebut Periksa dan data tugas ulang", /3 data Verifikasi Ulang.*Klik nama atau tekan Periksa/.test(await teks("#djpm-tab-tugas-banner")) && !/Hanya 50/.test(await teks("#djpm-tab-tugas-banner")), await teks("#djpm-tab-tugas-banner"));
   await klik('#body-tabel-lihat button[onclick*="705"]');
-  await tungguSampai("!!document.getElementById('djpm-tul-overlay')", "panel pemeriksaan terbuka");
-  for (let i = 0; i < 20 && hitung("bukaTugasUlang") === 0; i++) await tidur(250);
-  cek("PETUGAS (Ulang): Periksa pada data 705 membuka PANEL PEMERIKSAAN BERKAS langsung ke tugasnya (bukaTugasUlang tugas 205), bukan Detail biasa",
-    hitung("bukaTugasUlang") >= 1 && terakhir("bukaTugasUlang").args[1] === 205 && panggilan.filter((x) => x.aksi === "ambilDetailPenerimaPerBaris").length === detailSebelum, JSON.stringify(terakhir("bukaTugasUlang")));
-  await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
-  await tungguSampai("document.getElementById('djpm-tul-overlay') === null", "panel tertutup");
-  // data di luar 50 tugas pertama (706, tugas 206) tetap bisa diperiksa
-  await klik('#body-tabel-lihat button[onclick*="706"]');
-  await tungguSampai("!!document.getElementById('djpm-tul-overlay')", "panel untuk data di luar 50 tugas pertama");
-  for (let i = 0; i < 20 && !panggilan.some((x) => x.aksi === "bukaTugasUlang" && x.args[1] === 206); i++) await tidur(250);
-  cek("PETUGAS (Ulang): data di luar 50 tugas pertama (706) bisa diperiksa: bukaTugasUlang dipanggil untuk tugas 206 dan namanya tampil di daftar panel", panggilan.some((x) => x.aksi === "bukaTugasUlang" && x.args[1] === 206) && /Dewi Lestari/.test(await teks("#djpm-tul-overlay")), await teks("#djpm-tul-overlay"));
-  await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
-  await tungguSampai("document.getElementById('djpm-tul-overlay') === null", "panel tertutup lagi");
+  await tungguSampai("!document.getElementById('modal-detail-penerima').classList.contains('hidden')", "Detail terbuka dari tab Verifikasi Ulang");
+  cek("PETUGAS (Ulang): Periksa pada data 705 membuka halaman DETAIL biasa (ambilDetailPenerimaPerBaris 705); TIDAK ada panel lama (kotak Verifikasi Ulang diuji di verifikasi-ulang-detail.mjs)",
+    panggilan.some((x) => x.aksi === "ambilDetailPenerimaPerBaris" && x.args[1] === 705) && !(await ada("#djpm-tul-overlay")));
+  await js("document.getElementById('tutup-modal-detail').click(); true");
+  // data di luar 50 tugas pertama (706, tugas 206) tetap bisa diperiksa: klik NAMA pada baris
+  await js("(() => { const td = Array.from(document.querySelectorAll('#body-tabel-lihat td')).find((x) => x.textContent.trim() === 'Dewi Lestari'); if (td) td.click(); return !!td; })()");
+  await tungguSampai("!document.getElementById('modal-detail-penerima').classList.contains('hidden')", "Detail terbuka lewat klik nama");
+  await tidur(600);
+  cek("PETUGAS (Ulang): mengklik NAMA data di luar 50 tugas pertama (706) membuka Detail biasa", panggilan.some((x) => x.aksi === "ambilDetailPenerimaPerBaris" && x.args[1] === 706) && !(await ada("#djpm-tul-overlay")));
+  await js("document.getElementById('tutup-modal-detail').click(); true");
   cek("PETUGAS: tidak memanggil aksi tulis apa pun dari tab", panggilan.every((x) => !/verifikasiSatuData|aturPembagianAwal|bagiSekarangAwal|simpanHasilUlang/.test(x.aksi)));
 
   // masuk lagi tanpa memuat ulang halaman (token baru): tampilan awal otomatis berlaku lagi untuk sesi baru

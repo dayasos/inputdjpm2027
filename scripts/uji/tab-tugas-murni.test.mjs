@@ -99,16 +99,21 @@ test("KABEL: modul Admin hanya untuk UTAMA, modul tab hanya untuk VERIFIKATOR; v
   assert.ok(!fs.existsSync(new URL("../../public/js/app-tugas-awal.js", import.meta.url)), "modul pil lama sudah dihapus");
 });
 
-test("KABEL: kait penyaring di Lihat Data ada; modul tab tidak memanggil aksi tulis; Detail Ulang membuka panel pemeriksaan", () => {
+test("KABEL: kait penyaring di Lihat Data ada; modul tab tidak memanggil aksi tulis; nama/tombol membuka Detail BIASA (tanpa panel); Detail Ulang memakai kotak Verifikasi Ulang", () => {
   const tr = baca("public/js/app-transaksi.js");
   assert.match(tr, /const lolosTugas = typeof window\.djpmLolosTugas !== 'function' \|\| window\.djpmLolosTugas\(row\);/);
   assert.match(tr, /lolosPenginput && lolosTugas\) dataLolosSaring\.push\(row\)/, "penyaring ikut menentukan baris yang tampil");
   const t = baca("public/js/app-tab-tugas.js");
   assert.doesNotMatch(t, /verifikasiSatuData|aturPembagianAwal|bagiSekarangAwal|simpanHasilUlang|bukaTugasUlang'/, "modul tab hanya membaca");
   assert.match(t, /rpc\(aksi, \[1\]\)/);
-  assert.match(t, /bukaTugasUlangUntukPenerima/);
+  assert.doesNotMatch(t, /bukaTugasUlangUntukPenerima|pasangPembungkus|__djpmTabTugasDibungkus/, "Detail tidak lagi dialihkan ke panel");
+  assert.match(t, /e\.target\.closest\('#body-tabel-lihat td'\)/, "klik pada nama (sel baris) membuka Detail");
+  assert.match(t, /api\.tugasIdUntuk = /); assert.match(t, /api\.setelahUlangSelesai = /); assert.match(t, /api\.modeSekarang = /);
   assert.match(t, /e\.isTrusted/, "klik otomatis aplikasi tidak dihitung sebagai pilihan pengguna");
   const ul = baca("public/js/app-tugas-ulang.js");
-  assert.match(ul, /akar\.bukaTugasUlangUntukPenerima = function \(penerimaId, pembuka\)/);
-  assert.doesNotMatch(ul, /pil\.addEventListener|dok\.createElement\('button'\); pil/, "tombol melayang Tugas Ulang tidak dibuat lagi");
+  assert.doesNotMatch(ul, /akar\.bukaTugasUlang|djpm-tul-overlay|djpm-tul-pil|tul-daftar/, "panel dan tombol melayang lama tidak ada lagi");
+  assert.match(ul, /getElementById\('riwayat-edit-wrap'\)/, "kotak dipasang di halaman Detail");
+  assert.match(ul, /rpc\('bukaTugasUlang', \[tugasId\]\)/); assert.match(ul, /rpc\('catatBerkasDibuka', \[tugasId, kunci\]\)/); assert.match(ul, /rpc\('simpanHasilUlang', \[d\.tugasId, masuk\]\)/);
+  const tr2 = baca("public/js/app-transaksi.js");
+  assert.match(tr2, /id="riwayat-edit-wrap"/, "penanda tempat kotak masih ada di Detail");
 });

@@ -4,9 +4,9 @@
  * Dimuat malas hanya untuk role VERIFIKATOR (SKRIP_PER_PERAN di app-pesan-periode.js).
  *
  * Cara kerja: tab membuka tabel Lihat Data yang SAMA (kolom, filter, pencarian, halaman, tombol) tetapi hanya memuat data tugas verifikator itu.
- * Pembatasan lewat satu kait di saringDanTampilkanTabel (window.djpmLolosTugas). Verifikasi Awal: tombol Detail membuka Detail biasa lalu verifikator
- * memberi hasil seperti sekarang. Verifikasi Ulang: tombol menjadi "Periksa" dan membuka panel pemeriksaan berkas (app-tugas-ulang.js), karena
- * pemeriksaan ulang wajib mengklik dan mencentang setiap berkas. SERVER yang menegakkan semua aturan (hanya data tugasnya yang bisa diberi hasil);
+ * Pembatasan lewat satu kait di saringDanTampilkanTabel (window.djpmLolosTugas). Mengklik NAMA (atau tombol Detail/Periksa) membuka halaman Detail biasa
+ * yang sudah dikenal verifikator. Verifikasi Awal: hasil diberikan seperti biasa. Verifikasi Ulang: Detail memuat kotak "Verifikasi Ulang" (app-tugas-ulang.js)
+ * yang mewajibkan membuka dan mencentang setiap berkas. SERVER yang menegakkan semua aturan (hanya data tugasnya yang bisa diberi hasil);
  * modul ini tidak menyimpan apa pun. Saat pembagian dimatikan Admin, tab Verifikasi Awal tidak tampil.
  */
 (function (akar, pabrik) {
@@ -45,9 +45,11 @@
   }
 
   /** Teks banner di atas tabel. */
-  function teksBanner(mode, jumlah) {
-    if (mode === 'awal') return 'Menampilkan ' + fmt(jumlah) + ' data Verifikasi Awal yang ditugaskan kepada Anda. Tekan Detail untuk memberi hasil verifikasi.';
-    if (mode === 'ulang') return 'Menampilkan ' + fmt(jumlah) + ' data Verifikasi Ulang yang ditugaskan kepada Anda. Tekan Periksa untuk memeriksa berkasnya.';
+  function teksBanner(mode, jumlah, selesai) {
+    if (mode === 'awal') return 'Menampilkan ' + fmt(jumlah) + ' data Verifikasi Awal yang ditugaskan kepada Anda. Klik nama atau tekan Detail untuk memberi hasil verifikasi.';
+    if (mode === 'ulang') return 'Menampilkan ' + fmt(jumlah) + ' data Verifikasi Ulang yang ditugaskan kepada Anda' +
+      (typeof selesai === 'number' && isFinite(selesai) ? '. Selesai ' + fmt(selesai) + ' dari ' + fmt(selesai + (Number(jumlah) || 0)) : '') +
+      '. Klik nama atau tekan Periksa untuk membuka Detail, lalu periksa berkasnya di kotak Verifikasi Ulang.';
     return '';
   }
 
@@ -68,7 +70,7 @@
   var dok = akar.document;
   var ID_AWAL = 'tab-verif-awal', ID_ULANG = 'tab-verif-ulang', ID_BANNER = 'djpm-tab-tugas-banner', ID_STYLE = 'djpm-tab-tugas-style';
   var BATAS_TUNGGU_MS = 40000, SEGARKAN_MS = 15000, SEGARKAN_HITUNG_MS = 120000;
-  var st = { pilihToken: '', bukaToken: '', mode: '', ids: [], awal: null, ulang: null, waktu: 0, muat: false, tokenData: '', klikSendiri: false, overlayUlangTerbuka: false };
+  var st = { pilihToken: '', bukaToken: '', mode: '', ids: [], tugasPer: {}, awal: null, ulang: null, waktu: 0, muat: false, tokenData: '', klikSendiri: false, modalTerbukaTadi: false };
 
   function pengguna() { return (typeof dataPengguna !== 'undefined') ? dataPengguna : null; }
   function berhak() { var p = pengguna(); return !!(p && p.token && String(p.role || '').trim().toUpperCase() === 'VERIFIKATOR'); }
@@ -93,6 +95,7 @@
     if (dok.getElementById(ID_STYLE)) return;
     var s = dok.createElement('style'); s.id = ID_STYLE;
     s.textContent = '#' + ID_BANNER + '{margin:0 0 12px;padding:10px 14px;border-radius:10px;background:#eef3fb;color:#17365d;border:1px solid #c9d7ee;font-size:.85rem;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between}';
+    s.textContent += 'body.djpm-mode-tugas #body-tabel-lihat tr{cursor:pointer}body.djpm-mode-tugas #body-tabel-lihat tr:hover{background:#f1f5f9}';
     dok.head.appendChild(s);
   }
 
@@ -130,9 +133,10 @@
     var panel = dok.getElementById('panel-rekap'); if (!panel) return;
     suntikStyle();
     var b = dok.getElementById(ID_BANNER);
+    try { dok.body.classList.toggle('djpm-mode-tugas', !!st.mode); } catch (_e) { /* abaikan */ }
     if (!st.mode) { if (b && b.parentNode) b.parentNode.removeChild(b); return; }
     if (!b) { b = dok.createElement('div'); b.id = ID_BANNER; b.setAttribute('role', 'status'); panel.insertBefore(b, panel.firstChild); }
-    b.innerHTML = '<span>' + esc(teksBanner(st.mode, st.ids.length)) + '</span>';
+    b.innerHTML = '<span>' + esc(teksBanner(st.mode, st.ids.length, st.mode === 'ulang' && st.ulang ? Number(st.ulang.selesai) || 0 : undefined)) + '</span>';
   }
 
   function ubahLabelTombol() {
@@ -149,7 +153,12 @@
     return rpc(aksi, [1]).then(function (res) {
       if (!res || res.sukses !== true) return;
       if (mode === 'awal') { st.awal = { aktif: res.aktif, sisa: res.sisa, ditugaskan: res.ditugaskan }; }
-      else { st.ulang = { sisa: res.sisa, selesai: res.selesai }; }
+      else {
+        st.ulang = { sisa: res.sisa, selesai: res.selesai };
+        var pet = {};
+        (Array.isArray(res.semua) ? res.semua : (res.tugas || [])).forEach(function (t) { if (t && t.penerimaId != null && t.tugasId != null) pet[Number(t.penerimaId)] = Number(t.tugasId); });
+        st.tugasPer = pet;
+      }
       if (st.mode === mode) {
         // Ulang: SEMUA tugas aktif (res.semua), bukan hanya 50 pertama; cadangan ke daftar bila server lama belum mengirim `semua`
         st.ids = mode === 'awal' ? (res.ids || []) : (Array.isArray(res.semua) ? res.semua : (res.tugas || [])).map(function (t) { return t.penerimaId; });
@@ -194,27 +203,35 @@
     if (t && t.id && t.id !== ID_AWAL && t.id !== ID_ULANG && /^tab-/.test(t.id)) keluarMode();
   }, true);
 
-  // Detail pada mode Verifikasi Ulang membuka panel pemeriksaan berkas (bukan Detail biasa).
-  function pasangPembungkus() {
-    if (akar.__djpmTabTugasDibungkus || typeof akar.tampilkanDetailKeModalOnDemand !== 'function') return;
-    var asli = akar.tampilkanDetailKeModalOnDemand;
-    akar.tampilkanDetailKeModalOnDemand = function (nomorBaris) {
-      if (st.mode === 'ulang' && typeof akar.bukaTugasUlangUntukPenerima === 'function') { akar.bukaTugasUlangUntukPenerima(Number(nomorBaris)); return; }
-      return asli.apply(this, arguments);
-    };
-    akar.__djpmTabTugasDibungkus = true;
+  // Klik pada NAMA (sel baris, bukan tombol/tautan) = tombol Detail/Periksa baris itu: membuka halaman Detail yang sama.
+  dok.addEventListener('click', function (e) {
+    if (!st.mode || !e.target || !e.target.closest) return;
+    if (e.target.closest('button, a, input, select, textarea, label')) return;
+    var td = e.target.closest('#body-tabel-lihat td'); if (!td) return;
+    var tr = td.parentNode; var tb = tr && tr.querySelector ? tr.querySelector('button[onclick*="tampilkanDetailKeModalOnDemand"]') : null;
+    if (tb && !tb.disabled) tb.click();
+  });
+
+  /** Dipanggil tiap 0,5 dtk: Detail yang baru ditutup menyegarkan daftar + progres segera (tak menunggu 15 dtk). */
+  function pantauModal() {
+    try {
+      if (!berhak() || !st.mode) { st.modalTerbukaTadi = false; return; }
+      var modal = dok.getElementById('modal-detail-penerima');
+      var terbuka = !!modal && !modal.classList.contains('hidden');
+      var baruTutup = st.modalTerbukaTadi && !terbuka;
+      st.modalTerbukaTadi = terbuka;
+      if (baruTutup && !dok.hidden) muatIds(st.mode);
+    } catch (_e) { /* abaikan */ }
   }
+  setInterval(pantauModal, 500);
 
   function segarkan() {
     if (!berhak()) return;
     var sekarang = Date.now();
     if (st.mode) {
-      var overlay = !!dok.getElementById('djpm-tul-overlay');
       var modal = dok.getElementById('modal-detail-penerima');
       var modalTerbuka = !!modal && !modal.classList.contains('hidden');
-      var baruTutup = st.overlayUlangTerbuka && !overlay;
-      st.overlayUlangTerbuka = overlay;
-      if (!overlay && !modalTerbuka && (baruTutup || sekarang - st.waktu >= SEGARKAN_MS) && !dok.hidden) muatIds(st.mode);
+      if (!modalTerbuka && sekarang - st.waktu >= SEGARKAN_MS && !dok.hidden) muatIds(st.mode);
     } else if (sekarang - st.waktu >= SEGARKAN_HITUNG_MS && !dok.hidden) {
       muatIds('awal').then(function () { return muatIds('ulang'); });
     }
@@ -234,7 +251,7 @@
       if (!berhak()) { ['tab-verif-awal', 'tab-verif-ulang', ID_BANNER].forEach(function (i) { var e = dok.getElementById(i); if (e && e.parentNode) e.parentNode.removeChild(e); }); if (st.mode) keluarMode(); st.awal = st.ulang = null; return; }
       // Sesi baru (masuk lagi tanpa memuat ulang halaman): keadaan tab dibersihkan dan tugas dimuat segera, supaya tampilan awal otomatis berlaku lagi
       muatSesiBaru();
-      pasangPembungkus(); selarasTab(); segarkan();
+      selarasTab(); segarkan();
     } catch (_e) { /* abaikan */ }
   }, 2000);
   function muatSesiBaru() {
@@ -245,5 +262,9 @@
   try { muatSesiBaru(); } catch (_e) { /* abaikan */ }
   // Pintu uji: memicu pemuatan ulang daftar tugas (aslinya tiap 15 detik/2 menit) tanpa menunggu.
   api.muatUlangUntukUji = function (mode) { return muatIds(mode); };
+  /** Dipakai app-tugas-ulang.js: mode tab sekarang, id tugas milik penerima itu, dan 'sesudah selesai' (muat ulang daftar lalu id penerima berikutnya, 0 bila habis). */
+  api.modeSekarang = function () { return st.mode; };
+  api.tugasIdUntuk = function (penerimaId) { return st.tugasPer[Number(penerimaId)] || 0; };
+  api.setelahUlangSelesai = function () { return muatIds('ulang').then(function () { return st.mode === 'ulang' && st.ids && st.ids.length ? Number(st.ids[0]) || 0 : 0; }); };
   return api;
 });
