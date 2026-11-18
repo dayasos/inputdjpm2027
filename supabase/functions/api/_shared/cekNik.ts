@@ -66,16 +66,32 @@ export async function cekStatusTahunLalu(nik: string) {
 
     const r = rows[0];
     const status = (r.status_verifikasi || "").toString().trim().toUpperCase();
+    // NIK yang didaftarkan Admin Utama di nik_dikecualikan_arsip boleh diinput di tahun aktif walau status arsipnya bukan AKTIF
+    // (data tahun lalu TIDAK diubah). Pencarian pengecualian terpisah dan GAGAL-TUTUP: bila galat/tabel belum ada, dianggap tidak
+    // dikecualikan, jadi penolakan tetap berlaku.
+    const dikecualikan = status !== "AKTIF" && await nikDikecualikanArsip(nikTarget, Number(r.tahun));
     return {
       ditemukan: true as const,
       status,
-      aktif: status === "AKTIF",
+      aktif: status === "AKTIF" || dikecualikan,
+      dikecualikan,
       nama: (r.nama || "").toString().trim(),
       layanan: (r.layanan || "").toString().trim().toUpperCase(),
       tahun: String(r.tahun),
     };
   } catch (_e) {
     return { ditemukan: false as const };
+  }
+}
+
+async function nikDikecualikanArsip(nik: string, tahunArsip: number): Promise<boolean> {
+  try {
+    const rows = await sql`
+      select 1 from nik_dikecualikan_arsip where nik = ${nik} and tahun_arsip = ${tahunArsip} limit 1
+    `;
+    return rows.length > 0;
+  } catch (_e) {
+    return false;
   }
 }
 

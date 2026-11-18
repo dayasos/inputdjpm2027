@@ -18,6 +18,8 @@ let sesiAktif = SESI.UTAMA;
 let capil = [];        // baris tabel capil untuk NIK yang diperiksa
 let statusLama = [];   // baris arsip tahun lalu untuk NIK yang diperiksa
 let baris = null;      // baris penerima yang sedang diedit
+let daftarKecuali = new Set();   // NIK di tabel nik_dikecualikan_arsip (pengecualian arsip tahun lalu)
+let galatKecuali = false;        // simulasi tabel pengecualian belum ada / galat
 
 const NIK_MONEV = "3210172512990041";
 const BARIS = (lebih = {}) => ({
@@ -33,6 +35,10 @@ function pasang() {
   db().handler = (q, v) => {
     if (q.includes("from sesi_login")) return [sesiAktif];
     if (q.includes("from capil")) return capil;
+    if (q.includes("from nik_dikecualikan_arsip")) {
+      if (galatKecuali) throw new Error('relation "nik_dikecualikan_arsip" does not exist');
+      return daftarKecuali.has(String(v[0])) ? [{ "?column?": 1 }] : [];
+    }
     if (/and tahun <> \?/.test(q)) return statusLama;
     if (q.includes("select * from penerima where id")) return baris ? [baris] : [];
     if (q.includes("from wilayah")) return WILAYAH.has(String(v[0]).toUpperCase().trim() + "|" + String(v[1]).toUpperCase().trim()) ? [{ ada: 1 }] : [];
@@ -41,7 +47,7 @@ function pasang() {
   };
 }
 const token = (() => { let n = 0; return () => "token-nik-" + (++n); })();
-const bersih = () => { capil = []; statusLama = []; };
+const bersih = () => { capil = []; statusLama = []; daftarKecuali = new Set(); galatKecuali = false; };
 
 // ============================== (1) simpan input baru ==============================
 const form = (ubah = {}) => ({
@@ -178,3 +184,63 @@ for (const peran of ["UTAMA", "KECAMATAN"]) {
     assert.equal(penulisan().length, 0);
   });
 }
+
+// ============================== (4) pengecualian NIK arsip (nik_dikecualikan_arsip) ==============================
+const NIK_KECUALI = "1271064911860002";
+const arsipMonev = () => [{ tahun: 2026, nama: "FITRI WIRNA", layanan: "GURU MAGHRIB MENGAJI", status_verifikasi: "HASIL MONEV TAHUN 2026" }];
+
+for (const peran of ["UTAMA", "KECAMATAN"]) {
+  test(`Pengecualian arsip [${peran}]: NIK terdaftar di nik_dikecualikan_arsip BOLEH disimpan walau arsipnya HASIL MONEV (data 2026 tidak disentuh)`, async () => {
+    bersih(); statusLama = arsipMonev(); daftarKecuali = new Set([NIK_KECUALI]);
+    const h = await simpan(peran, { inputNik: NIK_KECUALI });
+    assert.equal(h.sukses, true, JSON.stringify(h));
+    assert.equal(insertan().length, 1);
+    // Tidak ada penulisan ke tahun 2026 sama sekali (hanya satu insert, ke tahun aktif).
+    assert.equal(db().panggilan.filter((p) => /update penerima|delete from penerima/i.test(p.teks)).length, 0);
+  });
+
+  test(`Pengecualian arsip [${peran}]: hanya NIK yang didaftarkan; NIK arsip lain tetap ditolak`, async () => {
+    bersih(); statusLama = arsipMonev(); daftarKecuali = new Set([NIK_KECUALI]);
+    const h = await simpan(peran, { inputNik: NIK_MONEV });
+    assert.equal(h.sukses, false, JSON.stringify(h));
+    assert.match(h.pesan, /STATUS: HASIL MONEV TAHUN 2026/);
+    assert.equal(insertan().length, 0);
+  });
+
+  test(`Pengecualian arsip [${peran}]: TIDAK menghapus penolakan Capil (domisili luar Kota Medan)`, async () => {
+    bersih(); statusLama = arsipMonev(); daftarKecuali = new Set([NIK_KECUALI]);
+    capil = [{ nama: "X", nik: NIK_KECUALI, status: "A", alamat_domisili: "JL", kab_kota_domisili: "KOTA BINJAI" }];
+    const h = await simpan(peran, { inputNik: NIK_KECUALI });
+    assert.equal(h.sukses, false, JSON.stringify(h));
+    assert.match(h.pesan, /DI LUAR KOTA MEDAN: KOTA BINJAI/);
+    assert.equal(insertan().length, 0);
+  });
+
+  test(`Pengecualian arsip [${peran}]: tabel pengecualian galat/belum ada -> GAGAL-TUTUP (tetap ditolak, bukan lolos)`, async () => {
+    bersih(); statusLama = arsipMonev(); daftarKecuali = new Set([NIK_KECUALI]); galatKecuali = true;
+    const h = await simpan(peran, { inputNik: NIK_KECUALI });
+    assert.equal(h.sukses, false, JSON.stringify(h));
+    assert.match(h.pesan, /STATUS: HASIL MONEV TAHUN 2026/);
+    assert.equal(insertan().length, 0);
+  });
+
+  test(`Pengecualian arsip [${peran}]: ubah NIK lewat Edit ke NIK terkecuali diterima; ke NIK lain tetap ditolak`, async () => {
+    baris = BARIS(); bersih(); statusLama = arsipMonev(); daftarKecuali = new Set([NIK_KECUALI]);
+    const ditolak = await edit({ 2: NIK_MONEV }, peran);
+    assert.equal(ditolak.sukses, false, JSON.stringify(ditolak));
+    assert.equal(penulisan().length, 0);
+    baris = BARIS(); bersih(); statusLama = arsipMonev(); daftarKecuali = new Set([NIK_KECUALI]);
+    const ok = await edit({ 2: NIK_KECUALI }, peran);
+    assert.equal(ok.sukses, true, JSON.stringify(ok));
+  });
+}
+
+test("Pengecualian arsip: cekNikRealtime (layar) tidak memblokir NIK terkecuali, tetap memblokir NIK arsip lain", async () => {
+  const validasi = await muatServer("supabase/functions/api/domains/validasi.ts");
+  bersih(); sesiAktif = SESI.UTAMA; pasang(); statusLama = arsipMonev(); daftarKecuali = new Set([NIK_KECUALI]);
+  const lolos = await validasi.cekNikRealtime(token(), NIK_KECUALI);
+  assert.equal(lolos.blokir, false, JSON.stringify(lolos));
+  const blokir = await validasi.cekNikRealtime(token(), NIK_MONEV);
+  assert.equal(blokir.blokir, true, JSON.stringify(blokir));
+  assert.equal(blokir.jenis, "STATUS_LAMA");
+});
