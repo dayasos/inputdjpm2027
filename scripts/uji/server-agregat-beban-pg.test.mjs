@@ -79,9 +79,9 @@ test("ANGKA BEBAN (SQL asli): ditugaskan = selesai + sisa (ditutup/ditarik hanya
   const h = await AG.hitungAgregat(TOKEN.admin, ...RENT, "", false, true);
   assert.ok(!h.galat, JSON.stringify(h)); assert.ok(h.beban);
   const b = h.beban.perOrang;
-  assert.deepEqual(b[USER.v1.toUpperCase()].awal, { ditugaskan: 10, selesai: 8, sisa: 2, ditutup: 4 }, "selesai = 4 lewat tugas sistem + 4 di luar tugas sistem (3 data + 1 data tercatat dua kali dihitung sekali) + 1 data tercatat dua kali (dihitung sekali); status lama bukan Proses Verifikasi dan sumber DIPERBAIKI tidak dihitung. 2 DITUTUP + 1 aktif datanya sudah MS + 1 aktif datanya terhapus = 4 ditutup");
-  assert.deepEqual(b[USER.v2.toUpperCase()].awal, { ditugaskan: 4, selesai: 1, sisa: 3, ditutup: 0 });
-  assert.deepEqual(b[USER.v3.toUpperCase()].awal, { ditugaskan: 0, selesai: 0, sisa: 0, ditutup: 0 }, "tanpa tugas = nol, tetap tercantum");
+  assert.deepEqual(b[USER.v1.toUpperCase()].awal, { ditugaskan: 10, selesai: 8, sisa: 2 }, "selesai = 4 lewat tugas sistem + 4 di luar tugas sistem (3 data + 1 data tercatat dua kali dihitung sekali) + 1 data tercatat dua kali (dihitung sekali); status lama bukan Proses Verifikasi dan sumber DIPERBAIKI tidak dihitung. 2 DITUTUP + 1 aktif datanya sudah MS + 1 aktif datanya terhapus = 4 ditutup");
+  assert.deepEqual(b[USER.v2.toUpperCase()].awal, { ditugaskan: 4, selesai: 1, sisa: 3 });
+  assert.deepEqual(b[USER.v3.toUpperCase()].awal, { ditugaskan: 0, selesai: 0, sisa: 0 }, "tanpa tugas = nol, tetap tercantum");
   assert.deepEqual(b[USER.v1.toUpperCase()].ulang, { ditugaskan: 6, selesai: 4, sisa: 2 }, "selesai di paket yang dibatalkan tetap dihitung selesai; 1 ditarik tidak dihitung");
   assert.deepEqual(b[USER.v2.toUpperCase()].ulang, { ditugaskan: 1, selesai: 0, sisa: 1 });
   for (const o of Object.values(b)) { assert.equal(o.awal.ditugaskan, o.awal.selesai + o.awal.sisa); assert.equal(o.ulang.ditugaskan, o.ulang.selesai + o.ulang.sisa); }
@@ -135,7 +135,7 @@ function excelTiruan() {
   return { Workbook: WB, lembar };
 }
 
-test("EXCEL: sheet 'Beban Tugas' terpisah (14 kolom, sesudah Rekap); Rekap tetap 20 kolom; subtotal tim dan TOTAL dari jumlah (bukan rata-rata persen); '-' bila belum ada tugas; waktu unduh; tinggi judul tetap", opsi, async () => {
+test("EXCEL: sheet 'Beban Tugas' terpisah (13 kolom, sesudah Rekap); Rekap tetap 20 kolom; subtotal tim dan TOTAL dari jumlah (bukan rata-rata persen); '-' bila belum ada tugas; waktu unduh; tinggi judul tetap", opsi, async () => {
   const db = await siap(); await muatData(db);
   const h = await AG.hitungAgregat(TOKEN.admin, ...RENT, "", true, true);
   const ex = excelTiruan();
@@ -148,24 +148,25 @@ test("EXCEL: sheet 'Beban Tugas' terpisah (14 kolom, sesudah Rekap); Rekap tetap
   assert.equal(rekap[0][0], "Beban Tugas Verifikasi - Agregat Semua Tim");
   assert.match(rekap[1][0], /^Dihitung per \d{2}-\d{2}-\d{4} \d{2}:\d{2} WIB \(saat file diunduh\)\. Kumulatif dan TIDAK mengikuti periode/);
   assert.match(rekap[2][0], /Ditugaskan = Selesai \+ Sisa/);
-  assert.deepEqual([rekap[4][5], rekap[4][10]], ["VERIFIKASI AWAL", "VERIFIKASI ULANG"]);
-  assert.deepEqual(rekap[5], ["No", "Tim", "Username", "Nama Lengkap", "Peran", "Ditugaskan", "Selesai", "Sisa", "% Selesai", "Ditutup", "Ditugaskan", "Selesai", "Sisa", "% Selesai"]);
-  assert.deepEqual(ws.gabung, [[5, 6, 5, 10], [5, 11, 5, 14]], "dua kelompok judul digabung");
+  assert.deepEqual([rekap[4][5], rekap[4][9]], ["VERIFIKASI AWAL", "VERIFIKASI ULANG"]);
+  assert.deepEqual(rekap[5], ["No", "Tim", "Username", "Nama Lengkap", "Peran", "Ditugaskan", "Selesai", "Sisa", "% Selesai", "Ditugaskan", "Selesai", "Sisa", "% Selesai"]);
+  assert.deepEqual(ws.gabung, [[5, 6, 5, 9], [5, 10, 5, 13]], "dua kelompok judul digabung");
   const isi = rekap.slice(6), orang = isi.filter((r) => typeof r[0] === "number");
   const per = (u) => orang.find((r) => r[2] === u);
-  assert.deepEqual(per(USER.v1).slice(5), [10, 8, 2, 8 / 10, 4, 6, 4, 2, 4 / 6], "ronald: Awal 8 selesai (4 tugas sistem + 4 di luar tugas sistem) + 2 sisa = 10 ditugaskan (4 ditutup hanya informasi); Ulang 4 dari 6 (1 ditarik hanya informasi)");
-  assert.deepEqual(per(USER.v2).slice(5), [4, 1, 3, 1 / 4, 0, 1, 0, 1, 0]);
-  assert.deepEqual(per(USER.v3).slice(5), [0, 0, 0, "-", 0, 0, 0, 0, "-"], "belum ada tugas: persen '-' (bukan 0% atau galat)");
+  assert.deepEqual(per(USER.v1).slice(5), [10, 8, 2, 8 / 10, 6, 4, 2, 4 / 6], "ronald: Awal 8 selesai (4 tugas sistem + 4 di luar tugas sistem) + 2 sisa = 10 ditugaskan (4 tugas yang datanya diverifikasi pihak lain tidak dihitung); Ulang 4 dari 6 (1 ditarik tidak dihitung)");
+  assert.deepEqual(per(USER.v2).slice(5), [4, 1, 3, 1 / 4, 1, 0, 1, 0]);
+  assert.deepEqual(per(USER.v3).slice(5), [0, 0, 0, "-", 0, 0, 0, "-"], "belum ada tugas: persen '-' (bukan 0% atau galat)");
   const sub = isi.filter((r) => String(r[1]).startsWith("Subtotal"));
   const tim1 = sub.find((r) => r[1] === "Subtotal Tim I");
-  assert.deepEqual(tim1.slice(5), [14, 9, 5, 9 / 14, 4, 7, 4, 3, 4 / 7], "Tim I = ronald + herna dijumlahkan; persen dari jumlah (4/9), bukan rata-rata persen");
+  assert.deepEqual(tim1.slice(5), [14, 9, 5, 9 / 14, 7, 4, 3, 4 / 7], "Tim I = ronald + herna dijumlahkan; persen dari jumlah (4/9), bukan rata-rata persen");
   const total = isi.find((r) => r[1] === "TOTAL");
-  assert.deepEqual(total.slice(5), [14, 9, 5, 9 / 14, 4, 7, 4, 3, 4 / 7]);
+  assert.deepEqual(total.slice(5), [14, 9, 5, 9 / 14, 7, 4, 3, 4 / 7]);
   assert.equal(orang.reduce((s, r) => s + r[5], 0), total[5], "jumlah per orang = total");
   assert.deepEqual(orang.map((r) => r[2]), [USER.v1, USER.v2, USER.v3, USER.v4].filter((u) => orang.some((r) => r[2] === u)), "urutan sama dengan Rekap (tim, koordinator dulu)");
   for (const br of [7, 8, 9, 10, 11]) for (const kc of [9, 13]) assert.equal(ws.getCell(br, kc).numFmt, "0%", "format persen kolom " + kc);
+  for (const br of [7, 8, 9, 10, 11]) for (const kc of [6, 7, 8, 10, 11, 12]) assert.notEqual(ws.getCell(br, kc).numFmt, "0%", "kolom angka biasa (baris " + br + ", kolom " + kc + ") tidak boleh berformat persen");
   assert.ok(ex.lembar[3].baris.some((r) => /Sheet "Beban Tugas": dihitung per/.test(String(r[0]))), "penjelasan di sheet Aturan");
-  assert.ok(ex.lembar[3].baris.some((r) => /Selesai = semua data yang sudah diverifikasi verifikator/.test(String(r[0])) && /di luar tugas sistem/.test(String(r[0]))) && ex.lembar[3].baris.some((r) => /^Ditutup \(Verifikasi Awal/.test(String(r[0])) && /diverifikasi pihak lain/.test(String(r[0]))), "Aturan: Selesai mencakup pekerjaan di luar tugas sistem; Ditutup dijelaskan");
+  assert.ok(ex.lembar[3].baris.some((r) => /Selesai = semua data yang sudah diverifikasi verifikator/.test(String(r[0])) && /di luar tugas sistem/.test(String(r[0]))) && ex.lembar[3].baris.some((r) => /diverifikasi pihak lain/.test(String(r[0])) && /tidak dihitung pada Ditugaskan, Selesai, maupun Sisa/.test(String(r[0]))) && !ex.lembar[1].baris.some((r) => r.includes("Ditutup")), "Aturan: Selesai mencakup pekerjaan di luar tugas sistem; data yang diambil pihak lain dijelaskan tanpa kolom Ditutup");
   assert.ok(ex.lembar[3].baris.some((r) => /Verifikasi Awal: Selesai = .*Ditugaskan = Selesai \+ Sisa/.test(String(r[0]))) && ex.lembar[3].baris.some((r) => /Verifikasi Ulang: Ditugaskan = Selesai \+ Sisa/.test(String(r[0]))));
 });
 
@@ -205,13 +206,14 @@ test("ENDPOINT UNDUH (ExcelJS asli): unduhRekapLemburVerifikasi menghasilkan .xl
   assert.deepEqual(wb.worksheets.map((x) => x.name), ["Rekap", "Beban Tugas", "Per Hari", "Aturan"]);
   assert.equal(wb.getWorksheet("Rekap").columnCount, 20, "Rekap tidak melebar");
   const ws = wb.getWorksheet("Beban Tugas");
-  assert.equal(ws.columnCount, 14);
+  assert.equal(ws.columnCount, 13);
   assert.equal(ws.getRow(6).height, 32, "tinggi baris judul tetap"); assert.equal(ws.getRow(5).height, 24);
-  assert.deepEqual([6, 7, 8, 9, 10, 11, 12, 13, 14].map((c) => ws.getRow(6).getCell(c).value), ["Ditugaskan", "Selesai", "Sisa", "% Selesai", "Ditutup", "Ditugaskan", "Selesai", "Sisa", "% Selesai"], "semua judul terisi (kolom Ditarik sudah tidak ada)");
-  const baris = []; ws.eachRow((row, n) => { if (n >= 7) baris.push([row.getCell(2).value, row.getCell(3).value, ...[6, 7, 8, 9, 10, 11, 12, 13, 14].map((c) => row.getCell(c).value)]); });
+  assert.deepEqual([6, 7, 8, 9, 10, 11, 12, 13].map((c) => ws.getRow(6).getCell(c).value), ["Ditugaskan", "Selesai", "Sisa", "% Selesai", "Ditugaskan", "Selesai", "Sisa", "% Selesai"], "semua judul terisi (kolom Ditarik sudah tidak ada)");
+  const baris = []; ws.eachRow((row, n) => { if (n >= 7) baris.push([row.getCell(2).value, row.getCell(3).value, ...[6, 7, 8, 9, 10, 11, 12, 13].map((c) => row.getCell(c).value)]); });
   const ronald = baris.find((x) => x[1] === USER.v1);
-  assert.deepEqual(ronald.slice(2), [10, 8, 2, 8 / 10, 4, 6, 4, 2, 4 / 6]);
+  assert.deepEqual(ronald.slice(2), [10, 8, 2, 8 / 10, 6, 4, 2, 4 / 6]);
   assert.equal(ws.getRow(7).getCell(9).numFmt, "0%");
+  assert.equal(ws.getRow(7).getCell(13).numFmt, "0%", "% Selesai Verifikasi Ulang (berkas asli)"); assert.notEqual(ws.getRow(7).getCell(12).numFmt, "0%", "Sisa Ulang bukan persen (berkas asli)");
   assert.equal(baris.find((x) => x[1] === USER.v3)[5], "-");
   const ditolak = await AGX.unduhRekapLemburVerifikasi(TOKEN.kec, ...RENT, "");
   assert.equal(ditolak.sukses, false); assert.match(ditolak.pesan, /khusus Admin Utama dan Verifikator/);
