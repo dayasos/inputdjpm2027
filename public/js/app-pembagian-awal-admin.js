@@ -145,7 +145,7 @@
         var p = st.pratinjau;
         h += '<div><h3>Pratinjau pembagian</h3><div class="pba-cat">' + fmt(p.dibagi) + ' data akan dibagikan. Jumlah akhir tiap verifikator yang menerima: selisih ' + fmt(p.selisih) + '. Tidak ada yang ditulis sebelum Anda menyalakan.</div>' + tabelPratinjau(p) + '</div>';
       }
-      h += '<div><h3>Per verifikator</h3><div class="pba-cat">Jumlah = titik awal (Verifikasi Awal yang sudah dikerjakan saat dinyalakan) + data yang ditugaskan sejak itu.</div>' + tabelAkun(s.akun) + '</div>';
+      h += '<div><h3>Per verifikator</h3><div class="pba-cat">Jumlah = titik awal (Verifikasi Awal yang sudah dikerjakan saat dinyalakan) + data yang ditugaskan sejak itu, tidak termasuk tugas yang ditutup (datanya diverifikasi pihak lain).</div>' + tabelAkun(s.akun) + '</div>';
       if (s.sapuan && s.sapuan.length) {
         h += '<div><h3>Riwayat pembagian</h3><div class="pba-tabel"><table><thead><tr><th>Waktu</th><th>Jenis</th><th>Oleh</th><th class="n">Dibagi</th><th class="n">Ditutup</th></tr></thead><tbody>' +
           s.sapuan.map(function (x) { return '<tr><td>' + esc(String(x.waktu || '').replace('T', ' ').slice(0, 19)) + '</td><td>' + esc(x.jenis) + '</td><td>' + esc(x.oleh) + '</td><td class="n">' + fmt(x.dibagi) + '</td><td class="n">' + fmt(x.ditutup) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';

@@ -118,7 +118,7 @@ async function sapuanDalamTrx(trx: any, jenis: Jenis, oleh: string, dryRun: bool
   // 3) keadaan: titik awal per akun + tugas yang sudah diterima
   const dasarRows = await trx`select akun_id, dasar from pembagian_awal_akun`;
   const dasar = new Map<string, number>((dasarRows as Baris[]).map((r) => [huruf(r.akun_id), Number(r.dasar)]));
-  const tugasRows = await trx`select akun_id, upper(layanan) as layanan, count(*)::int as n from tugas_verifikasi_awal where tahun = ${TAHUN_AKTIF} group by 1, 2`;
+  const tugasRows = await trx`select akun_id, upper(layanan) as layanan, count(*)::int as n from tugas_verifikasi_awal where tahun = ${TAHUN_AKTIF} and status <> 'DITUTUP' group by 1, 2`;   // tugas DITUTUP (data diverifikasi pihak lain) bukan beban nyata: tidak dihitung agar akun itu mendapat ganti
   const terima = new Map<string, number>();
   const perLayanan = new Map<string, Record<string, number>>();
   for (const r of tugasRows as Baris[]) {
@@ -326,7 +326,7 @@ export async function getStatusPembagianAwal(token: string) {
         username: huruf(a.username), namaLengkap: huruf(a.nama_lengkap), tim: a.tim ? huruf(a.tim) : "", aktif: a.aktif !== false,
         dikecualikan: kecuali.has(besar(a.username)), dasar: Number(a.dasar), punyaDasar: a.punya_dasar === true,
         ditugaskan: Number(a.ditugaskan), selesai: Number(a.selesai), ditutup: Number(a.ditutup), sisa: Number(a.sisa),
-        jumlah: Number(a.dasar) + Number(a.ditugaskan),
+        jumlah: Number(a.dasar) + Number(a.ditugaskan) - Number(a.ditutup),   // sama dengan hitungan pembagi: tugas DITUTUP bukan beban
       })),
       sapuan: (sapuan as Baris[]).map((s) => ({ id: Number(s.id), waktu: s.waktu, jenis: huruf(s.jenis), oleh: huruf(s.oleh), dibagi: Number(s.dibagi), ditutup: Number(s.ditutup) })),
     };

@@ -272,6 +272,7 @@ try {
   await tungguSampai("document.querySelectorAll('#body-tabel-lihat tr').length === 4", "tabel Ulang");
   await klikNama("Marlina Sitorus");
   await tungguSampai("!!document.querySelector('" + KOTAK + " input[name=uld-mode]')", "kotak terbuka");
+  await tidur(1200);   // pemantau Detail berdetak tiap 0,5 dtk: beri kesempatan melihat Detail terbuka (menutup <0,5 dtk memang jatuh ke penyegaran 15 dtk)
   const daftarSebelumTutup = hitung("getTugasUlangSaya");
   await js("document.getElementById('tutup-modal-detail').click(); true");
   for (let i = 0; i < 24 && hitung("getTugasUlangSaya") <= daftarSebelumTutup; i++) await tidur(250);

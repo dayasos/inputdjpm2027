@@ -164,7 +164,7 @@ test("GERBANG: verifikator hanya memberi hasil pada data MILIKNYA; data milik or
   assert.equal(b.sukses, false); assert.match(b.pesan, /Keterangan/);
 });
 
-test("TUGAS MENETAP & PENUTUPAN: data diverifikasi Admin -> tugas DITUTUP oleh penyapu (tetap terhitung bagi pemiliknya); tak muncul di daftar petugas", opsi, async () => {
+test("TUGAS MENETAP & PENUTUPAN: data diverifikasi Admin -> tugas DITUTUP oleh penyapu (tetap tercatat di tabel, milik yang sama); tak muncul di daftar petugas", opsi, async () => {
   const db = await siap({ proses: 24 });
   await nyalakan();
   const p2 = await milik(db, "verif_p2");
@@ -180,6 +180,23 @@ test("TUGAS MENETAP & PENUTUPAN: data diverifikasi Admin -> tugas DITUTUP oleh p
   assert.equal((await jumlahTugas(db)).VERIF_P2, dibagiAwal, "jumlah pemilik tidak berubah (tugas menetap, tidak dialihkan)");
   const lagi = await AW.bagiSekarangAwal(TOKEN.admin);
   assert.equal(lagi.dibagi, 0); assert.equal(lagi.ditutup, 0, "tidak ada yang dibagi/ditutup ulang");
+});
+
+test("TUGAS DITUTUP BUKAN BEBAN: data milik beberapa akun diverifikasi pihak lain -> data baru berikutnya mengisi akun yang kekurangan, sehingga beban NYATA (selesai + sisa) selisih <= 1", opsi, async () => {
+  const db = await siap({ proses: 25 });
+  await nyalakan();
+  // Admin memverifikasi 3 data milik verif_p2 dan 2 milik verif_p4 (mis. akun khusus mengambilnya dari Lihat Data)
+  for (const [akun, n] of [["verif_p2", 3], ["verif_p4", 2]]) for (const id of (await milik(db, akun)).slice(0, n)) await VR.verifikasiSatuData(TOKEN.admin, id, "Tidak Memenuhi Syarat", "alasan", "");
+  const r = await AW.bagiSekarangAwal(TOKEN.admin);
+  assert.equal(r.sukses, true, JSON.stringify(r)); assert.equal(r.ditutup, 5);
+  const nyata = async () => Object.fromEntries((await db.query("select upper(a.username) u, count(*) filter (where t.status <> 'DITUTUP')::int n from tugas_verifikasi_awal t join akun a on a.id = t.akun_id group by 1")).rows.map((x) => [x.u, x.n]));
+  assert.ok(Math.max(...Object.values(await nyata())) - Math.min(...Object.values(await nyata())) >= 2, "keadaan awal sengaja timpang");
+  const layar = async () => (await AW.getStatusPembagianAwal(TOKEN.admin)).akun.filter((a) => !a.dikecualikan && a.aktif && a.ditugaskan > 0);
+  const barisLayar = await layar(), nyataSekarang = await nyata();
+  assert.ok(barisLayar.length > 0 && barisLayar.every((a) => a.jumlah === nyataSekarang[a.username.toUpperCase()] + a.dasar), "layar Admin: Jumlah = beban nyata + titik awal (tugas ditutup tidak dihitung)");
+  for (let i = 0; i < 8; i++) { await tambahProses(db, 1); await AW.bagiSekarangAwal(TOKEN.admin); }   // data baru mengalir
+  const akhir = Object.values(await nyata());
+  assert.ok(Math.max(...akhir) - Math.min(...akhir) <= 1, "beban nyata seimbang kembali: " + JSON.stringify(await nyata()));
 });
 
 test("DATA BARU TERUS DIBAGI RATA: berkali-kali masuk, selisih tetap <= 1; akun nonaktif tidak menerima tetapi tugasnya tetap padanya", opsi, async () => {
@@ -328,7 +345,7 @@ test("SAKLAR MATI lalu NYALA lagi: verifikasi yang dipilih sendiri selagi MATI i
   const efektif = (await db.query(`
     select upper(a.username) u,
       (select count(distinct r.penerima_id) from riwayat_verifikasi r where r.oleh = upper(a.username) and r.sumber = 'SATU' and r.status_lama = 'Proses Verifikasi')::int
-      + (select count(*) from tugas_verifikasi_awal t where t.akun_id = a.id and t.status in ('AKTIF', 'DITUTUP'))::int as e
+      + (select count(*) from tugas_verifikasi_awal t where t.akun_id = a.id and t.status = 'AKTIF')::int as e
     from akun a where a.username in ('verif_p1','verif_p2','verif_p3','verif_p4','verif_p5','verif_p6')`)).rows;
   // verif_p2 (sudah 10) berada di atas rata-rata; kelima akun lain disamakan dengan memperhitungkan pilihan sendirinya
   const nilai = efektif.filter((x) => x.u !== "VERIF_P2").map((x) => x.e);
