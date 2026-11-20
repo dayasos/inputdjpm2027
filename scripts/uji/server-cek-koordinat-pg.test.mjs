@@ -143,6 +143,28 @@ test("PENANDA UNTUK LAYAR: kelompok valid/tidak valid/belum dicek dengan kode al
   void db;
 });
 
+test("TITIK UNTUK TOMBOL 'Buka titik': hanya hasil VALID dengan koordinat terbaca dan tautan yang masih sama; selain itu ada=false; role dibatasi; id tak sah ditolak", opsi, async () => {
+  const { db } = await siap([[GMM, G + "/maps?q=3.6173294,98.6838672"], [GMM, G + "/maps/@3.5,98.6,17z"], [GMM, G + "/maps/place//data=!4m2!3m1!1s0x3031318568a2ce5d:0x959efac652de05a7"], ["GURU SEKOLAH MINGGU", G + "/maps?q=3.6,98.67"], [GMM, G + "/maps?q=3.6,98.67"], [GMM, G + "/maps/place/Nama+Tempat/@3.5804399,98.6117239,17z/data=!1s0x3031318568a2ce5d:0x959efac652de05a7"], [GMM, G + "/maps/place/Masjid/@3.58,98.61,17z/data=!3m1!4b1!4m6!3m5!1s0x30312f:0x1!8m2!3d3.5804399!4d98.6117239"], [GMM, G + "/maps?q=-6.2,106.8"]]);
+  await CK.putaranCekKoordinat(10_000);
+  await db.query("insert into cek_koordinat (penerima_id, tahun, tautan, hasil, alasan, tujuan, lat, lng) values (4, 2027, $1, 'VALID', '', '', 3.6, 98.67)", [G + "/maps?q=3.6,98.67"]);   // baris cek untuk layanan lain (tak pernah dibuat penyapu) tetap tak boleh bocor
+  const t1 = await CK.getTitikKoordinatData(TOKEN.verif_p1, 1);
+  assert.deepEqual(t1, { sukses: true, ada: true, lat: 3.6173294, lng: 98.6838672 }, "VALID dengan koordinat");
+  assert.deepEqual(await CK.getTitikKoordinatData(TOKEN.admin, "1"), t1, "Admin Utama juga; id teks angka diterima");
+  assert.deepEqual(await CK.getTitikKoordinatData(TOKEN.verif_p1, 2), { sukses: true, ada: false }, "TIDAK_VALID (tanpa penanda): tidak ada tombol");
+  assert.deepEqual(await CK.getTitikKoordinatData(TOKEN.verif_p1, 3), { sukses: true, ada: false }, "VALID tetapi tautan tak memuat koordinat: tidak ada tombol");
+  assert.deepEqual(await CK.getTitikKoordinatData(TOKEN.verif_p1, 4), { sukses: true, ada: false }, "bukan GMM: tidak ada tombol");
+  assert.equal((await db.query("select hasil, lat from cek_koordinat where penerima_id = 6")).rows[0].hasil, "VALID", "prasyarat uji: tempat ber-ID dinilai VALID dengan koordinat dari @");
+  assert.deepEqual(await CK.getTitikKoordinatData(TOKEN.verif_p1, 6), { sukses: true, ada: false }, "koordinat hanya dari pusat tampilan (@): tidak pasti, tidak ada tombol");
+  assert.deepEqual(await CK.getTitikKoordinatData(TOKEN.verif_p1, 7), { sukses: true, ada: true, lat: 3.5804399, lng: 98.6117239 }, "penanda !3d!4d: pasti");
+  assert.deepEqual(await CK.getTitikKoordinatData(TOKEN.verif_p1, 8), { sukses: true, ada: false }, "TIDAK_VALID walau koordinatnya pasti (luar Medan): tidak ada tombol");
+  assert.deepEqual(await CK.getTitikKoordinatData(TOKEN.verif_p1, 999), { sukses: true, ada: false }, "data tak ada");
+  await db.query("update penerima set link_koordinat_lokasi = $1 where id = 1", [G + "/maps?q=3.7,98.7"]);   // petugas mengganti tautan -> hasil lama basi
+  assert.deepEqual(await CK.getTitikKoordinatData(TOKEN.verif_p1, 1), { sukses: true, ada: false }, "tautan berubah: titik lama tidak dipakai");
+  for (const t of [TOKEN.kec_x, TOKEN.gmm_x]) { const x = await CK.getTitikKoordinatData(t, 1); assert.equal(x.sukses, false); assert.match(x.pesan, /khusus Admin Utama dan Verifikator/); }
+  assert.equal((await CK.getTitikKoordinatData("tak-ada", 1)).sukses, false);
+  for (const buruk of [0, -1, 1.5, "abc", null, undefined, "1; drop table penerima"]) { const x = await CK.getTitikKoordinatData(TOKEN.admin, buruk); assert.equal(x.sukses, false, String(buruk)); }
+});
+
 test("JALUR OTOMATIS: dibatasi 1x/30 dtk; tidak melempar galat bila basis data bermasalah", opsi, async () => {
   await siap([[GMM, G + "/maps?q=3.6,98.67"]]);
   const a = await CK.jalankanCekKoordinatOtomatis();
@@ -155,7 +177,7 @@ test("KABEL: aksi terdaftar di ALLOWED dan daftar-putih Verifikator; penyapu BUK
   const idx = baca("supabase/functions/api/index.ts");
   assert.match(idx, /^\s*getPenandaKoordinat,/m); assert.match(idx, /^\s*jalankanCekKoordinatOtomatis,/m);
   const gp = baca("supabase/functions/api/_shared/gerbangPeran.ts");
-  assert.match(gp, /"getPenandaKoordinat"/); assert.doesNotMatch(gp, /"jalankanCekKoordinatOtomatis"/);
+  assert.match(gp, /"getPenandaKoordinat"/); assert.match(gp, /"getTitikKoordinatData"/); assert.match(idx, /^\s*getTitikKoordinatData,/m); assert.doesNotMatch(gp, /"jalankanCekKoordinatOtomatis"/);
   const dom = baca("supabase/functions/api/domains/cekKoordinat.ts");
   assert.doesNotMatch(dom, /verifikasiSatuData|simpanDataKeSheet/, "Tahap A: modul ini tidak menolak penyimpanan apa pun");
   assert.match(dom, /AbortSignal\.timeout\(ms\)/, "setiap permintaan ke Google punya batas waktu");

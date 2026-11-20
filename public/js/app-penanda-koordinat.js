@@ -67,12 +67,14 @@
     return '';
   }
 
-  var api = { esc: esc, peranBerhak: peranBerhak, susunPeta: susunPeta, tandaUntuk: tandaUntuk, teksLencana: teksLencana, judulLencana: judulLencana, teksBanner: teksBanner };
+  /** Alamat Google Maps yang SELALU menampilkan penanda untuk sebuah titik. */
+  function urlTitik(lat, lng) { return 'https://www.google.com/maps?q=' + Number(lat) + ',' + Number(lng); }
+  var api = { urlTitik: urlTitik, esc: esc, peranBerhak: peranBerhak, susunPeta: susunPeta, tandaUntuk: tandaUntuk, teksLencana: teksLencana, judulLencana: judulLencana, teksBanner: teksBanner };
   if (!akar || !akar.document) return api;
 
   // ------------------------------------------------------------------ tampilan
   var dok = akar.document;
-  var ID_STYLE = 'djpm-penanda-koord-style', KELAS_LENCANA = 'djpm-pk-lencana', ID_BANNER = 'djpm-pk-banner';
+  var ID_STYLE = 'djpm-penanda-koord-style', KELAS_LENCANA = 'djpm-pk-lencana', ID_BANNER = 'djpm-pk-banner', ID_TITIK = 'djpm-pk-titik';
   var BATAS_TUNGGU_MS = 40000, CACHE_MS = 90000, COBA_ULANG_MS = 60000;
   var st = { peta: null, waktu: 0, muat: false, token: '', gagalPada: 0, idDetail: null };
 
@@ -105,7 +107,10 @@
       '.' + KELAS_LENCANA + '[data-s=tunggu]{background:#f1f5f9;color:#475569;border-color:#cbd5e1}' +
       '#' + ID_BANNER + '{margin:0 0 12px;padding:10px 14px;border-radius:10px;font-size:.8rem;border:1px solid}' +
       '#' + ID_BANNER + '[data-s=salah]{background:#fef2f2;color:#7f1d1d;border-color:#fca5a5}' +
-      '#' + ID_BANNER + '[data-s=tunggu]{background:#f1f5f9;color:#334155;border-color:#cbd5e1}';
+      '#' + ID_BANNER + '[data-s=tunggu]{background:#f1f5f9;color:#334155;border-color:#cbd5e1}' +
+      '#' + ID_TITIK + '{margin:0 0 12px;padding:8px 12px;border-radius:10px;font-size:.8rem;border:1px solid #6ee7b7;background:#ecfdf5;color:#065f46;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}' +
+      '#' + ID_TITIK + ' button{padding:4px 12px;border-radius:8px;border:1px solid #059669;background:#fff;color:#065f46;font-weight:700;font-size:.78rem;cursor:pointer}' +
+      '#' + ID_TITIK + ' button:disabled{opacity:.6;cursor:default}';
     dok.head.appendChild(s);
   }
 
@@ -161,7 +166,47 @@
     isi.insertBefore(b, isi.firstChild);
   }
 
-  function terapkan() { try { suntikStyle(); terapkanTabel(); terapkanDetail(); } catch (_e) { /* penanda bersifat tambahan */ } }
+  function toast(pesan, jenis) { try { if (typeof akar.tampilkanToast === 'function') akar.tampilkanToast(pesan, jenis || 'info'); } catch (_e) { /* abaikan */ } }
+  /** Klik 'Buka titik': ambil koordinat dari server lalu buka Google Maps. Jendela dibuka lebih dulu (dalam klik) agar tidak diblokir peramban. */
+  function bukaTitik(tombol) {
+    var id = st.idDetail; if (id == null) return;
+    var jendela = null; try { jendela = akar.open('about:blank', '_blank'); } catch (_e) { jendela = null; }
+    tombol.disabled = true; var awal = tombol.textContent; tombol.textContent = 'Membuka...';
+    function selesai() { tombol.disabled = false; tombol.textContent = awal; }
+    function tutup() { if (jendela) { try { jendela.close(); } catch (_e) { /* abaikan */ } } }
+    rpc('getTitikKoordinatData', [id]).then(function (res) {
+      selesai();
+      if (res && res.sukses && res.ada && isFinite(Number(res.lat)) && isFinite(Number(res.lng))) {
+        var url = urlTitik(res.lat, res.lng);
+        if (jendela) { try { jendela.opener = null; } catch (_e) { /* abaikan */ } jendela.location.href = url; } else { akar.open(url, '_blank', 'noopener'); }
+      } else {
+        tutup();
+        toast((res && res.pesan) || 'Titik koordinat data ini belum tersedia. Gunakan tautan lokasi di bawah.', 'gagal');
+      }
+    }).catch(function (e) {
+      selesai(); tutup();
+      toast('Gagal mengambil titik koordinat: ' + ((e && e.message) || 'tidak diketahui'), 'gagal');
+    });
+  }
+
+  /** Bilah 'Buka titik' di atas Detail untuk data berkoordinat VALID (server memastikan titiknya tersedia saat tombol ditekan). */
+  function terapkanTitik() {
+    var isi = dok.getElementById('isi-konten-detail'); if (!isi) return;
+    var lama = dok.getElementById(ID_TITIK);
+    var t = berhak() && st.idDetail != null ? tandaUntuk(st.peta, st.idDetail) : null;
+    var terisi = isi.children.length > 0 && !(isi.children.length === 1 && isi.firstElementChild === lama);
+    if (!t || t.s !== 'valid' || !terisi) { if (lama && lama.parentNode) lama.parentNode.removeChild(lama); return; }
+    if (lama && lama.getAttribute('data-id') === String(st.idDetail) && lama.parentNode === isi) return;
+    if (lama && lama.parentNode) lama.parentNode.removeChild(lama);
+    var b = dok.createElement('div'); b.id = ID_TITIK; b.setAttribute('data-id', String(st.idDetail));
+    var k = dok.createElement('span'); k.textContent = 'Jika tautan lokasi tidak menampilkan penanda di peta, buka titiknya langsung:';
+    var tb = dok.createElement('button'); tb.type = 'button'; tb.textContent = 'Buka titik di Google Maps';
+    tb.addEventListener('click', function () { bukaTitik(tb); });
+    b.appendChild(k); b.appendChild(tb);
+    isi.insertBefore(b, isi.firstChild);
+  }
+
+  function terapkan() { try { suntikStyle(); terapkanTabel(); terapkanDetail(); terapkanTitik(); } catch (_e) { /* penanda bersifat tambahan */ } }
 
   /** Catat id data yang dibuka di Detail (pembungkus tipis; fungsi aslinya tetap dipanggil apa adanya). */
   function pasangPembungkus() {
@@ -183,17 +228,17 @@
     var tb = dok.getElementById('body-tabel-lihat');
     if (tb && tb !== pengamat.tabel) { pengamat.tabel = tb; new MO(function () { terapkanTabel(); }).observe(tb, { childList: true }); terapkanTabel(); }
     var d = dok.getElementById('isi-konten-detail');
-    if (d && d !== pengamat.detail) { pengamat.detail = d; new MO(function () { terapkanDetail(); }).observe(d, { childList: true }); }
+    if (d && d !== pengamat.detail) { pengamat.detail = d; new MO(function () { terapkanDetail(); terapkanTitik(); }).observe(d, { childList: true }); }
   }
 
   function bersihkan() {
-    Array.prototype.forEach.call(dok.querySelectorAll('.' + KELAS_LENCANA + ', #' + ID_BANNER), function (e) { if (e.parentNode) e.parentNode.removeChild(e); });
+    Array.prototype.forEach.call(dok.querySelectorAll('.' + KELAS_LENCANA + ', #' + ID_BANNER + ', #' + ID_TITIK), function (e) { if (e.parentNode) e.parentNode.removeChild(e); });
     st.peta = null; st.waktu = 0; st.token = ''; st.idDetail = null;
   }
 
   function putaran() {
     try {
-      if (!berhak()) { if (st.peta || dok.querySelector('.' + KELAS_LENCANA + ', #' + ID_BANNER)) bersihkan(); return; }
+      if (!berhak()) { if (st.peta || dok.querySelector('.' + KELAS_LENCANA + ', #' + ID_BANNER + ', #' + ID_TITIK)) bersihkan(); return; }
       pasangPembungkus(); pasangPengamat();
       if (!dok.hidden) muat(false);
       terapkan();

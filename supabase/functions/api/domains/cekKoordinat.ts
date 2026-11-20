@@ -146,3 +146,33 @@ export async function getPenandaKoordinat(token: string) {
     return galat(e);
   }
 }
+
+/**
+ * Titik koordinat SATU data GMM untuk tombol "Buka titik" di Detail (Admin Utama dan Verifikator; hanya membaca). Tautan pendek Google kadang tak tampil di peta desktop
+ * (kartu tempat kosong, tanpa penanda) padahal titiknya ada; membuka koordinatnya langsung selalu menampilkan penanda. Hanya hasil VALID dengan koordinat
+ * terbaca dan tautan yang masih sama dengan data sekarang. Koordinat harus PASTI (penanda !3d!4d atau parameter q=lat,lng); koordinat yang hanya berasal dari pusat tampilan
+ * peta (@lat,lng) bisa meleset dari titiknya sehingga tidak dipakai. Selain itu ada=false (tombol memberi tahu titik belum tersedia).
+ */
+export async function getTitikKoordinatData(token: string, id: unknown) {
+  try {
+    const sesi = await wajibSesi(token);
+    const role = huruf(sesi.role).toUpperCase();
+    if (role !== "UTAMA" && role !== "VERIFIKATOR") return { sukses: false, pesan: "Fitur ini khusus Admin Utama dan Verifikator." };
+    const pid = Number(id);
+    if (!Number.isInteger(pid) || pid <= 0) return { sukses: false, pesan: "Data tidak valid." };
+    const rows = await sql`
+      select c.lat, c.lng
+      from penerima p join cek_koordinat c on c.penerima_id = p.id and c.tahun = p.tahun and c.tautan = coalesce(p.link_koordinat_lokasi, '')
+      where p.id = ${pid} and p.tahun = ${TAHUN_AKTIF} and p.layanan = ${LAYANAN_CEK} and c.hasil = 'VALID' and c.lat is not null and c.lng is not null
+        and (concat_ws(' ', c.tujuan, c.tautan) ~ '!3d-?[0-9.]+!4d-?[0-9.]+'
+             or concat_ws(' ', c.tujuan, c.tautan) ~* '[?&](q|ll|query|center|destination|daddr)=(loc:)?-?[0-9.]+(,|%2C)-?[0-9.]+')
+      limit 1`;
+    if (rows.length === 0) return { sukses: true, ada: false };
+    const r = rows[0] as Baris;
+    const lat = Number(r.lat), lng = Number(r.lng);
+    if (!isFinite(lat) || !isFinite(lng)) return { sukses: true, ada: false };
+    return { sukses: true, ada: true, lat, lng };
+  } catch (e) {
+    return galat(e);
+  }
+}

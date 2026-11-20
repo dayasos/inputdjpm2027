@@ -45,6 +45,7 @@ export const AKSI_VERIFIKATOR: ReadonlySet<string> = new Set([
   "getTugasAwalSaya",
   // Penanda koordinat Guru Maghrib Mengaji (hanya membaca; domains/cekKoordinat.ts memeriksa role sendiri)
   "getPenandaKoordinat",
+  "getTitikKoordinatData",
 ]);
 
 export const PESAN_VERIFIKATOR_DITOLAK =

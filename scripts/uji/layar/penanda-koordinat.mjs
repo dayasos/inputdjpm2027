@@ -25,6 +25,7 @@ function detailUntuk(nomor) {
   Object.assign(d, { 0: nomor, 1: NAMA[nomor], 2: "12010000000" + nomor, 3: "PEREMPUAN", 4: "MEDAN", 5: "04-02-1989", 6: "JL X NO 1", 7: nomor <= 704 ? "GURU MAGHRIB MENGAJI" : "GURU SEKOLAH MINGGU", 8: "RUMAH", 9: "JL. MARELAN", 10: "MEDAN KOTA", 11: "SEI SIKAMBING B", 12: NAMA[nomor], 13: "12345678901234", 14: "SUMUT", 15: "0812345678", 16: "YA", 32: "Proses Verifikasi", 51: false });
   return d;
 }
+let titikAda = true;
 function jawab(aksi, args) {
   if (aksi === "pulihkanSesi") return { sukses: true, token: "TOKEN-UJI", username: peran === "VERIFIKATOR" ? "verif_x" : "admin", role: peran, kecamatan: "MEDAN KOTA", userId: "", profileBelumDiisi: false, profil: { namaLengkap: "UJI", nomorHp: "0800", jabatan: "X" } };
   if (aksi === "getMasterLayanan") return { kecamatan: ["IMAM MASJID"], kemenag: ["GURU MAGHRIB MENGAJI"] };
@@ -33,6 +34,7 @@ function jawab(aksi, args) {
   if (aksi === "ambilRiwayatEdit") return { sukses: true, riwayat: [] };
   if (aksi === "getTugasAwalSaya") return { sukses: true, aktif: false, ditugaskan: 0, selesai: 0, sisa: 0, ids: [], daftar: [], halaman: 1, totalHalaman: 1 };
   if (aksi === "getTugasUlangSaya") return { sukses: true, sisa: 0, selesai: 0, semua: [], tugas: [] };
+  if (aksi === "getTitikKoordinatData") return titikAda ? { sukses: true, ada: true, lat: 3.6173294, lng: 98.6838672 } : { sukses: true, ada: false };
   if (aksi === "getPenandaKoordinat") {
     if (gagalPenanda) return { sukses: false, pesan: "Tiruan: gagal." };
     return { sukses: true, v: [701], b: [703], x: { 702: "TANPA_PENANDA", 704: "STREET_VIEW" }, teks: ALASAN, jumlah: { valid: 1, tidakValid: 2, belumDicek: 1 } };
@@ -114,17 +116,29 @@ try {
   await klik('#body-tabel-lihat button[onclick*="(702)"]');
   await tungguSampai("!document.getElementById('modal-detail-penerima').classList.contains('hidden') && /Sri Wahyuni/.test(document.getElementById('isi-konten-detail').textContent) && !!document.getElementById('djpm-pk-banner')", "banner Detail 702");
   const b702 = await js("(() => { const b = document.getElementById('djpm-pk-banner'); return { teks: b.textContent, s: b.dataset.s, pertama: b === document.getElementById('isi-konten-detail').firstElementChild, jumlah: document.querySelectorAll('#djpm-pk-banner').length }; })()");
+  cek("UTAMA Detail 702 (bermasalah): TANPA bilah 'Buka titik'", (await js("!document.getElementById('djpm-pk-titik')")) === true);
   cek("UTAMA Detail 702: banner merah di paling atas, alasan jelas, Admin Utama diberi tahu tidak diblokir", b702.s === "salah" && b702.pertama && b702.jumlah === 1 && /^Koordinat bermasalah: Tautan hanya menampilkan tampilan peta/.test(b702.teks) && /Admin Utama\) tidak diblokir/.test(b702.teks), JSON.stringify(b702));
   await js("document.getElementById('tutup-modal-detail').click(); true");
   await klik('#body-tabel-lihat button[onclick*="(701)"]');
   await tungguSampai("!document.getElementById('modal-detail-penerima').classList.contains('hidden') && /Budi/.test(document.getElementById('isi-konten-detail').textContent)", "detail 701");
   await tidur(600);
   cek("UTAMA Detail 701 (valid): tanpa banner", (await js("!document.getElementById('djpm-pk-banner')")) === true);
+  cek("UTAMA Detail 701 (valid): bilah 'Buka titik' tampil di atas Detail, satu saja", (await js("document.querySelectorAll('#djpm-pk-titik').length === 1 && document.getElementById('djpm-pk-titik') === document.getElementById('isi-konten-detail').firstElementChild")) === true);
+  await js("window.__jendela = []; window.open = function (u, n, f) { var j = { location: { href: '' }, opener: 1, ditutup: false, close: function () { this.ditutup = true; }, u: u }; window.__jendela.push(j); return j; }; true");
+  await js("document.querySelector('#djpm-pk-titik button').click(); true");
+  await tungguSampai("window.__jendela.length === 1 && window.__jendela[0].location.href !== ''", "jendela titik terisi");
+  const jd = await js("JSON.stringify({ n: window.__jendela.length, href: window.__jendela[0].location.href, op: window.__jendela[0].opener, tutup: window.__jendela[0].ditutup })");
+  cek("UTAMA 'Buka titik': jendela dibuka lebih dulu lalu diarahkan ke koordinat langsung (selalu bermarka), tanpa opener, server dipanggil dengan id 701", JSON.parse(jd).href === 'https://www.google.com/maps?q=3.6173294,98.6838672' && JSON.parse(jd).op === null && JSON.parse(jd).tutup === false && panggilan.some((p) => p.aksi === 'getTitikKoordinatData' && String(p.args[1]) === '701'), jd);
+  titikAda = false;
+  await js("document.querySelector('#djpm-pk-titik button').click(); true");
+  await tungguSampai("window.__jendela.length === 2 && window.__jendela[1].ditutup === true", "jendela ditutup bila titik tak ada");
+  cek("UTAMA 'Buka titik' tanpa titik dari server: jendela ditutup, tidak diarahkan ke mana pun, tombol aktif kembali", (await js("window.__jendela[1].location.href === '' && !document.querySelector('#djpm-pk-titik button').disabled")) === true);
+  titikAda = true;
   await js("document.getElementById('tutup-modal-detail').click(); true");
   await klik('#body-tabel-lihat button[onclick*="(705)"]');
   await tungguSampai("!document.getElementById('modal-detail-penerima').classList.contains('hidden') && /Marlina/.test(document.getElementById('isi-konten-detail').textContent)", "detail 705");
   await tidur(600);
-  cek("UTAMA Detail 705 (bukan GMM): tanpa banner", (await js("!document.getElementById('djpm-pk-banner')")) === true);
+  cek("UTAMA Detail 705 (bukan GMM): tanpa banner dan tanpa bilah 'Buka titik'", (await js("!document.getElementById('djpm-pk-banner') && !document.getElementById('djpm-pk-titik')")) === true);
   await js("document.getElementById('tutup-modal-detail').click(); true");
 
   // Gambar ulang tabel (filter/halaman) tidak menggandakan lencana

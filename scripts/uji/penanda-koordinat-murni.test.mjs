@@ -61,9 +61,11 @@ test("KABEL: dimuat untuk UTAMA dan VERIFIKATOR saja; modul hanya memanggil aksi
   for (const r of ["MUI", "'GURU MAGHRIB MENGAJI'"]) assert.doesNotMatch(baris(r), /app-penanda-koordinat/, r);
   const m = baca("public/js/app-penanda-koordinat.js");
   const aksi = [...m.matchAll(/rpc\('([A-Za-z]+)'/g)].map((x) => x[1]);
-  assert.deepEqual(aksi, ["getPenandaKoordinat"], "satu-satunya aksi server");
+  assert.deepEqual(aksi, ["getPenandaKoordinat", "getTitikKoordinatData"], "hanya dua aksi server, keduanya hanya membaca");
+  assert.equal(P.urlTitik(3.6173294, 98.6838672), "https://www.google.com/maps?q=3.6173294,98.6838672", "alamat titik langsung (selalu bermarka)");
+  assert.equal(P.urlTitik("3.6; alert(1)", 98.6), "https://www.google.com/maps?q=NaN,98.6", "nilai bukan angka tidak lolos ke alamat");
   assert.doesNotMatch(m, /simpan|verifikasiSatuData|editDataPenerima/);
   const html = baca("index.html");
-  assert.match(html, /app-pesan-periode\.js\?v=20271103/);
+  assert.match(html, /app-pesan-periode\.js\?v=20271104/);
   assert.match(html, /koordinat-lokasi\.js\?v=20271100/, "pemeriksaan Street View di formulir GMM: versi skrip dinaikkan agar peramban tidak memakai salinan lama");
 });
