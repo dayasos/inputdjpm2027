@@ -20,6 +20,11 @@ import { wajibSesi } from "../_shared/sesi.ts";
 
 const DEFAULT_URL_RETUR = "https://retur.djpmkotamedan.web.id";
 
+/** SEMENTARA (2026-11-19): aplikasi Retur & Kematian belum siap, jadi tidak ada pengguna yang boleh masuk lewat Input. Untuk membuka kembali: ubah menjadi false (server)
+ *  dan RETUR_DALAM_PENGEMBANGAN di public/js/app-core.js, lalu deploy keduanya. Penegak utamanya SERVER (token SSO tidak dibuat), layar hanya menampilkan informasi. */
+export const RETUR_DALAM_PENGEMBANGAN = true;
+export const PESAN_RETUR_DALAM_PENGEMBANGAN = "Aplikasi Retur & Kematian sedang dalam pengembangan dan belum dapat dibuka. Mohon tunggu informasi selanjutnya.";
+
 async function hitungHmacSha256Hex(pesan: string, kunci: string): Promise<string> {
   const enc = new TextEncoder();
   const cryptoKey = await crypto.subtle.importKey(
@@ -61,6 +66,8 @@ export async function buatTokenSSORetur(token: string) {
   } catch (e) {
     return { sukses: false, pesan: e instanceof Error ? e.message : String(e) };
   }
+
+  if (RETUR_DALAM_PENGEMBANGAN) return { sukses: false, pesan: PESAN_RETUR_DALAM_PENGEMBANGAN };
 
   try {
     const kunci = Deno.env.get("SSO_SECRET_KEY") || "";

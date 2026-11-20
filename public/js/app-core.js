@@ -1072,8 +1072,14 @@ function periksaStatusAkses() {
 }
 window.periksaStatusAkses = periksaStatusAkses;
 
+// SEMENTARA (2026-11-19): aplikasi Retur & Kematian belum siap. Server juga menolak membuat token SSO (sso.ts, RETUR_DALAM_PENGEMBANGAN); ubah keduanya untuk membuka kembali.
+const RETUR_DALAM_PENGEMBANGAN = true;
 document.getElementById('btn-retur-kematian').addEventListener('click', function () {
   if (!pastikanLogin()) return;
+  if (RETUR_DALAM_PENGEMBANGAN) {
+    tampilkanToast('Aplikasi Retur & Kematian sedang dalam pengembangan dan belum dapat dibuka. Mohon tunggu informasi selanjutnya.', 'info', { durasi: 7000 });
+    return;
+  }
   const btn = this;
   setTombolMemuat(btn, "Membuka...");
   google.script.run

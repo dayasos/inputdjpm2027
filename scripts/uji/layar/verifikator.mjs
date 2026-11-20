@@ -35,6 +35,7 @@ function buatDetail({ status = "Proses Verifikasi", ket = "", tgl = "", oleh = "
 }
 function jawab(aksi, args) {
   if (aksi === "pulihkanSesi") return { sukses: true, token: "TOKEN-UJI", username: peran === "VERIFIKATOR" ? "verif_andi" : "petugas", role: peran, kecamatan: peran === "GURU MAGHRIB MENGAJI" ? "MEDAN MARELAN" : "", userId: "", profileBelumDiisi: false, profil: { namaLengkap: "ANDI SAPUTRA", nomorHp: "0800", jabatan: "Verifikator" } };
+  if (aksi === "buatTokenSSORetur") { panggilan.push({ aksi, args }); return { sukses: true, url: "https://retur.example/?sso=x" }; }
   if (aksi === "ubahAkunSendiri") { panggilan.push({ aksi, args }); return { sukses: true, pesan: "Password berhasil diperbarui." }; }
   if (aksi === "getMasterLayanan") return { kecamatan: ["IMAM MASJID"], kemenag: ["GURU MAGHRIB MENGAJI"] };
   if (aksi === "ambilDetailPenerimaPerBaris") return { sukses: true, dataLengkap: detail };
@@ -272,6 +273,14 @@ try {
   k = await bukaDetail({ status: "Proses Verifikasi", layanan: "GURU MAGHRIB MENGAJI" });
   cek("GMM (regresi): TIDAK ada panel verifikasi dan tidak ada tombol status", k.judulPanel === null && k.tombol.length === 0, JSON.stringify(k));
   cek("GMM (regresi): tab Input tetap terlihat; modul verifikator tidak dimuat", (await tampil("tab-input")) === "tampil" && !skripDimuat.some((u) => /app-verifikator\.js/.test(u)));
+
+  // ============================ Retur & Kematian (sementara: dalam pengembangan) ============================
+  await js("window.__dibukaTab = []; window.open = (u) => { window.__dibukaTab.push(u); return null; }; document.getElementById('btn-retur-kematian').click(); true");
+  await tidur(600);
+  const retur = await js("JSON.stringify({ toast: (document.getElementById('toast-container') || {}).textContent || '', tab: window.__dibukaTab })");
+  const rr = JSON.parse(retur);
+  cek("RETUR: klik tombol 'Retur & Kematian' menampilkan informasi 'sedang dalam pengembangan'", /sedang dalam pengembangan/.test(rr.toast), retur);
+  cek("RETUR: tidak membuka tab baru dan tidak meminta token SSO ke server", rr.tab.length === 0 && !panggilan.some((p) => p.aksi === "buatTokenSSORetur"), retur);
 
   cek("Tidak ada galat JavaScript selama pengujian", galatJs.length === 0, galatJs.slice(0, 3).join(" | "));
 } catch (err) { console.log("GALAT HARNESS: " + err.message); gagal++; }
