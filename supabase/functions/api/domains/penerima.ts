@@ -16,6 +16,7 @@ import {
 import { periksaNikBolehDipakai } from "../_shared/cekNik.ts";
 import { periksaIzinInput } from "./setelan.ts";
 import { cekKuotaTersedia } from "./validasi.ts";
+import { ketLayananKecamatan } from "../_shared/cekNik.ts";
 import {
   cariRumahIbadah,
   kelurahanAdaDiKecamatan,
@@ -815,7 +816,7 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
     const alamatTugasTarget = rapikanTeks(alamatTugas);
 
     const [rowsNik, rowsRek, rowsTempat, hasilKuota] = await Promise.all([
-      sql`select id from penerima where tahun = ${TAHUN_AKTIF} and nik = ${nik} limit 1`,
+      sql`select id, nama, layanan, kecamatan from penerima where tahun = ${TAHUN_AKTIF} and nik = ${nik} limit 1`,
       sql`select id from penerima where tahun = ${TAHUN_AKTIF} and nomor_rekening = ${nomorRekening} limit 1`,
       cekTempatTugasRelevan
         ? sql`
@@ -828,7 +829,7 @@ export async function simpanDataKeSheet(token: string, formObject: Record<string
       cekKuotaTersedia(kecamatan, layanan)
     ]);
 
-    if (rowsNik.length > 0) return { sukses: false, pesan: "GAGAL: NIK sudah terdaftar (race condition). Coba lagi." };
+    if (rowsNik.length > 0) return { sukses: false, pesan: "GAGAL: NIK sudah terdaftar atas nama " + (rowsNik[0].nama || "") + ketLayananKecamatan(rowsNik[0]) + "." };
     if (rowsRek.length > 0) return { sukses: false, pesan: "GAGAL: Nomor rekening sudah terdaftar (race condition). Coba lagi." };
     if (rowsTempat.length > 0) return { sukses: false, pesan: "GAGAL: Tempat tugas sudah memiliki penerima untuk layanan ini (race condition). Coba lagi." };
 
@@ -1112,11 +1113,11 @@ export async function editDataPenerimaInti(
 
     if (nikBerubah) {
       const cekNik = await sql`
-        select id from penerima
+        select id, nama, layanan, kecamatan from penerima
         where tahun = ${TAHUN_AKTIF} and nik = ${nikBaruEdit} and id <> ${id} limit 1
       `;
       if (cekNik.length > 0) {
-        return { sukses: false, pesan: "GAGAL: NIK " + nikBaruEdit + " sudah terdaftar." };
+        return { sukses: false, pesan: "GAGAL: NIK " + nikBaruEdit + " sudah terdaftar atas nama " + (cekNik[0].nama || "") + ketLayananKecamatan(cekNik[0]) + "." };
       }
       // NIK baru juga harus lolos pemeriksaan Capil + arsip tahun lalu (sama dengan input baru dan Kelola Data).
       const cekNikArsip = await periksaNikBolehDipakai(nikBaruEdit);

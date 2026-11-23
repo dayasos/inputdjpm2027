@@ -3,7 +3,7 @@ import { wajibSesi } from "../_shared/sesi.ts";
 import { ikonRumahIbadah, LAYANAN_BATASI_TEMPAT_TUGAS, rapikanTeks, TAHUN_AKTIF } from "../_shared/config.ts";
 import { tentukanWilayahTugas } from "../_shared/wilayahTugas.ts";
 import { mengandungTautan, PESAN_ALAMAT_TAUTAN } from "../_shared/alamatTugas.ts";
-import { cekDomisiliCapil, cekStatusTahunLalu } from "../_shared/cekNik.ts";
+import { cekDomisiliCapil, cekStatusTahunLalu, ketLayananKecamatan } from "../_shared/cekNik.ts";
 
 // ---------------------------------------------------------------------------
 // Catatan desain (beda dari Kode.gs, disengaja — lihat rencana migrasi):
@@ -106,11 +106,11 @@ export async function cekNikRealtime(token: string, nik: string) {
     }
 
     const rowsNik = await sql`
-      select nama from penerima where tahun = ${TAHUN_AKTIF} and nik = ${nikTarget} limit 1
+      select nama, layanan, kecamatan from penerima where tahun = ${TAHUN_AKTIF} and nik = ${nikTarget} limit 1
     `;
     if (rowsNik.length > 0) {
       const nama = (rowsNik[0].nama || "").toString();
-      return { blokir: true, jenis: "NIK_GANDA", pesan: "NIK ini sudah terdaftar atas nama " + nama + ".", nama };
+      return { blokir: true, jenis: "NIK_GANDA", pesan: "NIK ini sudah terdaftar atas nama " + nama + ketLayananKecamatan(rowsNik[0]) + ".", nama };
     }
 
     return { blokir: false };
@@ -284,7 +284,7 @@ export async function validasiDataBaru(
     // berurutan, supaya latensi submit form tidak bertumpuk 3x round-trip database (ditemukan
     // saat code review; hasil akhir identik, hanya lebih cepat).
     const [rowsNik, rowsRek, rowsTempat] = await Promise.all([
-      sql`select nama from penerima where tahun = ${TAHUN_AKTIF} and nik = ${nikTarget} limit 1`,
+      sql`select nama, layanan, kecamatan from penerima where tahun = ${TAHUN_AKTIF} and nik = ${nikTarget} limit 1`,
       sql`select nama from penerima where tahun = ${TAHUN_AKTIF} and nomor_rekening = ${noRekTarget} limit 1`,
       cekTempatTugasRelevan
         ? sql`
@@ -300,7 +300,7 @@ export async function validasiDataBaru(
       temuan.push({
         jenis: "NIK",
         ikon: "🪪",
-        detail: "NIK " + nikTarget + " sudah terdaftar atas nama " + rowsNik[0].nama + ".",
+        detail: "NIK " + nikTarget + " sudah terdaftar atas nama " + rowsNik[0].nama + ketLayananKecamatan(rowsNik[0]) + ".",
       });
     }
 

@@ -6,6 +6,16 @@ import { TAHUN_AKTIF } from "./config.ts";
 // Kelola Data (domains/kelolaData.ts), supaya aturannya tidak bisa menyimpang (plans/plan-pilih-rumah-ibadah-kelola-data.md, audit konsistensi).
 // Dipindah apa adanya dari validasi.ts (port cekDomisiliCapil_ dan cekStatusTahunLalu_ dari Kode.gs).
 
+// Keterangan data yang SUDAH memakai sebuah NIK pada peringatan NIK ganda: " (layanan X, Kec. Y)". Kosong bila keduanya tak ada.
+export function ketLayananKecamatan(r: { layanan?: unknown; kecamatan?: unknown } | null | undefined): string {
+  const l = String(r?.layanan ?? "").trim();
+  const k = String(r?.kecamatan ?? "").trim();
+  const bagian: string[] = [];
+  if (l) bagian.push("layanan " + l);
+  if (k) bagian.push("Kec. " + k);
+  return bagian.length ? " (" + bagian.join(", ") + ")" : "";
+}
+
 // Data Capil berstatus PINDAH (diimpor dari sumber) mengisi kolom domisili TERTUKAR: kab_kota_domisili berisi NOMOR SURAT pindah
 // ("SKPWNI/1271/27102025/0008") dan alamat_domisili berisi nama kabupaten/kota. Pesan penolakan sebelumnya menampilkan nomor surat itu
 // sebagai "kabupaten/kota". Dicek 2026-11-10: 6 dari 28 baris Capil (semua berstatus PINDAH). Penanganan di kode, data TIDAK diubah.

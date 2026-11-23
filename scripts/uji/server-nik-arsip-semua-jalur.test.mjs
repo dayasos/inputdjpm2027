@@ -19,6 +19,7 @@ let capil = [];        // baris tabel capil untuk NIK yang diperiksa
 let statusLama = [];   // baris arsip tahun lalu untuk NIK yang diperiksa
 let baris = null;      // baris penerima yang sedang diedit
 let daftarKecuali = new Set();   // NIK di tabel nik_dikecualikan_arsip (pengecualian arsip tahun lalu)
+let nikAda = [];                 // baris penerima 2027 yang sudah memakai NIK (peringatan NIK ganda)
 let galatKecuali = false;        // simulasi tabel pengecualian belum ada / galat
 
 const NIK_MONEV = "3210172512990041";
@@ -39,6 +40,7 @@ function pasang() {
       if (galatKecuali) throw new Error('relation "nik_dikecualikan_arsip" does not exist');
       return daftarKecuali.has(String(v[0])) ? [{ "?column?": 1 }] : [];
     }
+    if (/from penerima\s+where tahun = \? and nik = \?/.test(q)) return nikAda;
     if (/and tahun <> \?/.test(q)) return statusLama;
     if (q.includes("select * from penerima where id")) return baris ? [baris] : [];
     if (q.includes("from wilayah")) return WILAYAH.has(String(v[0]).toUpperCase().trim() + "|" + String(v[1]).toUpperCase().trim()) ? [{ ada: 1 }] : [];
@@ -47,7 +49,7 @@ function pasang() {
   };
 }
 const token = (() => { let n = 0; return () => "token-nik-" + (++n); })();
-const bersih = () => { capil = []; statusLama = []; daftarKecuali = new Set(); galatKecuali = false; };
+const bersih = () => { nikAda = []; capil = []; statusLama = []; daftarKecuali = new Set(); galatKecuali = false; };
 
 // ============================== (1) simpan input baru ==============================
 const form = (ubah = {}) => ({
@@ -243,4 +245,58 @@ test("Pengecualian arsip: cekNikRealtime (layar) tidak memblokir NIK terkecuali,
   const blokir = await validasi.cekNikRealtime(token(), NIK_MONEV);
   assert.equal(blokir.blokir, true, JSON.stringify(blokir));
   assert.equal(blokir.jenis, "STATUS_LAMA");
+});
+
+// ============================== (5) peringatan NIK ganda menyebut layanan dan kecamatan data yang sudah ada ==============================
+const ADA = { id: 77, nama: "BUDI SANTOSO", layanan: "PENGGALI KUBUR", kecamatan: "MEDAN TUNTUNGAN" };
+const KET_ADA = /atas nama BUDI SANTOSO \(layanan PENGGALI KUBUR, Kec\. MEDAN TUNTUNGAN\)/;
+
+test("NIK ganda: layar (cekNikRealtime) menyebut nama, layanan, dan kecamatan data yang sudah ada", async () => {
+  const validasi = await muatServer("supabase/functions/api/domains/validasi.ts");
+  bersih(); sesiAktif = SESI.KECAMATAN; pasang(); nikAda = [ADA];
+  const h = await validasi.cekNikRealtime(token(), "1271010101900001");
+  assert.equal(h.blokir, true, JSON.stringify(h));
+  assert.equal(h.jenis, "NIK_GANDA");
+  assert.equal(h.pesan, "NIK ini sudah terdaftar atas nama BUDI SANTOSO (layanan PENGGALI KUBUR, Kec. MEDAN TUNTUNGAN).");
+  nikAda = [{ nama: "BUDI", layanan: "", kecamatan: null }];
+  assert.equal((await validasi.cekNikRealtime(token(), "1271010101900001")).pesan, "NIK ini sudah terdaftar atas nama BUDI.", "tanpa layanan/kecamatan: tak ada tanda kurung kosong");
+});
+
+for (const peran of ["UTAMA", "KECAMATAN"]) {
+  test(`NIK ganda [${peran}]: simpan input baru menolak dengan menyebut nama, layanan, kecamatan; TANPA menulis`, async () => {
+    bersih(); nikAda = [ADA];
+    const h = await simpan(peran, {});
+    assert.equal(h.sukses, false, JSON.stringify(h));
+    assert.match(h.pesan, KET_ADA);
+    assert.equal(insertan().length, 0);
+  });
+  test(`NIK ganda [${peran}]: Edit ke NIK yang sudah dipakai menyebut nama, layanan, kecamatan; TANPA menulis`, async () => {
+    baris = BARIS(); bersih(); nikAda = [ADA];
+    const h = await edit({ 2: "1271010101900009" }, peran);
+    assert.equal(h.sukses, false, JSON.stringify(h));
+    assert.match(h.pesan, KET_ADA);
+    assert.equal(penulisan().length, 0);
+  });
+}
+
+test("Layar: tampilkanPeringatan meng-escape pesan (nama/layanan/kecamatan dari data tak boleh jadi HTML)", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync("public/js/app-core.js", "utf8").replace(/\r\n/g, "\n");
+  const ambil = (nama) => { const i = src.indexOf("function " + nama + "("); assert.ok(i >= 0, nama); const j = src.indexOf("\n}\n", i); return src.slice(i, j + 3); };
+  const el = { innerHTML: "", classList: { remove() {} } };
+  const fn = new Function("document", ambil("esc") + "\n" + ambil("tampilkanPeringatan") + "\nreturn tampilkanPeringatan;")({ getElementById: () => el });
+  fn("peringatan-nik", "NIK ini sudah terdaftar atas nama <img src=x onerror=alert(1)> (layanan A&B, Kec. \"X\").");
+  assert.ok(!el.innerHTML.includes("<img"), el.innerHTML);
+  assert.ok(el.innerHTML.includes("&lt;img src=x onerror=alert(1)&gt; (layanan A&amp;B, Kec. &quot;X&quot;)."), el.innerHTML);
+  fn("peringatan-nik", "⚠️ NIK ini sudah terdaftar atas nama BUDI (layanan PENGGALI KUBUR, Kec. MEDAN TUNTUNGAN).");
+  assert.ok(el.innerHTML.includes("NIK ini sudah terdaftar atas nama BUDI (layanan PENGGALI KUBUR, Kec. MEDAN TUNTUNGAN)."), "pesan biasa tampil utuh");
+});
+
+test("ketLayananKecamatan: bentuk keterangan, nilai kosong dibuang", async () => {
+  const { ketLayananKecamatan } = await muatServer("supabase/functions/api/_shared/cekNik.ts");
+  assert.equal(ketLayananKecamatan({ layanan: " IMAM MASJID ", kecamatan: "MEDAN AREA" }), " (layanan IMAM MASJID, Kec. MEDAN AREA)");
+  assert.equal(ketLayananKecamatan({ layanan: "IMAM MASJID" }), " (layanan IMAM MASJID)");
+  assert.equal(ketLayananKecamatan({ kecamatan: "MEDAN AREA" }), " (Kec. MEDAN AREA)");
+  assert.equal(ketLayananKecamatan({}), "");
+  assert.equal(ketLayananKecamatan(null), "");
 });

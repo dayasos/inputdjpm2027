@@ -66,6 +66,6 @@ test("KABEL: dimuat untuk UTAMA dan VERIFIKATOR saja; modul hanya memanggil aksi
   assert.equal(P.urlTitik("3.6; alert(1)", 98.6), "https://www.google.com/maps?q=NaN,98.6", "nilai bukan angka tidak lolos ke alamat");
   assert.doesNotMatch(m, /simpan|verifikasiSatuData|editDataPenerima/);
   const html = baca("index.html");
-  assert.match(html, /app-pesan-periode\.js\?v=20271104/);
+  assert.match(html, /app-pesan-periode\.js\?v=20271123/);
   assert.match(html, /koordinat-lokasi\.js\?v=20271100/, "pemeriksaan Street View di formulir GMM: versi skrip dinaikkan agar peramban tidak memakai salinan lama");
 });

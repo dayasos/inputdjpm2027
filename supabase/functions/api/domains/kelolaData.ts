@@ -9,7 +9,7 @@ import { getMasterLayanan } from "./master.ts";
 import { labelKolom, MAP_IDX_KE_KOLOM_BERKAS, tglDDMMYYYYkeISO } from "./penerima.ts";
 import { periksaTanggalLahir, tanggalHariIniWIB } from "../_shared/validasiPenerima.ts";
 import { mengandungTautan, PESAN_ALAMAT_TAUTAN } from "../_shared/alamatTugas.ts";
-import { periksaNikBolehDipakai } from "../_shared/cekNik.ts";
+import { ketLayananKecamatan, periksaNikBolehDipakai } from "../_shared/cekNik.ts";
 import {
   cariRumahIbadah, layananWajibRumahIbadah, periksaTempatTugasDariDaftar, periksaWilayahRumahIbadah, pilihRumahIbadahId,
 } from "../_shared/wilayahTugas.ts";
@@ -436,8 +436,8 @@ export async function adminUbahData(
 
       // ── Duplikat (semua memakai trx) ──
       if ("nik" in baru) {
-        const d = await trx`select id from penerima where tahun = ${th} and nik = ${baru.nik} and id <> ${idNum} limit 1`;
-        if (d.length > 0) return { sukses: false, pesan: "GAGAL: NIK " + baru.nik + " sudah terdaftar." };
+        const d = await trx`select id, nama, layanan, kecamatan from penerima where tahun = ${th} and nik = ${baru.nik} and id <> ${idNum} limit 1`;
+        if (d.length > 0) return { sukses: false, pesan: "GAGAL: NIK " + baru.nik + " sudah terdaftar atas nama " + (d[0].nama || "") + ketLayananKecamatan(d[0]) + "." };
       }
       if ("nomor_rekening" in baru && baru.nomor_rekening) {
         const d = await trx`select id from penerima where tahun = ${th} and nomor_rekening = ${baru.nomor_rekening} and id <> ${idNum} limit 1`;
