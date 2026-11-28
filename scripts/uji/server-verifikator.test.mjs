@@ -482,3 +482,17 @@ test("KESESUAIAN: daftar role resmi di server (akun.ts), dropdown app-admin.js d
   assert.deepEqual(admin, server, "app-admin.js vs server");
   assert.deepEqual(kelola, server, "app-kelola-user.js vs server");
 });
+
+test("CRON batas waktu: penolakan otomatis memakai TANGGAL WIB (bukan UTC), jadi batas D berlaku sampai D pukul 23.59 WIB dan ditolak mulai 01.00 WIB D+1", async () => {
+  pakai("UTAMA");
+  db().panggilan.length = 0;
+  const h = await verifikasi.cekBatasWaktuVerifikasi();
+  assert.equal(h.sukses, true, JSON.stringify(h));
+  const up = db().panggilan.filter((p) => p.teks.includes("batas_waktu_perbaikan <"));
+  assert.equal(up.length, 1, "satu UPDATE penolakan otomatis");
+  assert.match(up[0].teks, /batas_waktu_perbaikan < \(now\(\) at time zone 'Asia\/Jakarta'\)::date/, "dibandingkan dengan tanggal WIB di database");
+  assert.ok(!up[0].nilai.some((n) => /^\d{4}-\d{2}-\d{2}$/.test(String(n))), "tidak ada lagi tanggal UTC dari JavaScript yang dikirim sebagai pembanding");
+  // Data yang sudah melapor / mengganti berkas tetap tidak ditolak otomatis (aturan lama utuh).
+  assert.match(up[0].teks, /tanggal_berkas_diubah is null/);
+  assert.match(up[0].teks, /tanggal_lapor_perbaikan is null/);
+});

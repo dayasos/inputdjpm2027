@@ -2507,7 +2507,7 @@ function halamanBerikutnya() {
 (function () {
   // Batas waktu perbaikan "Berkas Tidak Lengkap" SERAGAM (sama dengan BATAS_PERBAIKAN_SERAGAM di
   // supabase/functions/api/_shared/config.ts; server yang menetapkan, nilai ini hanya untuk tampilan).
-  const BATAS_PERBAIKAN_SERAGAM = "2026-11-30";
+  const BATAS_PERBAIKAN_SERAGAM = "2026-12-11";
   const KOLOM_TEKS = {
     1: { label: "Nama Lengkap", type: "text", maks: 100 }, 2: { label: "NIK", type: "text" },
     3: { label: "Jenis Kelamin", type: "select", opsi: ["LAKI-LAKI", "PEREMPUAN"] },
@@ -2574,7 +2574,7 @@ function halamanBerikutnya() {
     let h = `<div class="mb-4">${badgeStatusVerifikasi(statusVerif)}`;
     if (((statusVerif === "Tidak Memenuhi Syarat" || statusVerif === "Berkas Tidak Lengkap") && keteranganVerif) || (statusVerif === "Memenuhi Syarat" && (olehVerif || tglVerif))) {
       const warnaBox = statusVerif === "Berkas Tidak Lengkap" ? "amber" : (statusVerif === "Memenuhi Syarat" ? "emerald" : "red"); // Memenuhi Syarat: hanya baris "Diverifikasi oleh" (keterangan biasanya kosong)
-      const batasWaktuHtml = (statusVerif === "Berkas Tidak Lengkap" && batasWaktuVerif) ? ('<span class="block text-[11px] font-bold text-slate-900 mt-1">Batas waktu perbaikan: ' + esc(batasWaktuVerif) + '</span>') : '';
+      const batasWaktuHtml = (statusVerif === "Berkas Tidak Lengkap" && batasWaktuVerif) ? ('<span class="block text-[11px] font-bold text-slate-900 mt-1">Batas waktu perbaikan: ' + esc(batasWaktuVerif) + ', pukul 23.59 WIB</span>') : '';
       h += `<div class="mt-2 bg-${warnaBox}-50 border border-${warnaBox}-200 rounded-lg px-3 py-2 text-xs text-slate-900">
         ${keteranganVerif ? '<span class="font-bold">Keterangan:</span>' + (keteranganVerif.indexOf("\n") !== -1 ? '<span class="block whitespace-pre-line mt-0.5">' + esc(keteranganVerif) + '</span>' : " " + esc(keteranganVerif)) : ''}
         <span class="block text-[10px] text-slate-700${keteranganVerif ? ' mt-1' : ''}">Diverifikasi oleh ${esc(olehVerif)}${d[54] ? " (" + esc(d[54]) + ")" : ""} · ${esc(tglVerif)}</span>
@@ -2613,7 +2613,7 @@ function halamanBerikutnya() {
         <p class="text-xs font-bold text-amber-900 uppercase mb-2">${dataPengguna.role === "UTAMA" ? "Verifikasi Admin Utama" : "Verifikasi"}</p>
         <textarea id="input-keterangan-verifikasi" rows="2" placeholder="Tulis alasan jika data ini TIDAK memenuhi syarat atau berkasnya tidak lengkap (tidak perlu diisi untuk Memenuhi Syarat)..." class="w-full text-xs p-2 border border-amber-300 rounded-md mb-2"></textarea>
         ${window.djpmTemplatAlasan ? window.djpmTemplatAlasan.html(d, getBerkasSesuaiLayanan(d[7])) : ""}
-        <p class="text-[11px] text-amber-900 mb-2">Batas waktu perbaikan (jika pilih "Berkas Tidak Lengkap"): <strong>${esc(formatTanggalIndo(BATAS_PERBAIKAN_SERAGAM))}</strong> <span class="text-amber-700">(seragam untuk semua data)</span></p>
+        <p class="text-[11px] text-amber-900 mb-2">Batas waktu perbaikan (jika pilih "Berkas Tidak Lengkap"): <strong>${esc(formatTanggalIndo(BATAS_PERBAIKAN_SERAGAM))}, pukul 23.59 WIB</strong> <span class="text-amber-700">(seragam untuk semua data)</span></p>
         <input type="hidden" id="input-batas-waktu-verifikasi" value="${BATAS_PERBAIKAN_SERAGAM}">
         <div class="flex flex-wrap gap-2">
           ${statusVerif !== "Memenuhi Syarat" ? `<button id="btn-tandai-memenuhi" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
@@ -3564,7 +3564,7 @@ function susunTeksWhatsAppBerkasTidakLengkap(data, kelompok) {
       teks += '   Kelurahan: ' + (d.kelurahan || '-') + '\n';
       if (!untukKemenag) teks += '   Layanan: ' + d.layanan + '\n';
       teks += '   Alasan: ' + (d.keterangan || '-') + '\n';
-      teks += '   ⏰ Batas: ' + formatTanggalIndo(d.batasWaktu) + '\n\n';
+      teks += '   ⏰ Batas: ' + formatTanggalIndo(d.batasWaktu) + ', pukul 23.59 WIB\n\n';
     });
   });
   teks += '━━━━━━━━━━━━━━━\n';

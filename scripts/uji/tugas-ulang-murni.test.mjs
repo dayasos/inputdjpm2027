@@ -85,11 +85,11 @@ test("TEMPLAT: hanya aktif, status sama, layanan cocok (huruf besar/kecil), {LAY
 
 test("DAMPAK koreksi: BTL menyebut batas perbaikan; MS -> keluar dari calon pembayaran; sama seperti BATAS_PERBAIKAN_SERAGAM server", () => {
   assert.match(T.dampakKoreksi(MS, BTL), /calon pembayaran/);
-  assert.match(T.dampakKoreksi(MS, BTL), /30-11-2026/);
+  assert.match(T.dampakKoreksi(MS, BTL), /11-12-2026 pukul 23\.59 WIB/);
   assert.doesNotMatch(T.dampakKoreksi(BTL, TMS), /calon pembayaran/);
   assert.equal(T.dampakKoreksi(MS, MS), "");
   const cfg = baca("supabase/functions/api/_shared/config.ts");
-  assert.match(cfg, /BATAS_PERBAIKAN_SERAGAM = "2026-11-30"/, "teks dampak (30-11-2026) harus ikut berubah bila batas seragam berubah");
+  assert.match(cfg, /BATAS_PERBAIKAN_SERAGAM = "2026-12-11"/, "teks dampak (11-12-2026) harus ikut berubah bila batas seragam berubah");
 });
 
 test("KEMAJUAN: persen dari selesai/(sisa+selesai), aman untuk nol", () => {

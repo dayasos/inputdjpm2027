@@ -472,7 +472,8 @@ export async function getDaftarBerkasTidakLengkapUntukWA(token: string, kelompok
 // ---------------------------------------------------------------------------
 export async function cekBatasWaktuVerifikasi() {
   try {
-    const hariIniISO = new Date().toISOString().slice(0, 10); // yyyy-MM-dd UTC, cukup untuk perbandingan date
+    // Hari ini menurut WIB, dihitung di database. DULU memakai tanggal UTC: cron 01.00 WIB masih "kemarin" di UTC, sehingga penolakan
+    // otomatis tertunda SATU HARI dari batas yang diumumkan. Sekarang: batas tanggal D berlaku sampai D pukul 23.59 WIB, ditolak mulai 01.00 WIB D+1.
 
     // Atomic UPDATE: temukan + ubah dalam satu query (port Kode.gs baris 3075-3091)
     const rowsBerubah = await sql`
@@ -486,7 +487,7 @@ export async function cekBatasWaktuVerifikasi() {
       where tahun             = ${TAHUN_AKTIF}
         and status_verifikasi = 'Berkas Tidak Lengkap'
         and batas_waktu_perbaikan is not null
-        and batas_waktu_perbaikan < ${hariIniISO}::date
+        and batas_waktu_perbaikan < (now() at time zone 'Asia/Jakarta')::date
         -- Plan wajib lapor perbaikan (K5, 2026-10-22): data yang berkasnya SUDAH diganti user, atau sudah dilaporkan sudah
         -- diperbaiki, jangan ditolak otomatis -- Admin Utama yang memutuskan setelah memeriksa berkasnya.
         and tanggal_berkas_diubah is null

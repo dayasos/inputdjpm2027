@@ -183,7 +183,7 @@ test("DIKOREKSI MS -> BTL: status data ikut berubah (batas seragam), riwayat ULA
   assert.match(u[0].teks, /status_verifikasi = \?/);
   assert.match(u[0].teks, /and status_verifikasi = \?/, "pemeriksaan konflik terhadap status yang dilihat pemeriksa");
   assert.ok(u[0].nilai.includes("Berkas Tidak Lengkap") && u[0].nilai.includes("KTP buram"));
-  assert.ok(u[0].nilai.includes("2026-11-30"), "BTL memakai batas perbaikan seragam");
+  assert.ok(u[0].nilai.includes("2026-12-11"), "BTL memakai batas perbaikan seragam");
   assert.ok(u[0].nilai.includes("VERIF_A2"));
   const r = tulis("insert into riwayat_verifikasi")[0];
   assert.ok(r.nilai.includes("DIKOREKSI: KTP buram") && r.nilai.includes("ULANG") && r.nilai.includes("Memenuhi Syarat") && r.nilai.includes("Berkas Tidak Lengkap"));
@@ -192,7 +192,7 @@ test("DIKOREKSI MS -> BTL: status data ikut berubah (batas seragam), riwayat ULA
   h = await ulang.simpanHasilUlang(tok(), 11, { hasil: "DIKOREKSI", statusSesudah: "Tidak Memenuhi Syarat", alasan: "Bukan warga Medan" });
   assert.equal(h.sukses, true, JSON.stringify(h));
   const utms = tulis("update penerima set")[0];
-  assert.ok(utms.nilai.includes("Tidak Memenuhi Syarat") && utms.nilai.includes("Bukan warga Medan") && !utms.nilai.includes("2026-11-30"), "TMS tanpa batas perbaikan");
+  assert.ok(utms.nilai.includes("Tidak Memenuhi Syarat") && utms.nilai.includes("Bukan warga Medan") && !utms.nilai.includes("2026-12-11"), "TMS tanpa batas perbaikan");
 });
 
 test("ATURAN STATUS (K13): tidak boleh naik ke Memenuhi Syarat; status sama, tidak dikenal, alasan kosong ditolak", async () => {

@@ -225,7 +225,7 @@ try {
   await js("document.querySelector('" + KOTAK + " input[name=uld-mode][value=koreksi]').click(); true");
   await tungguSampai("!!document.querySelector('#uld-status')", "form koreksi");
   cek("PETUGAS: pilihan status baru hanya BTL dan TMS (tidak ada Memenuhi Syarat)", JSON.stringify(await js("Array.from(document.querySelectorAll('#uld-status option')).map((o) => o.textContent)")) === JSON.stringify(["Berkas Tidak Lengkap", "Tidak Memenuhi Syarat"]));
-  cek("PETUGAS: dampak koreksi (keluar calon pembayaran, batas 30-11-2026) tampil", /calon pembayaran/.test(await teks(KOTAK)) && /30-11-2026/.test(await teks(KOTAK)));
+  cek("PETUGAS: dampak koreksi (keluar calon pembayaran, batas 11-12-2026) tampil", /calon pembayaran/.test(await teks(KOTAK)) && /11-12-2026/.test(await teks(KOTAK)));
   for (const k of ["ktp", "buku_rekening"]) { await klik(`a[href="https://berkas.example/102/${k}"]`); await tungguSampai(`!document.querySelector('input[data-uld-centang="link_${k}"]').disabled`, "centang " + k); }
   cek("PETUGAS: koreksi tanpa alasan -> Simpan nonaktif; centang tidak diwajibkan untuk koreksi", (await nonaktif("#uld-simpan")) === true && /Alasan koreksi wajib/.test(await teks("#uld-valid")));
   cek("PETUGAS: pada koreksi ke Berkas Tidak Lengkap muncul alasan cepat 'Koordinat tidak valid' (di samping alasan cepat biasa)", /Koordinat tidak valid/.test(await teks(KOTAK + " .uld-chips")) && (await ada('[data-uld="koordinat"]')) && (await ada('[data-uld="templat"]')));

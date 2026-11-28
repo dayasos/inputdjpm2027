@@ -17,7 +17,7 @@
 
   // ------------------------------------------------------------------ bagian murni (diuji di Node)
   var MS = 'Memenuhi Syarat', BTL = 'Berkas Tidak Lengkap', TMS = 'Tidak Memenuhi Syarat';
-  var BATAS_PERBAIKAN = '30-11-2026';   // sama dengan BATAS_PERBAIKAN_SERAGAM di server (config.ts); hanya untuk teks dampak
+  var BATAS_PERBAIKAN = '11-12-2026';   // sama dengan BATAS_PERBAIKAN_SERAGAM di server (config.ts); hanya untuk teks dampak
 
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmt(n) { return (Number(n) || 0).toLocaleString('id-ID'); }
@@ -38,7 +38,7 @@
   function dampakKoreksi(dari, ke) {
     if (!ke || ke === dari) return '';
     var t = dari === MS ? 'Data keluar dari calon pembayaran. ' : '';
-    if (ke === BTL) return t + 'Penerima diberi batas perbaikan berkas sampai ' + BATAS_PERBAIKAN + '; lewat batas, data otomatis menjadi Tidak Memenuhi Syarat.';
+    if (ke === BTL) return t + 'Penerima diberi batas perbaikan berkas sampai ' + BATAS_PERBAIKAN + ' pukul 23.59 WIB; lewat batas, data otomatis menjadi Tidak Memenuhi Syarat.';
     if (ke === TMS) return t + 'Data dinyatakan Tidak Memenuhi Syarat. Menaikkan kembali hanya dapat dilakukan Admin Utama.';
     return '';
   }
